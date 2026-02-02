@@ -1,0 +1,360 @@
+// Prisma Schema - Portal Setgen
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUÁRIOS E AUTENTICAÇÃO
+// ============================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  ADMINISTRATIVE
+  WAREHOUSE
+  TECHNICIAN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relações
+  createdVisits          TechnicalVisit[] @relation("CreatedVisits")
+  createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
+  approvals              Approval[]
+  uploadedPurchaseOrders PurchaseOrder[]  @relation("UploadedPurchaseOrders")
+  createdInvoices        Invoice[]        @relation("CreatedInvoices")
+  deliveredServices      Delivery[]       @relation("DeliveredBy")
+  auditLogs              AuditLog[]
+  stockMovements         StockMovement[]
+
+  @@map("users")
+}
+
+// ============================================
+// CLIENTES
+// ============================================
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  DEFAULTER
+}
+
+model Client {
+  id           String       @id @default(uuid())
+  cnpjCpf      String       @unique
+  companyName  String
+  tradeName    String?
+  address      Json
+  phone        String
+  email        String
+  contacts     Json[]
+  status       ClientStatus @default(ACTIVE)
+  notes        String?      @db.Text
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relações
+  technicalVisits TechnicalVisit[]
+  serviceOrders   ServiceOrder[]
+  purchaseOrders  PurchaseOrder[]
+
+  @@map("clients")
+}
+
+// ============================================
+// VISITAS TÉCNICAS
+// ============================================
+
+enum VisitType {
+  COMMERCIAL
+  TECHNICAL
+  MAINTENANCE
+}
+
+model TechnicalVisit {
+  id                String   @id @default(uuid())
+  clientId          String
+  technicianId      String
+  visitDate         DateTime
+  visitType         VisitType
+  location          String
+  description       String   @db.Text
+  identifiedNeeds   String?  @db.Text
+  suggestedScope    String?  @db.Text
+  estimatedDeadline String?
+  estimatedValue    Decimal? @db.Decimal(10, 2)
+  attachments       String[]
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relações
+  client        Client        @relation(fields: [clientId], references: [id])
+  technician    User          @relation("CreatedVisits", fields: [technicianId], references: [id])
+  serviceOrders ServiceOrder[]
+
+  @@map("technical_visits")
+}
+
+// ============================================
+// ORDENS DE SERVIÇO
+// ============================================
+
+enum ServiceOrderType {
+  VISIT_REPORT
+  EXECUTION
+}
+
+enum ServiceOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ServiceOrder {
+  id               String             @id @default(uuid())
+  orderNumber      String             @unique
+  type             ServiceOrderType
+  clientId         String
+  technicalVisitId String?
+  status           ServiceOrderStatus @default(DRAFT)
+  scope            String             @db.Text
+  requiredResources Json?
+  deadline         DateTime?
+  responsibleIds   String[]
+  checklist        Json[]
+  progress         Int                @default(0)
+  attachments      String[]
+  createdById      String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  // Relações
+  client         Client          @relation(fields: [clientId], references: [id])
+  technicalVisit TechnicalVisit? @relation(fields: [technicalVisitId], references: [id])
+  createdBy      User            @relation("CreatedServiceOrders", fields: [createdById], references: [id])
+  approvals      Approval[]
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+  delivery       Delivery?
+
+  @@map("service_orders")
+}
+
+// ============================================
+// APROVAÇÕES
+// ============================================
+
+enum ApprovalStatus {
+  APPROVED
+  REJECTED
+}
+
+model Approval {
+  id             String         @id @default(uuid())
+  serviceOrderId String
+  approverId     String
+  status         ApprovalStatus
+  comments       String?        @db.Text
+  approvedAt     DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+
+  // Relações
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  approver     User         @relation(fields: [approverId], references: [id])
+
+  @@map("approvals")
+}
+
+// ============================================
+// ORDENS DE COMPRA
+// ============================================
+
+enum PurchaseOrderStatus {
+  PENDING
+  APPROVED
+  EXPIRED
+}
+
+model PurchaseOrder {
+  id             String              @id @default(uuid())
+  serviceOrderId String
+  clientId       String
+  orderNumber    String
+  value          Decimal             @db.Decimal(10, 2)
+  issueDate      DateTime
+  expiryDate     DateTime
+  status         PurchaseOrderStatus @default(PENDING)
+  fileUrl        String
+  uploadedById   String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  // Relações
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  client       Client       @relation(fields: [clientId], references: [id])
+  uploadedBy   User         @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
+  invoices     Invoice[]
+
+  @@map("purchase_orders")
+}
+
+// ============================================
+// NOTAS FISCAIS
+// ============================================
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  serviceOrderId  String
+  purchaseOrderId String
+  invoiceNumber   String
+  series          String
+  value           Decimal       @db.Decimal(10, 2)
+  issueDate       DateTime
+  dueDate         DateTime
+  status          InvoiceStatus @default(ISSUED)
+  xmlUrl          String?
+  pdfUrl          String?
+  createdById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relações
+  serviceOrder  ServiceOrder  @relation(fields: [serviceOrderId], references: [id])
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  createdBy     User          @relation("CreatedInvoices", fields: [createdById], references: [id])
+
+  @@map("invoices")
+}
+
+// ============================================
+// ENTREGAS E ACEITES
+// ============================================
+
+model Delivery {
+  id                  String   @id @default(uuid())
+  serviceOrderId      String   @unique
+  deliveryDate        DateTime
+  deliveredById       String
+  receivedBy          String
+  checklist           Json[]
+  evidences           String[]
+  acceptanceSignature String?
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+
+  // Relações
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  deliveredBy  User         @relation("DeliveredBy", fields: [deliveredById], references: [id])
+
+  @@map("deliveries")
+}
+
+// ============================================
+// ESTOQUE
+// ============================================
+
+model Product {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  name         String
+  description  String?  @db.Text
+  unit         String
+  minStock     Int      @default(0)
+  currentStock Int      @default(0)
+  unitCost     Decimal? @db.Decimal(10, 2)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relações
+  movements StockMovement[]
+
+  @@map("products")
+}
+
+// ============================================
+// ESTOQUE - MOVIMENTAÇÕES
+// ============================================
+
+enum MovementType {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+  TRANSFER
+}
+
+model StockMovement {
+  id          String       @id @default(uuid())
+  productId   String
+  type        MovementType
+  quantity    Int
+  unitCost    Decimal?     @db.Decimal(10, 2)
+  totalCost   Decimal?     @db.Decimal(10, 2)
+  reason      String?      @db.Text
+  referenceId String?
+  createdById String
+  createdAt   DateTime     @default(now())
+
+  // Relações
+  product   Product @relation(fields: [productId], references: [id])
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@map("stock_movements")
+}
+
+// ============================================
+// AUDITORIA
+// ============================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  LOGIN
+  LOGOUT
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String
+  action    AuditAction
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  // Relações
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
