@@ -36,17 +36,44 @@ export class CreateServiceOrderDto {
   @IsNotEmpty({ message: 'Escopo é obrigatório' })
   scope: string;
 
+  @ApiProperty({ example: 'Internet lenta e oscilando', required: false })
+  @IsString()
+  @IsOptional()
+  reportedDefects?: string;
+
+  @ApiProperty({ example: 'Troca de cabos e reparo de conectores', required: false })
+  @IsString()
+  @IsOptional()
+  requestedServices?: string;
+
+  @ApiProperty({ example: 'Urgente: cliente sem acesso ao sistema financeiro', required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @ApiProperty({
+    example: [
+      { productId: 'prod-uuid', quantity: 2, unitPrice: 50.0 }
+    ],
+    required: false
+  })
+  @IsArray()
+  @IsOptional()
+  items?: Array<{
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+
   @ApiProperty({
     example: {
       team: ['João Silva', 'Maria Santos'],
-      materials: ['Switch 24 portas', 'Cabos Cat6'],
     },
     required: false,
   })
   @IsOptional()
   requiredResources?: {
     team?: string[];
-    materials?: string[];
   };
 
   @ApiProperty({ example: '2024-02-15T23:59:59.000Z', required: false })

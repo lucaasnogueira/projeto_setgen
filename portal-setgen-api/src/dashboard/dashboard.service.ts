@@ -378,4 +378,134 @@ export class DashboardService {
 
     return trends;
   }
+
+  /* =========================
+     FRONTEND COMPATIBILITY
+  ========================== */
+  async getStats() {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      pendingApprovals,
+      activeOrders,
+      completedThisMonth,
+      totalRevenue,
+      lowStockItems,
+      overdueInvoices,
+      ordersByStatus,
+      monthlyRevenue,
+      visitsByMonth,
+      recentActivities,
+    ] = await Promise.all([
+      this.prisma.serviceOrder.count({
+        where: { status: ServiceOrderStatus.PENDING_APPROVAL },
+      }),
+      this.prisma.serviceOrder.count({
+        where: {
+          status: {
+            in: [ServiceOrderStatus.IN_PROGRESS, ServiceOrderStatus.APPROVED],
+          },
+        },
+      }),
+      this.prisma.serviceOrder.count({
+        where: {
+          status: ServiceOrderStatus.COMPLETED,
+          updatedAt: { gte: firstDayOfMonth },
+        },
+      }),
+      this.prisma.invoice.aggregate({
+        _sum: { value: true },
+        where: { status: InvoiceStatus.PAID },
+      }),
+      this.prisma.product.count({
+        where: { currentStock: { lte: this.prisma.product.fields.minStock } },
+      }),
+      this.prisma.invoice.count({
+        where: { status: InvoiceStatus.OVERDUE },
+      }),
+      this.prisma.serviceOrder.groupBy({
+        by: ['status'],
+        _count: true,
+      }),
+      this.getRevenueTrend(6),
+      this.getVisitsTrend(6),
+      this.getRecentActivities(),
+    ]);
+
+    const statusLabels: Record<string, string> = {
+      DRAFT: 'Rascunho',
+      PENDING_APPROVAL: 'Aguardando Aprovação',
+      APPROVED: 'Aprovada',
+      REJECTED: 'Rejeitada',
+      IN_PROGRESS: 'Em Andamento',
+      COMPLETED: 'Concluída',
+      CANCELLED: 'Cancelada',
+    };
+
+    return {
+      pendingApprovals,
+      activeOrders,
+      completedThisMonth,
+      totalRevenue: Number(totalRevenue._sum.value ?? 0),
+      lowStockItems,
+      overdueInvoices,
+      recentActivities,
+      ordersByStatus: ordersByStatus.map((s) => ({
+        label: statusLabels[s.status] || s.status,
+        value: s._count,
+      })),
+      monthlyRevenue: monthlyRevenue.map((r) => ({
+        month: r.month,
+        value: r.total,
+      })),
+      visitsByMonth: visitsByMonth.map((v) => ({
+        month: v.month,
+        value: v.count,
+      })),
+    };
+  }
+
+  async getRecentActivities() {
+    const activities: any[] = [];
+
+    // OS Aprovadas recentemente
+    const recentOrders = await this.prisma.serviceOrder.findMany({
+      where: {
+        status: ServiceOrderStatus.APPROVED,
+      },
+      take: 5,
+      orderBy: { updatedAt: 'desc' },
+      include: { client: true },
+    });
+
+    for (const order of recentOrders) {
+      activities.push({
+        id: order.id,
+        type: 'ORDER_APPROVED',
+        description: `OS ${order.orderNumber} aprovada para ${order.client.tradeName || order.client.companyName}`,
+        timestamp: order.updatedAt.toISOString(),
+      });
+    }
+
+    // Novos clientes
+    const recentClients = await this.prisma.client.findMany({
+      take: 3,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    for (const client of recentClients) {
+      activities.push({
+        id: client.id,
+        type: 'NEW_CLIENT',
+        description: `Novo cliente cadastrado: ${client.tradeName || client.companyName}`,
+        timestamp: client.createdAt.toISOString(),
+      });
+    }
+
+    return activities.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+    );
+  }
 }

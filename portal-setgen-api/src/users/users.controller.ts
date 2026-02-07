@@ -54,4 +54,18 @@ export class UsersController {
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
+
+  @Patch(':id/toggle-active')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Ativar/Desativar usuário' })
+  toggleActive(@Param('id') id: string) {
+    return this.usersService.toggleActive(id);
+  }
+
+  @Patch(':id/reset-password')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Resetar senha do usuário' })
+  resetPassword(@Param('id') id: string, @Body() resetPasswordDto: any) {
+    return this.usersService.resetPassword(id, resetPasswordDto);
+  }
 }

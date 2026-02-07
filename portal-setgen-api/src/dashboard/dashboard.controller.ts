@@ -94,4 +94,18 @@ export class DashboardController {
     const monthsNum = months && !isNaN(+months) ? Number(months) : 12;
     return this.dashboardService.getRevenueTrend(monthsNum);
   }
+
+  @Get('stats')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.WAREHOUSE, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Estatísticas simplificadas para o Dashboard' })
+  getStats() {
+    return this.dashboardService.getStats();
+  }
+
+  @Get('activities')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.WAREHOUSE, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Atividades recentes do sistema' })
+  getActivities() {
+    return this.dashboardService.getRecentActivities();
+  }
 }

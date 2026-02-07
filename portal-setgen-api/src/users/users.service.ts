@@ -119,4 +119,37 @@ export class UsersService {
       },
     });
   }
+
+  async toggleActive(id: string) {
+    const user = await this.findOne(id);
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { active: !user.active },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async resetPassword(id: string, resetPasswordDto: any) {
+    await this.findOne(id);
+    const hashedPassword = await bcrypt.hash(resetPasswordDto.password, 10);
+
+    return this.prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        updatedAt: true,
+      },
+    });
+  }
 }

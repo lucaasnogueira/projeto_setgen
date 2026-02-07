@@ -54,18 +54,18 @@ enum ClientStatus {
 }
 
 model Client {
-  id           String       @id @default(uuid())
-  cnpjCpf      String       @unique
-  companyName  String
-  tradeName    String?
-  address      Json
-  phone        String
-  email        String
-  contacts     Json[]
-  status       ClientStatus @default(ACTIVE)
-  notes        String?      @db.Text
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id          String       @id @default(uuid())
+  cnpjCpf     String       @unique
+  companyName String
+  tradeName   String?
+  address     Json
+  phone       String
+  email       String
+  contacts    Json[]
+  status      ClientStatus @default(ACTIVE)
+  notes       String?      @db.Text
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   // Relações
   technicalVisits TechnicalVisit[]
@@ -86,25 +86,25 @@ enum VisitType {
 }
 
 model TechnicalVisit {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   clientId          String
   technicianId      String
   visitDate         DateTime
   visitType         VisitType
   location          String
-  description       String   @db.Text
-  identifiedNeeds   String?  @db.Text
-  suggestedScope    String?  @db.Text
+  description       String    @db.Text
+  identifiedNeeds   String?   @db.Text
+  suggestedScope    String?   @db.Text
   estimatedDeadline String?
-  estimatedValue    Decimal? @db.Decimal(10, 2)
+  estimatedValue    Decimal?  @db.Decimal(10, 2)
   attachments       String[]
-  notes             String?  @db.Text
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relações
-  client        Client        @relation(fields: [clientId], references: [id])
-  technician    User          @relation("CreatedVisits", fields: [technicianId], references: [id])
+  client        Client         @relation(fields: [clientId], references: [id])
+  technician    User           @relation("CreatedVisits", fields: [technicianId], references: [id])
   serviceOrders ServiceOrder[]
 
   @@map("technical_visits")
@@ -130,31 +130,35 @@ enum ServiceOrderStatus {
 }
 
 model ServiceOrder {
-  id               String             @id @default(uuid())
-  orderNumber      String             @unique
-  type             ServiceOrderType
-  clientId         String
-  technicalVisitId String?
-  status           ServiceOrderStatus @default(DRAFT)
-  scope            String             @db.Text
+  id                String             @id @default(uuid())
+  orderNumber       String             @unique
+  type              ServiceOrderType
+  clientId          String
+  technicalVisitId  String?
+  status            ServiceOrderStatus @default(DRAFT)
+  scope             String             @db.Text
+  reportedDefects   String?            @db.Text
+  requestedServices String?            @db.Text
+  notes             String?            @db.Text
   requiredResources Json?
-  deadline         DateTime?
-  responsibleIds   String[]
-  checklist        Json[]
-  progress         Int                @default(0)
-  attachments      String[]
-  createdById      String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  deadline          DateTime?
+  responsibleIds    String[]
+  checklist         Json[]
+  progress          Int                @default(0)
+  attachments       String[]
+  createdById       String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   // Relações
-  client         Client          @relation(fields: [clientId], references: [id])
-  technicalVisit TechnicalVisit? @relation(fields: [technicalVisitId], references: [id])
-  createdBy      User            @relation("CreatedServiceOrders", fields: [createdById], references: [id])
+  client         Client                @relation(fields: [clientId], references: [id])
+  technicalVisit TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
+  createdBy      User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
   approvals      Approval[]
   purchaseOrders PurchaseOrder[]
   invoices       Invoice[]
   delivery       Delivery?
+  items          ServiceOrderProduct[]
 
   @@map("service_orders")
 }
@@ -293,9 +297,26 @@ model Product {
   updatedAt    DateTime @updatedAt
 
   // Relações
-  movements StockMovement[]
+  movements     StockMovement[]
+  serviceOrders ServiceOrderProduct[]
 
   @@map("products")
+}
+
+model ServiceOrderProduct {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  productId      String
+  quantity       Int
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  totalPrice     Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  // Relações
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+
+  @@map("service_order_products")
 }
 
 // ============================================

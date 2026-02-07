@@ -8,6 +8,7 @@ import {
   IsDateString,
   IsOptional,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePurchaseOrderDto {
   @ApiProperty({ example: 'service-order-uuid-here' })
@@ -26,6 +27,7 @@ export class CreatePurchaseOrderDto {
   orderNumber: string;
 
   @ApiProperty({ example: 25000.0 })
+  @Type(() => Number)
   @IsNumber()
   @Min(0.01, { message: 'Valor deve ser maior que zero' })
   value: number;

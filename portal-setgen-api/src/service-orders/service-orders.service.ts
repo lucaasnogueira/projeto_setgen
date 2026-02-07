@@ -78,6 +78,9 @@ export class ServiceOrdersService {
         },
       }),
       scope: createServiceOrderDto.scope,
+      reportedDefects: createServiceOrderDto.reportedDefects,
+      requestedServices: createServiceOrderDto.requestedServices,
+      notes: createServiceOrderDto.notes,
       requiredResources: createServiceOrderDto.requiredResources || {},
       ...(createServiceOrderDto.deadline && {
         deadline: new Date(createServiceOrderDto.deadline),
@@ -89,6 +92,16 @@ export class ServiceOrdersService {
         createServiceOrderDto.type === ServiceOrderType.VISIT_REPORT
           ? ServiceOrderStatus.PENDING_APPROVAL
           : ServiceOrderStatus.DRAFT,
+      ...(createServiceOrderDto.items && {
+        items: {
+          create: createServiceOrderDto.items.map((item) => ({
+            product: { connect: { id: item.productId } },
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.quantity * item.unitPrice,
+          })),
+        },
+      }),
     };
 
     return this.prisma.serviceOrder.create({
@@ -121,6 +134,11 @@ export class ServiceOrdersService {
             name: true,
             email: true,
             role: true,
+          },
+        },
+        items: {
+          include: {
+            product: true,
           },
         },
       },
@@ -214,6 +232,18 @@ export class ServiceOrdersService {
         purchaseOrders: true,
         invoices: true,
         delivery: true,
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                unit: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -274,7 +304,39 @@ export class ServiceOrdersService {
       ...(updateServiceOrderDto.progress !== undefined && {
         progress: updateServiceOrderDto.progress,
       }),
+      ...(updateServiceOrderDto.reportedDefects !== undefined && {
+        reportedDefects: updateServiceOrderDto.reportedDefects,
+      }),
+      ...(updateServiceOrderDto.requestedServices !== undefined && {
+        requestedServices: updateServiceOrderDto.requestedServices,
+      }),
+      ...(updateServiceOrderDto.notes !== undefined && {
+        notes: updateServiceOrderDto.notes,
+      }),
     };
+
+    // Se houver itens para atualizar, lidar com a sincronização
+    if (updateServiceOrderDto.items) {
+      // Por simplicidade, deletamos os antigos e criamos os novos
+      // Em uma aplicação real, faríamos um diff selectivo
+      await this.prisma.serviceOrderProduct.deleteMany({
+        where: { serviceOrderId: id },
+      });
+
+      await this.prisma.serviceOrder.update({
+        where: { id },
+        data: {
+          items: {
+            create: updateServiceOrderDto.items.map((item) => ({
+              product: { connect: { id: item.productId } },
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.quantity * item.unitPrice,
+            })),
+          },
+        },
+      });
+    }
 
     return this.prisma.serviceOrder.update({
       where: { id },
@@ -358,14 +420,46 @@ export class ServiceOrdersService {
   }
 
   async remove(id: string, userRole: UserRole) {
-    await this.findOne(id);
+    const order = await this.findOne(id);
 
     if (userRole !== UserRole.ADMIN) {
       throw new ForbiddenException('Apenas administradores podem deletar OS');
     }
 
-    return this.prisma.serviceOrder.delete({
-      where: { id },
+    // Verificar se existem registros financeiros vinculados
+    const hasFinancialRecords =
+      (order.purchaseOrders && order.purchaseOrders.length > 0) ||
+      (order.invoices && order.invoices.length > 0);
+
+    if (hasFinancialRecords) {
+      throw new BadRequestException(
+        'Não é possível deletar esta OS pois existem Ordens de Compra ou Notas Fiscais vinculadas. Remova-as primeiro.',
+      );
+    }
+
+    // Deletar dependências e a OS em uma transação
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Deletar aprovações
+      await tx.approval.deleteMany({
+        where: { serviceOrderId: id },
+      });
+
+      // 2. Deletar itens da OS
+      await tx.serviceOrderProduct.deleteMany({
+        where: { serviceOrderId: id },
+      });
+
+      // 3. Deletar entregas
+      // Delivery é one-to-one ou one-to-many? No schema é one-to-one (Delivery?)
+      // Mas o deleteMany é seguro
+      await tx.delivery.deleteMany({
+        where: { serviceOrderId: id },
+      });
+
+      // 4. Deletar a OS
+      return tx.serviceOrder.delete({
+        where: { id },
+      });
     });
   }
 
