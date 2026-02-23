@@ -418,9 +418,13 @@ export class DashboardService {
         _sum: { value: true },
         where: { status: InvoiceStatus.PAID },
       }),
-      this.prisma.product.count({
-        where: { currentStock: { lte: this.prisma.product.fields.minStock } },
-      }),
+      // Buscamos todos os produtos e filtramos via JS pois o Prisma não compara campos no `where`
+      this.prisma.product
+        .findMany({ select: { currentStock: true, minStock: true } })
+        .then(
+          (products) =>
+            products.filter((p) => p.currentStock <= p.minStock).length,
+        ),
       this.prisma.invoice.count({
         where: { status: InvoiceStatus.OVERDUE },
       }),

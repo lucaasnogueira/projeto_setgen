@@ -1,5 +1,6 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { seedExpenseCategories } from './seeds/expense-categories.seed';
 
 const prisma = new PrismaClient();
 
@@ -67,6 +68,9 @@ async function main() {
     email: technician.email,
     role: technician.role,
   });
+
+  // Seed de Categorias Financeiras
+  await seedExpenseCategories();
 
   console.log('\n🎉 Seed concluído com sucesso!');
   console.log('\n📝 Credenciais de acesso:');

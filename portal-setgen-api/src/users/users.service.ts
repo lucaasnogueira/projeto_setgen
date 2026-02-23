@@ -25,14 +25,25 @@ export class UsersService {
 
     const user = await this.prisma.user.create({
       data: {
-        ...createUserDto,
+        name: createUserDto.name,
+        email: createUserDto.email,
         password: hashedPassword,
+        role: createUserDto.role,
+        roleId: createUserDto.roleId,
+        permissions: {
+          create: createUserDto.permissionIds?.map((pId) => ({
+            permission: {
+              connect: { name: pId },
+            },
+          })),
+        },
       },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         createdAt: true,
       },
@@ -48,12 +59,18 @@ export class UsersService {
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         createdAt: true,
         updatedAt: true,
+        roleRef: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc',
+        name: 'asc',
       },
     });
   }
@@ -66,9 +83,24 @@ export class UsersService {
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         createdAt: true,
         updatedAt: true,
+        roleRef: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
       },
     });
 
@@ -92,14 +124,27 @@ export class UsersService {
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
     }
 
+    const { permissionIds, ...data } = updateUserDto;
+
     return this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: {
+        ...data,
+        permissions: permissionIds ? {
+          deleteMany: {},
+          create: permissionIds.map((pId) => ({
+            permission: {
+              connect: { name: pId },
+            },
+          })),
+        } : undefined,
+      },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         updatedAt: true,
       },

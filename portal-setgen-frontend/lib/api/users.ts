@@ -5,9 +5,15 @@ export interface User {
   name: string;
   email: string;
   role: 'ADMIN' | 'MANAGER' | 'ADMINISTRATIVE' | 'WAREHOUSE' | 'TECHNICIAN';
+  roleId?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  roleRef?: {
+    name?: string;
+    permissions?: { permission: { id: string; name: string } }[];
+  };
+  permissions?: { permission: { id: string; name: string } }[];
 }
 
 export const usersApi = {
@@ -26,12 +32,12 @@ export const usersApi = {
     return data;
   },
 
-  async create(userData: Partial<User> & { password: string }): Promise<User> {
+  async create(userData: Partial<User> & { password: string, permissionIds?: string[] }): Promise<User> {
     const { data } = await api.post('/users', userData);
     return data;
   },
 
-  async update(id: string, userData: Partial<User>): Promise<User> {
+  async update(id: string, userData: Partial<User> & { permissionIds?: string[] }): Promise<User> {
     const { data } = await api.patch(`/users/${id}`, userData);
     return data;
   },

@@ -1,0 +1,8 @@
+[33m[1mwarn[22m[39m The configuration property `package.json#prisma` is deprecated and will be removed in Prisma 7. Please migrate to a Prisma config file (e.g., `prisma.config.ts`).
+For more information, see: [4mhttps://pris.ly/prisma-config[24m
+
+[2mEnvironment variables loaded from .env[22m
+[1m[31mError: [39m[22m
+EPERM: operation not permitted, rename 'C:\Users\lucas.silva\Documents\Projeto Setgen\portal-setgen-api\node_modules\.prisma\client\query_engine-windows.dll.node.tmp39720' -> 'C:\Users\lucas.silva\Documents\Projeto Setgen\portal-setgen-api\node_modules\.prisma\client\query_engine-windows.dll.node'
+
+

@@ -9,7 +9,7 @@ datasource db {
 }
 
 // ============================================
-// USUÁRIOS E AUTENTICAÇÃO
+// USUÃRIOS E AUTENTICAÃ‡ÃƒO
 // ============================================
 
 enum UserRole {
@@ -26,11 +26,13 @@ model User {
   email     String   @unique
   password  String
   role      UserRole
+  roleId    String?
+  roleRef   Role?    @relation(fields: [roleId], references: [id])
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relações
+  // RelaÃ§Ãµes 
   createdVisits          TechnicalVisit[] @relation("CreatedVisits")
   createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
   approvals              Approval[]
@@ -40,7 +42,62 @@ model User {
   auditLogs              AuditLog[]
   stockMovements         StockMovement[]
 
+  // RelaÃ§Ãµes MÃ³dulo Financeiro
+  expenses           Expense[]           @relation("UserExpenses")
+  approvedExpenses   Expense[]           @relation("ApprovedExpenses")
+  employee           Employee?
+  expenseAttachments ExpenseAttachment[]
+  
+  // PermissÃµes Granulares
+  permissions        UserPermission[]
+
   @@map("users")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // ex: "users:create"
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles       RolePermission[]
+  users       UserPermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
 }
 
 // ============================================
@@ -67,16 +124,19 @@ model Client {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  // Relações
+  // RelaÃ§Ãµes Existentes
   technicalVisits TechnicalVisit[]
   serviceOrders   ServiceOrder[]
   purchaseOrders  PurchaseOrder[]
+
+  // RelaÃ§Ãµes MÃ³dulo Financeiro
+  expenses Expense[]
 
   @@map("clients")
 }
 
 // ============================================
-// VISITAS TÉCNICAS
+// VISITAS TÃ‰CNICAS E ORDENS DE SERVIÃ‡O
 // ============================================
 
 enum VisitType {
@@ -102,16 +162,19 @@ model TechnicalVisit {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  // Relações
+  // RelaÃ§Ãµes
   client        Client         @relation(fields: [clientId], references: [id])
   technician    User           @relation("CreatedVisits", fields: [technicianId], references: [id])
   serviceOrders ServiceOrder[]
+
+  // RelaÃ§Ãµes MÃ³dulo Financeiro
+  expenses Expense[]
 
   @@map("technical_visits")
 }
 
 // ============================================
-// ORDENS DE SERVIÇO
+// ORDENS DE SERVIÃ‡O
 // ============================================
 
 enum ServiceOrderType {
@@ -150,7 +213,7 @@ model ServiceOrder {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
-  // Relações
+  // RelaÃ§Ãµes
   client         Client                @relation(fields: [clientId], references: [id])
   technicalVisit TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
   createdBy      User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
@@ -160,11 +223,294 @@ model ServiceOrder {
   delivery       Delivery?
   items          ServiceOrderProduct[]
 
+  // RelaÃ§Ãµes MÃ³dulo Financeiro
+  expenses Expense[]
+
   @@map("service_orders")
 }
 
 // ============================================
-// APROVAÇÕES
+// MÃ“DULO FINANCEIRO (NOVO)
+// ============================================
+
+model ExpenseCategory {
+  id            String              @id @default(uuid())
+  name          String
+  code          String              @unique
+  type          ExpenseCategoryType
+  group         ExpenseGroup
+  description   String?
+  color         String? // Hex color para UI
+  icon          String? // Nome do Ã­cone Lucide
+  isActive      Boolean             @default(true)
+  defaultBudget Decimal?            @db.Decimal(10, 2)
+
+  expenses  Expense[]
+  budgets   Budget[]
+  recurring RecurringExpense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id          String      @id @default(uuid())
+  code        String      @unique // Ex: DESP-2024-0001
+  description String
+  type        ExpenseType
+  amount      Decimal     @db.Decimal(10, 2)
+  paidAmount  Decimal?    @db.Decimal(10, 2)
+
+  date           DateTime
+  dueDate        DateTime
+  paymentDate    DateTime?
+  competenceDate DateTime // MÃªs de referÃªncia
+
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  costCenterId String?
+  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
+
+  // VÃ­nculos Operacionais
+  visitId        String?
+  visit          TechnicalVisit? @relation(fields: [visitId], references: [id])
+  serviceOrderId String?
+  serviceOrder   ServiceOrder?   @relation(fields: [serviceOrderId], references: [id])
+  clientId       String?
+  client         Client?         @relation(fields: [clientId], references: [id])
+
+  paymentMethod  PaymentMethod?
+  bankAccountId  String?
+  bankAccount    BankAccount?   @relation(fields: [bankAccountId], references: [id])
+  documentNumber String? // NF, Recibo, etc.
+
+  userId String
+  user   User   @relation("UserExpenses", fields: [userId], references: [id])
+
+  approvedBy      String?
+  approver        User?     @relation("ApprovedExpenses", fields: [approvedBy], references: [id])
+  approvalDate    DateTime?
+  rejectionReason String?
+
+  status ExpenseStatus @default(PENDING)
+  notes  String?       @db.Text
+
+  isRecurring Boolean           @default(false)
+  recurringId String?
+  recurring   RecurringExpense? @relation(fields: [recurringId], references: [id])
+
+  // Novos campos
+  supplier          String? // Nome do fornecedor
+  installment       Int? // Parcela atual (ex: 3)
+  totalInstallments Int? // Total de parcelas (ex: 12)
+  parentExpenseId   String?
+  parentExpense     Expense?  @relation("InstallmentExpenses", fields: [parentExpenseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  installments      Expense[] @relation("InstallmentExpenses")
+
+  tags    String[] // Tags para filtros adicionais
+  isFixed Boolean  @default(false) // Despesa fixa mensal
+
+  // Campos para conciliaÃ§Ã£o bancÃ¡ria
+  reconciled   Boolean   @default(false)
+  reconciledAt DateTime?
+  reconciledBy String?
+
+  attachments ExpenseAttachment[]
+  cashFlows   CashFlow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([userId])
+  @@index([status])
+  @@index([competenceDate])
+  @@map("expenses")
+}
+
+model CostCenter {
+  id          String  @id @default(uuid())
+  name        String
+  code        String  @unique
+  description String?
+  isActive    Boolean @default(true)
+
+  // Hierarquia
+  parentId String?
+  parent   CostCenter?  @relation("SubCenters", fields: [parentId], references: [id])
+  children CostCenter[] @relation("SubCenters")
+
+  expenses Expense[]
+  budgets  Budget[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  employees Employee[]
+
+  @@map("cost_centers")
+}
+
+model Budget {
+  id            String          @id @default(uuid())
+  year          Int
+  month         Int? // null = anual
+  categoryId    String
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  costCenterId  String?
+  costCenter    CostCenter?     @relation(fields: [costCenterId], references: [id])
+  plannedAmount Decimal         @db.Decimal(10, 2)
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month, categoryId, costCenterId])
+  @@map("budgets")
+}
+
+model RecurringExpense {
+  id          String              @id @default(uuid())
+  description String
+  categoryId  String
+  category    ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  amount      Decimal             @db.Decimal(10, 2)
+  frequency   RecurrenceFrequency
+  dayOfMonth  Int?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean             @default(true)
+
+  expenses Expense[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("recurring_expenses")
+}
+
+model BankAccount {
+  id       String  @id @default(uuid())
+  name     String // Ex: ItaÃº Principal
+  bankName String
+  agency   String
+  account  String
+  type     String // Corrente, PoupanÃ§a
+  balance  Decimal @default(0) @db.Decimal(10, 2)
+  isActive Boolean @default(true)
+
+  expenses  Expense[]
+  cashFlows CashFlow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bank_accounts")
+}
+
+model CashFlow {
+  id          String       @id @default(uuid())
+  date        DateTime
+  type        CashFlowType // INFLOW, OUTFLOW
+  category    String
+  amount      Decimal      @db.Decimal(10, 2)
+  balance     Decimal      @db.Decimal(10, 2) // Saldo apÃ³s movimento
+  description String
+
+  expenseId String?
+  expense   Expense? @relation(fields: [expenseId], references: [id])
+
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([bankAccountId])
+  @@map("cash_flow")
+}
+
+model ExpenseAttachment {
+  id         String   @id @default(uuid())
+  expenseId  String
+  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int
+  uploadedBy String
+  user       User     @relation(fields: [uploadedBy], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@map("expense_attachments")
+}
+
+// ============================================
+// ENUMS FINANCEIROS
+// ============================================
+
+enum ExpenseCategoryType {
+  OPERATIONAL
+  ADMINISTRATIVE
+  FINANCIAL
+  TAX
+  PAYROLL
+}
+
+enum ExpenseGroup {
+  SUPPLIERS_AND_PURCHASES
+  PRO_LABORE
+  FINANCIAL_COMMITMENTS
+  TAXES
+  MONTHLY_EXPENSES
+  BANK_DISBURSEMENTS
+  SERVICE_EXPENSES
+}
+
+enum ExpenseType {
+  SERVICE
+  ADMINISTRATIVE
+  FINANCIAL
+  TAX
+  PAYROLL
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  PAID
+  PARTIALLY_PAID
+  CANCELLED
+  OVERDUE
+  REJECTED
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  BANK_TRANSFER
+  PIX
+  BANK_SLIP
+  CHECK
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum CashFlowType {
+  INFLOW // Entrada
+  OUTFLOW // SaÃ­da
+}
+
+// ============================================
+// APROVAÃ‡Ã•ES
 // ============================================
 
 enum ApprovalStatus {
@@ -181,7 +527,6 @@ model Approval {
   approvedAt     DateTime       @default(now())
   createdAt      DateTime       @default(now())
 
-  // Relações
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   approver     User         @relation(fields: [approverId], references: [id])
 
@@ -212,7 +557,6 @@ model PurchaseOrder {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  // Relações
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   client       Client       @relation(fields: [clientId], references: [id])
   uploadedBy   User         @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
@@ -248,7 +592,6 @@ model Invoice {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  // Relações
   serviceOrder  ServiceOrder  @relation(fields: [serviceOrderId], references: [id])
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
   createdBy     User          @relation("CreatedInvoices", fields: [createdById], references: [id])
@@ -272,7 +615,6 @@ model Delivery {
   notes               String?  @db.Text
   createdAt           DateTime @default(now())
 
-  // Relações
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   deliveredBy  User         @relation("DeliveredBy", fields: [deliveredById], references: [id])
 
@@ -280,7 +622,7 @@ model Delivery {
 }
 
 // ============================================
-// ESTOQUE
+// ESTOQUE 
 // ============================================
 
 model Product {
@@ -296,7 +638,6 @@ model Product {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  // Relações
   movements     StockMovement[]
   serviceOrders ServiceOrderProduct[]
 
@@ -312,7 +653,6 @@ model ServiceOrderProduct {
   totalPrice     Decimal  @db.Decimal(10, 2)
   createdAt      DateTime @default(now())
 
-  // Relações
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   product      Product      @relation(fields: [productId], references: [id])
 
@@ -320,7 +660,7 @@ model ServiceOrderProduct {
 }
 
 // ============================================
-// ESTOQUE - MOVIMENTAÇÕES
+// MOVIMENTAÃ‡Ã•ES DE ESTOQUE
 // ============================================
 
 enum MovementType {
@@ -342,7 +682,6 @@ model StockMovement {
   createdById String
   createdAt   DateTime     @default(now())
 
-  // Relações
   product   Product @relation(fields: [productId], references: [id])
   createdBy User    @relation(fields: [createdById], references: [id])
 
@@ -374,8 +713,197 @@ model AuditLog {
   userAgent String?
   createdAt DateTime    @default(now())
 
-  // Relações
   user User @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+}
+
+// ============================================
+// RECURSOS HUMANOS (RH)
+// ============================================
+
+enum EmployeeStatus {
+  ACTIVE
+  AWAY
+  VACATION
+  TERMINATED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum CivilStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  STABLE_UNION
+}
+
+enum ContractType {
+  CLT
+  PJ
+  INTERN
+  TEMPORARY
+}
+
+enum SalaryType {
+  MONTHLY
+  HOURLY
+}
+
+enum WorkRegime {
+  PRESENTIAL
+  HYBRID
+  REMOTE
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+}
+
+enum HierarchicalLevel {
+  TRAINEE
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  MANAGER
+  DIRECTOR
+  VP
+  CEO
+}
+
+enum ASOType {
+  ADMISSIONAL
+  PERIODIC
+  RETURN_TO_WORK
+  CHANGE_OF_FUNCTION
+  DISMISSAL
+}
+
+model Employee {
+  id          String       @id @default(uuid())
+  // ðŸ“Œ 1. Dados Pessoais
+  name        String
+  socialName  String?
+  cpf         String       @unique
+  rg          String?
+  birthDate   DateTime?
+  gender      Gender?
+  civilStatus CivilStatus?
+  nationality String?
+  birthPlace  String?
+  photoUrl    String?
+  isPcd       Boolean      @default(false)
+  pcdType     String?
+
+  // ðŸ“Œ 2. Contato
+  personalEmail  String? @unique
+  corporateEmail String? @unique
+  mobilePhone    String?
+  landlinePhone  String?
+  address        Json? // { cep, street, number, complement, neighborhood, city, state }
+
+  // ðŸ“Œ 3. Dados Trabalhistas
+  ctps                String?
+  pisPasep            String?
+  voterId             String?
+  militaryCertificate String?
+  admissionDate       DateTime?
+  contractType        ContractType? @default(CLT)
+  workHours           String? // Jornada de trabalho
+  position            String? // Cargo
+  department          String?
+  costCenterId        String?
+  costCenter          CostCenter?   @relation(fields: [costCenterId], references: [id])
+  baseSalary          Decimal?      @db.Decimal(10, 2)
+  salaryType          SalaryType?   @default(MONTHLY)
+  workRegime          WorkRegime?   @default(PRESENTIAL)
+
+  // ðŸ“Œ 4. Dados Financeiros
+  bank         String?
+  agency       String?
+  account      String?
+  accountType  AccountType?
+  pixKey       String?
+  irDependents Int          @default(0)
+  benefitsPlan Json? // [ { type: 'VT', value: 100 }, ... ]
+
+  // ðŸ“Œ 5. Estrutura Organizacional
+  registration      String?            @unique // MatrÃ­cula
+  managerId         String?
+  manager           Employee?          @relation("ManagerToSubordinates", fields: [managerId], references: [id])
+  subordinates      Employee[]         @relation("ManagerToSubordinates")
+  team              String?
+  branch            String? // Filial
+  businessUnit      String? // Unidade de negÃ³cio
+  hierarchicalLevel HierarchicalLevel?
+
+  // ðŸ“Œ 6. Status do Colaborador
+  status            EmployeeStatus     @default(ACTIVE)
+  terminationReason String?            @db.Text
+  terminationDate   DateTime?
+  movements         EmployeeMovement[]
+
+  // ðŸ“Œ 7. Dados de Acesso ao Sistema
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id])
+  login  String? @unique
+
+  // ðŸ“Œ 8. Anexos
+  asos      ASO[]
+  documents EmployeeDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employees")
+}
+
+model EmployeeMovement {
+  id            String   @id @default(uuid())
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type          String // PROMOTION, TRANSFER, SALARY_ADJUSTMENT, STATUS_CHANGE
+  description   String   @db.Text
+  previousValue String?
+  newValue      String?
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@map("employee_movements")
+}
+
+model ASO {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       ASOType
+  examDate   DateTime
+  expiryDate DateTime
+  result     String? // Ex: APTO, INAPTO
+  fileUrl    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("asos")
+}
+
+model EmployeeDocument {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  name       String
+  type       String? // Ex: RG, CPF, CTPS
+  fileUrl    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("employee_documents")
 }

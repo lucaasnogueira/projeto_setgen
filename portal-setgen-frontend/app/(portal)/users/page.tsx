@@ -267,7 +267,7 @@ export default function UsersPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${roleColors[user.role]}`}>
-                        {getRoleLabel(user.role)}
+                        {user.roleRef?.name || getRoleLabel(user.role)}
                       </span>
                     </td>
                     <td className="px-6 py-4">

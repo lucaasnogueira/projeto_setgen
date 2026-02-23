@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { IMaskInput } from "react-imask";
 import { Search, Building2, FileText, Phone, Mail, MapPin, Save, X } from "lucide-react";
+import { fetchCep } from "@/lib/api/cep";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,22 @@ export function ClientForm({
       alert("Erro ao consultar CNPJ. Preencha manualmente.");
     } finally {
       setLookupLoading(false);
+    }
+  };
+
+  const handleCepLookup = async (cep: string) => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length === 8) {
+      const addressData = await fetchCep(cleanCep);
+      if (addressData) {
+        setFormData((prev) => ({
+          ...prev,
+          address: addressData.logradouro,
+          city: addressData.localidade,
+          state: addressData.uf,
+          zipCode: cep,
+        }));
+      }
     }
   };
 
@@ -255,7 +272,10 @@ export function ClientForm({
                 mask="00000-000"
                 placeholder="00000-000"
                 value={formData.zipCode}
-                onAccept={(value: string) => setFormData({ ...formData, zipCode: value })}
+                onAccept={(value: string) => {
+                  setFormData({ ...formData, zipCode: value });
+                  handleCepLookup(value);
+                }}
                 className="w-full flex h-11 rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
               />
             </div>

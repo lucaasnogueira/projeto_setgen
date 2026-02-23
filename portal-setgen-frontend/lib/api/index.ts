@@ -11,6 +11,7 @@ export { inventoryApi } from './inventory';
 export { dashboardApi } from './dashboard';
 export { usersApi } from './users';
 export { ordersApi } from './orders';
+export { employeeApi } from './employees';
 
 // Export the default axios instance
 export { api as default } from './client';

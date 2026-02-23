@@ -13,6 +13,12 @@ import { DeliveriesModule } from './deliveries/deliveries.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { ReportsModule } from './reports/reports.module';
+import { ExpensesModule } from './expenses/expenses.module';
+import { ExpenseCategoriesModule } from './expense-categories/expense-categories.module';
+import { EmployeesModule } from './employees/employees.module';
+import { AccessControlModule } from './access-control/access-control.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -24,7 +30,6 @@ import { ReportsModule } from './reports/reports.module';
     UsersModule,
     ClientsModule,
     VisitsModule,
-    VisitsModule,
     ServiceOrdersModule,
     ApprovalsModule,
     PurchaseOrdersModule,
@@ -33,6 +38,17 @@ import { ReportsModule } from './reports/reports.module';
     DashboardModule,
     InventoryModule,
     ReportsModule,
+    ExpensesModule,
+    ExpenseCategoriesModule,
+    EmployeesModule,
+    AccessControlModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads',
+      serveStaticOptions: {
+        index: false,
+      },
+    }),
   ],
 })
 export class AppModule {}

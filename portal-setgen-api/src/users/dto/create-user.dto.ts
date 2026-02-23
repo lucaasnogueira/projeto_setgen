@@ -5,6 +5,8 @@ import {
   IsString,
   MinLength,
   IsEnum,
+  IsArray,
+  IsOptional,
 } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
@@ -27,4 +29,14 @@ export class CreateUserDto {
   @ApiProperty({ enum: UserRole, example: UserRole.TECHNICIAN })
   @IsEnum(UserRole, { message: 'Perfil inválido' })
   role: UserRole;
+
+  @ApiProperty({ description: 'ID do cargo (Role)', required: false })
+  @IsString()
+  @IsOptional()
+  roleId?: string;
+
+  @ApiProperty({ description: 'Lista de IDs de permissões individuais', required: false, type: [String] })
+  @IsArray()
+  @IsOptional()
+  permissionIds?: string[];
 }

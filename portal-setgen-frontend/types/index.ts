@@ -62,9 +62,84 @@ export enum MovementType {
   TRANSFER = 'TRANSFER',
 }
 
+export enum EmployeeStatus {
+  ACTIVE = 'ACTIVE',
+  AWAY = 'AWAY',
+  VACATION = 'VACATION',
+  TERMINATED = 'TERMINATED',
+}
+
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
+  PREFER_NOT_TO_SAY = 'PREFER_NOT_TO_SAY',
+}
+
+export enum CivilStatus {
+  SINGLE = 'SINGLE',
+  MARRIED = 'MARRIED',
+  DIVORCED = 'DIVORCED',
+  WIDOWED = 'WIDOWED',
+  STABLE_UNION = 'STABLE_UNION',
+}
+
+export enum ContractType {
+  CLT = 'CLT',
+  PJ = 'PJ',
+  INTERN = 'INTERN',
+  TEMPORARY = 'TEMPORARY',
+}
+
+export enum SalaryType {
+  MONTHLY = 'MONTHLY',
+  HOURLY = 'HOURLY',
+}
+
+export enum WorkRegime {
+  PRESENTIAL = 'PRESENTIAL',
+  HYBRID = 'HYBRID',
+  REMOTE = 'REMOTE',
+}
+
+export enum AccountType {
+  CHECKING = 'CHECKING',
+  SAVINGS = 'SAVINGS',
+}
+
+export enum HierarchicalLevel {
+  TRAINEE = 'TRAINEE',
+  JUNIOR = 'JUNIOR',
+  MID = 'MID',
+  SENIOR = 'SENIOR',
+  LEAD = 'LEAD',
+  MANAGER = 'MANAGER',
+  DIRECTOR = 'DIRECTOR',
+  VP = 'VP',
+  CEO = 'CEO',
+}
+
+export enum ASOType {
+  ADMISSIONAL = 'ADMISSIONAL',
+  PERIODIC = 'PERIODIC',
+  RETURN_TO_WORK = 'RETURN_TO_WORK',
+  CHANGE_OF_FUNCTION = 'CHANGE_OF_FUNCTION',
+  DISMISSAL = 'DISMISSAL',
+}
+
 // ========================================
 // INTERFACES
 // ========================================
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
 
 export interface User {
   id: string;
@@ -314,3 +389,116 @@ export interface LoginCredentials {
   email: string;
   password: string;
 }
+
+export interface Employee {
+  id: string;
+  // 📌 1. Dados Pessoais
+  name: string;
+  socialName?: string;
+  cpf: string;
+  rg?: string;
+  birthDate?: string;
+  gender?: Gender;
+  civilStatus?: CivilStatus;
+  nationality?: string;
+  birthPlace?: string;
+  photoUrl?: string;
+  isPcd: boolean;
+  pcdType?: string;
+
+  // 📌 2. Contato
+  personalEmail?: string;
+  corporateEmail?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
+  address?: Address;
+
+  // 📌 3. Dados Trabalhistas
+  ctps?: string;
+  pisPasep?: string;
+  voterId?: string;
+  militaryCertificate?: string;
+  admissionDate?: string;
+  contractType?: ContractType;
+  workHours?: string;
+  position?: string;
+  department?: string;
+  costCenterId?: string;
+  baseSalary?: number;
+  salaryType?: SalaryType;
+  workRegime?: WorkRegime;
+
+  // 📌 4. Dados Financeiros
+  bank?: string;
+  agency?: string;
+  account?: string;
+  accountType?: AccountType;
+  pixKey?: string;
+  irDependents: number;
+  benefitsPlan?: any;
+
+  // 📌 5. Estrutura Organizacional
+  registration?: string;
+  managerId?: string;
+  manager?: Employee;
+  subordinates?: Employee[];
+  team?: string;
+  branch?: string;
+  businessUnit?: string;
+  hierarchicalLevel?: HierarchicalLevel;
+
+  // 📌 6. Status do Colaborador
+  status: EmployeeStatus;
+  terminationReason?: string;
+  terminationDate?: string;
+  movements?: EmployeeMovement[];
+
+  // 📌 7. Dados de Acesso ao Sistema
+  userId?: string;
+  user?: User;
+  login?: string;
+
+  // 📌 8. Anexos
+  asos?: ASO[];
+  documents?: EmployeeDocument[];
+  
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmployeeMovement {
+  id: string;
+  employeeId: string;
+  type: string;
+  description: string;
+  previousValue?: string;
+  newValue?: string;
+  date: string;
+  createdAt: string;
+}
+
+export interface ASO {
+  id: string;
+  employeeId: string;
+  type: ASOType;
+  examDate: string;
+  expiryDate: string;
+  result?: string;
+  fileUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  employee?: Employee;
+}
+
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  name: string;
+  type?: string;
+  fileUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  employee?: Employee;
+}
+
+export * from './financial';

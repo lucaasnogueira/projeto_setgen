@@ -59,6 +59,10 @@ export function getStatusColor(status: string): string {
     ACTIVE: 'bg-green-100 text-green-800',
     INACTIVE: 'bg-gray-100 text-gray-800',
     DEFAULTER: 'bg-red-100 text-red-800',
+    // Employee
+    AWAY: 'bg-amber-100 text-amber-800',
+    VACATION: 'bg-blue-100 text-blue-800',
+    TERMINATED: 'bg-red-100 text-red-800',
     // Service Order
     DRAFT: 'bg-gray-100 text-gray-800',
     PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
@@ -84,6 +88,10 @@ export function getStatusLabel(status: string): string {
     ACTIVE: 'Ativo',
     INACTIVE: 'Inativo',
     DEFAULTER: 'Inadimplente',
+    // Employee
+    AWAY: 'Afastado',
+    VACATION: 'Férias',
+    TERMINATED: 'Desligado',
     // Service Order
     DRAFT: 'Rascunho',
     PENDING_APPROVAL: 'Aguardando Aprovação',
