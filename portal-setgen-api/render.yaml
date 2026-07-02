@@ -4,7 +4,8 @@ services:
     runtime: node
     plan: free
     rootDir: portal-setgen-api
-    buildCommand: npm install && npx prisma migrate deploy && npm run build
+    # --include=dev: NODE_ENV=production senão pula devDeps e nest CLI some (exit 127)
+    buildCommand: npm install --include=dev && npx prisma migrate deploy && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
