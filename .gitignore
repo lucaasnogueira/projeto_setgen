@@ -19,9 +19,9 @@ build/
 .next/
 coverage/
 
-# ─── Uploads locais ─────────────────────────────────────────
-uploads/
-**/uploads/
+# ─── Uploads locais (storage runtime, NÃO o código src/common/uploads) ──
+/uploads/
+/portal-setgen-api/uploads/
 
 # ─── OS / editor ────────────────────────────────────────────
 .DS_Store
