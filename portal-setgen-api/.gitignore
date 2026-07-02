@@ -61,7 +61,7 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /uploads
 
 # Prisma
-prisma/migrations
+# migrations DEVEM ser versionadas (prisma migrate deploy usa em produção)
 
 # Uploads
 /uploads
