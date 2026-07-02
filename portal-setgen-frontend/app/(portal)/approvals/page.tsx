@@ -4,18 +4,18 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { approvalsApi } from '@/lib/api/approvals';
 import { ServiceOrder } from '@/types';
-import { 
+import {
   CheckCircle,
   XCircle,
-  Clock,
   FileText,
   Building2,
   User,
   Calendar,
-  AlertCircle,
   Plus
 } from 'lucide-react';
-import Link from 'next/link';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 export default function ApprovalsPage() {
   const router = useRouter();
@@ -65,112 +65,92 @@ export default function ApprovalsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Aprovações</h1>
-            <p className="text-yellow-100">
-              {pendingOrders.length} ordens aguardando aprovação
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <Link href="/approvals/new">
-              <button className="px-6 py-2 bg-white text-orange-600 rounded-lg hover:bg-orange-50 flex items-center gap-2 shadow-lg font-medium">
-                <Plus className="h-4 w-4" />
-                Nova Aprovação
-              </button>
-            </Link>
-            <AlertCircle className="h-12 w-12 opacity-50" />
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Aprovações"
+        subtitle={`${pendingOrders.length} ordens aguardando aprovação`}
+        actions={
+          <Button onClick={() => router.push('/approvals/new')} className="rounded-[9px] font-bold gap-2">
+            <Plus className="h-4 w-4" />
+            Nova Aprovação
+          </Button>
+        }
+      />
 
-      {/* Lista de Aprovações */}
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         {pendingOrders.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium text-lg">Tudo em dia!</p>
-            <p className="text-gray-400 text-sm mt-1">
+          <Card className="p-16 text-center">
+            <CheckCircle className="h-12 w-12 text-status-green-fg mx-auto mb-3" />
+            <p className="text-text-secondary font-bold text-[15px]">Tudo em dia!</p>
+            <p className="text-text-muted text-[12.5px] mt-1">
               Não há ordens pendentes de aprovação no momento
             </p>
-          </div>
+          </Card>
         ) : (
           pendingOrders.map((order) => (
-            <div
+            <Card
               key={order.id}
-              className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-l-yellow-500 hover:shadow-xl transition-shadow cursor-pointer"
+              className="p-5 hover:border-primary/40 transition-colors cursor-pointer"
               onClick={() => router.push(`/approvals/${order.id}`)}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  {/* Header */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <FileText className="h-6 w-6 text-yellow-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-gray-900">
-                        OS {order.orderNumber}
-                      </h3>
-                      <p className="text-sm text-gray-500">
-                        {order.type === 'VISIT_REPORT' ? 'Relatório de Visita' : 'Execução'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Informações */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Building2 className="h-4 w-4 text-gray-400" />
-                      {order.client?.companyName}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <User className="h-4 w-4 text-gray-400" />
-                      {order.createdBy?.name || 'Sem responsável'}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-
-                  {/* Escopo */}
-                  {order.scope && (
-                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Escopo:</p>
-                      <p className="text-sm text-gray-600">{order.scope}</p>
-                    </div>
-                  )}
-
-                  {/* Ações */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={(e) => handleApprove(e, order.id)}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 flex items-center justify-center gap-2 font-medium shadow-lg"
-                    >
-                      <CheckCircle className="h-5 w-5" />
-                      Aprovar
-                    </button>
-                    <button
-                      onClick={(e) => handleReject(e, order.id)}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 flex items-center justify-center gap-2 font-medium shadow-lg"
-                    >
-                      <XCircle className="h-5 w-5" />
-                      Rejeitar
-                    </button>
-                  </div>
+              <div className="flex items-center gap-3 mb-3.5">
+                <div className="w-11 h-11 rounded-[10px] bg-status-amber-bg flex items-center justify-center shrink-0">
+                  <FileText className="h-5 w-5 text-status-amber-fg" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[15px] text-foreground">OS {order.orderNumber}</h3>
+                  <p className="text-[12.5px] text-text-muted">
+                    {order.type === 'VISIT_REPORT' ? 'Relatório de Visita' : 'Execução'}
+                  </p>
                 </div>
               </div>
-            </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3.5">
+                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                  <Building2 className="h-3.5 w-3.5 text-text-muted" />
+                  {order.client?.companyName}
+                </div>
+                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                  <User className="h-3.5 w-3.5 text-text-muted" />
+                  {order.createdBy?.name || 'Sem responsável'}
+                </div>
+                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                  <Calendar className="h-3.5 w-3.5 text-text-muted" />
+                  {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                </div>
+              </div>
+
+              {order.scope && (
+                <div className="bg-muted/30 rounded-[10px] p-3.5 mb-3.5">
+                  <p className="text-[12.5px] font-bold text-foreground mb-1">Escopo:</p>
+                  <p className="text-[12.5px] text-text-secondary">{order.scope}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2.5">
+                <Button
+                  onClick={(e) => handleApprove(e, order.id)}
+                  className="flex-1 rounded-[9px] font-bold gap-2 bg-status-green-fg hover:bg-status-green-fg/90"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Aprovar
+                </Button>
+                <Button
+                  onClick={(e) => handleReject(e, order.id)}
+                  variant="destructive"
+                  className="flex-1 rounded-[9px] font-bold gap-2"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Rejeitar
+                </Button>
+              </div>
+            </Card>
           ))
         )}
       </div>

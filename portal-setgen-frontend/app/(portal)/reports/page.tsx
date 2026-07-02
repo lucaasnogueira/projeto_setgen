@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { reportsApi } from '@/lib/api/reports';
 import { clientsApi } from '@/lib/api/clients';
-import { BarChart3, Download, Calendar, Filter } from 'lucide-react';
+import { Download, Filter } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -17,6 +17,8 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/card';
 
 ChartJS.register(
   CategoryScale,
@@ -107,60 +109,46 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-              <BarChart3 className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Relatórios</h1>
-              <p className="text-purple-100">Análises e indicadores de desempenho</p>
-            </div>
-          </div>
-          <BarChart3 className="h-16 w-16 opacity-50" />
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Relatórios" subtitle="Análises e indicadores de desempenho" />
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Filter className="h-5 w-5 text-purple-600" />
+      <Card className="p-5">
+        <h2 className="text-[14.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+          <Filter className="h-4 w-4 text-primary" />
           Filtros
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-[12.5px] font-semibold text-text-secondary mb-1.5">
               Data Inicial
             </label>
             <input
               type="date"
               value={filters.startDate}
               onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-[12.5px] font-semibold text-text-secondary mb-1.5">
               Data Final
             </label>
             <input
               type="date"
               value={filters.endDate}
               onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-[12.5px] font-semibold text-text-secondary mb-1.5">
               Cliente
             </label>
             <select
               value={filters.clientId}
               onChange={(e) => setFilters({ ...filters, clientId: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">Todos os Clientes</option>
               {clients.map(client => (
@@ -171,78 +159,74 @@ export default function ReportsPage() {
           <div className="flex items-end gap-2">
             <button
               onClick={loadCharts}
-              className="flex-1 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2 bg-primary text-white rounded-[9px] hover:bg-primary/90 flex items-center justify-center gap-2 text-[12.5px] font-bold"
             >
               Aplicar Filtros
             </button>
             <button
               onClick={handleExportPDF}
-              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 flex items-center justify-center gap-2 shadow-lg"
+              className="px-4 py-2 border border-border text-text-secondary rounded-[9px] hover:bg-muted/40 flex items-center justify-center gap-2 text-[12.5px] font-bold"
             >
-              <Download className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
               PDF
             </button>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Visitas por Mês */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Visitas por Mês</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-5">
+          <h3 className="text-[14.5px] font-bold text-foreground mb-4">Visitas por Mês</h3>
           <div className="h-64">
             {visitsByMonth && visitsByMonth.labels.length > 0 ? (
               <Line data={visitsByMonth} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-text-muted text-sm">
                 Sem dados disponíveis
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* OS por Status */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">OS por Status</h3>
+        <Card className="p-5">
+          <h3 className="text-[14.5px] font-bold text-foreground mb-4">OS por Status</h3>
           <div className="h-64">
             {ordersByStatus && ordersByStatus.labels.length > 0 ? (
               <Doughnut data={ordersByStatus} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-text-muted text-sm">
                 Sem dados disponíveis
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Faturamento Mensal */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Faturamento Mensal</h3>
+        <Card className="p-5">
+          <h3 className="text-[14.5px] font-bold text-foreground mb-4">Faturamento Mensal</h3>
           <div className="h-64">
             {monthlyRevenue && monthlyRevenue.labels.length > 0 ? (
               <Bar data={monthlyRevenue} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-text-muted text-sm">
                 Sem dados disponíveis
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
-        {/* Performance por Técnico */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">Performance por Técnico</h3>
+        <Card className="p-5">
+          <h3 className="text-[14.5px] font-bold text-foreground mb-4">Performance por Técnico</h3>
           <div className="h-64">
             {technicianPerformance && technicianPerformance.labels.length > 0 ? (
               <Bar data={technicianPerformance} options={chartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
+              <div className="h-full flex items-center justify-center text-text-muted text-sm">
                 Sem dados disponíveis
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

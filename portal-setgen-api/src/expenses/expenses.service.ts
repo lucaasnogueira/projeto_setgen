@@ -7,79 +7,55 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { FilterExpenseDto } from './dto/filter-expense.dto';
-import { ExpenseStatus, Prisma } from '@prisma/client';
+import { ExpenseStatus, CashFlowType, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ExpensesService {
   constructor(private prisma: PrismaService) {}
 
   async create(createExpenseDto: CreateExpenseDto, userId: string) {
-    try {
-      console.log('🔍 Starting expense creation...');
-      console.log('📦 DTO:', JSON.stringify(createExpenseDto, null, 2));
-      console.log('👤 User ID:', userId);
+    // Validações
+    await this.validateExpense(createExpenseDto);
 
-      // Validações
-      await this.validateExpense(createExpenseDto);
-      console.log('✅ Validation passed');
+    // Gerar código único
+    const code = await this.generateExpenseCode();
 
-      // Gerar código único
-      const code = await this.generateExpenseCode();
-      console.log('🔢 Generated code:', code);
+    // Criar despesa
+    const expense = await this.prisma.expense.create({
+      data: {
+        ...createExpenseDto,
+        amount: new Prisma.Decimal(createExpenseDto.amount),
+        paidAmount: createExpenseDto.paidAmount
+          ? new Prisma.Decimal(createExpenseDto.paidAmount)
+          : null,
+        code,
+        userId,
+        status: ExpenseStatus.PENDING,
+        date: new Date(createExpenseDto.date),
+        dueDate: new Date(createExpenseDto.dueDate),
+        paymentDate: createExpenseDto.paymentDate
+          ? new Date(createExpenseDto.paymentDate)
+          : null,
+        competenceDate: new Date(createExpenseDto.competenceDate),
+      },
+      include: {
+        category: true,
+        client: true,
+        user: { select: { id: true, name: true, email: true } },
+        visit: true,
+        serviceOrder: true,
+      },
+    });
 
-      // Criar despesa
-      const expense = await this.prisma.expense.create({
-        data: {
-          ...createExpenseDto,
-          amount: new Prisma.Decimal(createExpenseDto.amount),
-          paidAmount: createExpenseDto.paidAmount
-            ? new Prisma.Decimal(createExpenseDto.paidAmount)
-            : null,
-          code,
-          userId,
-          status: ExpenseStatus.PENDING,
-          date: new Date(createExpenseDto.date),
-          dueDate: new Date(createExpenseDto.dueDate),
-          paymentDate: createExpenseDto.paymentDate
-            ? new Date(createExpenseDto.paymentDate)
-            : null,
-          competenceDate: new Date(createExpenseDto.competenceDate),
-        },
-        include: {
-          category: true,
-          client: true,
-          user: { select: { id: true, name: true, email: true } },
-          visit: true,
-          serviceOrder: true,
-        },
-      });
-
-      console.log('✅ Expense created successfully:', expense.id);
-
-      // Se for parcelada, criar parcelas
-      if (
-        createExpenseDto.totalInstallments &&
-        createExpenseDto.totalInstallments > 1
-      ) {
-        console.log('📊 Creating installments...');
-        await this.createInstallments(expense, createExpenseDto, userId);
-      }
-
-      return expense;
-    } catch (error) {
-      console.error('❌ Error in create method:', error);
-      console.error('📋 DTO that caused error:', JSON.stringify(createExpenseDto, null, 2));
-      
-      // Log specific error types
-      if (error.code) {
-        console.error('🔴 Database error code:', error.code);
-      }
-      if (error.meta) {
-        console.error('🔴 Error metadata:', error.meta);
-      }
-      
-      throw error;
+    // Se for parcelada, criar parcelas
+    if (
+      createExpenseDto.totalInstallments &&
+      createExpenseDto.totalInstallments > 1
+    ) {
+      await this.createInstallments(expense, createExpenseDto, userId);
     }
+
+    return expense;
   }
 
   async getBankAccounts() {
@@ -289,29 +265,53 @@ export class ExpensesService {
     const finalPaidAmount = paidAmount
       ? new Prisma.Decimal(paidAmount)
       : expense.amount;
-    const status =
-      finalPaidAmount.equals(expense.amount)
-        ? ExpenseStatus.PAID
-        : ExpenseStatus.PARTIALLY_PAID;
 
-    const updatedExpense = await this.prisma.expense.update({
-      where: { id },
-      data: {
-        status,
-        paymentDate,
-        paidAmount: finalPaidAmount,
-      },
-    });
-
-    // Atualizar saldo da conta bancária
-    if (expense.bankAccountId) {
-      await this.updateBankAccountBalance(
-        expense.bankAccountId,
-        -Number(finalPaidAmount),
+    if (finalPaidAmount.greaterThan(expense.amount)) {
+      throw new BadRequestException(
+        `Valor pago (${finalPaidAmount.toFixed(2)}) não pode ser maior que o valor da despesa (${expense.amount.toFixed(2)})`,
       );
     }
 
-    return updatedExpense;
+    const status = finalPaidAmount.equals(expense.amount)
+      ? ExpenseStatus.PAID
+      : ExpenseStatus.PARTIALLY_PAID;
+
+    // Status da despesa, débito no saldo da conta e lançamento no fluxo de
+    // caixa precisam ser atômicos: se qualquer um falhar, nada é gravado.
+    return this.prisma.$transaction(async (tx) => {
+      const updatedExpense = await tx.expense.update({
+        where: { id },
+        data: {
+          status,
+          paymentDate,
+          paidAmount: finalPaidAmount,
+        },
+      });
+
+      if (expense.bankAccountId) {
+        const updatedAccount = await tx.bankAccount.update({
+          where: { id: expense.bankAccountId },
+          data: {
+            balance: { decrement: finalPaidAmount },
+          },
+        });
+
+        await tx.cashFlow.create({
+          data: {
+            date: paymentDate,
+            type: CashFlowType.OUTFLOW,
+            category: expense.type,
+            amount: finalPaidAmount,
+            balance: updatedAccount.balance,
+            description: expense.description,
+            expenseId: expense.id,
+            bankAccountId: expense.bankAccountId,
+          },
+        });
+      }
+
+      return updatedExpense;
+    });
   }
 
   async getDashboardData(year: number, month: number) {
@@ -370,18 +370,19 @@ export class ExpensesService {
     });
 
     // Incluir dados da categoria
-    const categoriesData = await Promise.all(
-      byCategory.map(async (item) => {
-        const category = await this.prisma.expenseCategory.findUnique({
-          where: { id: item.categoryId },
-        });
-        return {
-          category,
-          total: item._sum.amount,
-          count: item._count,
-        };
-      }),
+    const categoryIds = byCategory.map((item) => item.categoryId);
+    const categories = await this.prisma.expenseCategory.findMany({
+      where: { id: { in: categoryIds } },
+    });
+    const categoryMap = Object.fromEntries(
+      categories.map((c) => [c.id, c]),
     );
+
+    const categoriesData = byCategory.map((item) => ({
+      category: categoryMap[item.categoryId],
+      total: item._sum.amount,
+      count: item._count,
+    }));
 
     // Por tipo
     const byType = await this.prisma.expense.groupBy({
@@ -488,14 +489,23 @@ export class ExpensesService {
 
   private async generateExpenseCode(): Promise<string> {
     const year = new Date().getFullYear();
-    const count = await this.prisma.expense.count({
-      where: {
-        code: {
-          startsWith: `DESP-${year}-`,
-        },
-      },
-    });
-    return `DESP-${year}-${String(count + 1).padStart(4, '0')}`;
+    const sequenceName = `seq_expense_code_${year}`;
+
+    try {
+      const result = await this.prisma.$queryRawUnsafe<[{ nextval: bigint }]> (
+        `SELECT nextval('${sequenceName}'::regclass)`
+      );
+      return `DESP-${year}-${String(result[0].nextval).padStart(4, '0')}`;
+    } catch {
+      // Fallback: se a sequence não existir, cria e retorna 1
+      await this.prisma.$executeRawUnsafe(
+        `CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1 INCREMENT 1`
+      );
+      const result = await this.prisma.$queryRawUnsafe<[{ nextval: bigint }]> (
+        `SELECT nextval('${sequenceName}'::regclass)`
+      );
+      return `DESP-${year}-${String(result[0].nextval).padStart(4, '0')}`;
+    }
   }
 
   private async createInstallments(
@@ -508,19 +518,13 @@ export class ExpensesService {
     const installmentAmount = Number(dto.amount) / dto.totalInstallments;
     const installments: Prisma.ExpenseCreateManyInput[] = [];
 
-    const year = new Date().getFullYear();
-    // Contar despesas existentes para gerar códigos sequenciais
-    // Nota: Como a despesa pai já foi criada, o count a inclui.
-    let currentCount = await this.prisma.expense.count({
-      where: { code: { startsWith: `DESP-${year}-` } },
-    });
-
     for (let i = 2; i <= dto.totalInstallments; i++) {
       const dueDate = new Date(dto.dueDate);
       dueDate.setMonth(dueDate.getMonth() + (i - 1));
 
-      currentCount++;
-      const code = `DESP-${year}-${String(currentCount).padStart(4, '0')}`;
+      // Mesma sequence usada na despesa pai (generateExpenseCode) — não usar
+      // count() aqui, que gera códigos duplicados sob concorrência.
+      const code = await this.generateExpenseCode();
 
       installments.push({
         description: `${dto.description} - Parcela ${i}/${dto.totalInstallments}`,
@@ -607,16 +611,5 @@ export class ExpensesService {
     }
 
     return where;
-  }
-
-  private async updateBankAccountBalance(accountId: string, amount: number) {
-    await this.prisma.bankAccount.update({
-      where: { id: accountId },
-      data: {
-        balance: {
-          increment: amount,
-        },
-      },
-    });
   }
 }

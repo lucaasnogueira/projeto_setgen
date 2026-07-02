@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function RolesPage() {
   const router = useRouter();
@@ -149,28 +150,17 @@ export default function RolesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-lg flex items-center justify-center">
-              <Shield className="h-6 w-6 text-orange-400" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Cargos e Permissões</h1>
-              <p className="text-gray-400">Gerencie os acessos e responsabilidades da equipe</p>
-            </div>
-          </div>
-          <button
-            onClick={() => handleOpenModal("create")}
-            className="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg flex items-center gap-2 shadow-lg transition-all active:scale-95 whitespace-nowrap"
-          >
+    <div className="space-y-5">
+      <PageHeader
+        title="Cargos e Permissões"
+        subtitle="Gerencie os acessos e responsabilidades da equipe"
+        actions={
+          <Button onClick={() => handleOpenModal("create")} className="rounded-[9px] font-bold gap-2">
             <Plus className="h-4 w-4" />
             Novo Cargo
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
       {/* Listagem de Cargos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

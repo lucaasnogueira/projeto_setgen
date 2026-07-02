@@ -7,9 +7,6 @@ import {
   IsOptional,
   IsArray,
   IsDateString,
-  IsNumber,
-  Min,
-  Max,
 } from 'class-validator';
 import { ServiceOrderType } from '@prisma/client';
 
@@ -96,4 +93,9 @@ export class CreateServiceOrderDto {
   })
   @IsOptional()
   checklist?: Array<{ item: string; completed: boolean }>;
+
+  @ApiProperty({ example: 'template-uuid-here', required: false })
+  @IsUUID()
+  @IsOptional()
+  checklistTemplateId?: string;
 }

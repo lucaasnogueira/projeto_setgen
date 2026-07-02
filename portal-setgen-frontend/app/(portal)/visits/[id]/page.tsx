@@ -5,21 +5,24 @@ import { useRouter, useParams } from 'next/navigation';
 import { visitsApi } from '@/lib/api/visits';
 import { TechnicalVisit, UserRole } from '@/types';
 import { useAuthStore } from '@/store/auth';
-import { 
-  ClipboardList, 
-  Calendar, 
-  User, 
-  MapPin, 
-  Clock, 
-  Edit, 
-  Trash2, 
+import {
+  ClipboardList,
+  Calendar,
+  User,
+  MapPin,
+  Clock,
+  Edit,
+  Trash2,
   ArrowLeft,
   Info,
   CheckCircle,
-  HardHat
+  HardHat,
+  Navigation,
+  LogOut
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DetailHeader } from "@/components/layout/DetailHeader";
 import Link from 'next/link';
 
 export default function VisitDetailsPage() {
@@ -28,6 +31,9 @@ export default function VisitDetailsPage() {
   const { user } = useAuthStore();
   const [visit, setVisit] = useState<TechnicalVisit | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkinLoading, setCheckinLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -60,12 +66,79 @@ export default function VisitDetailsPage() {
     }
   };
 
+  const getCurrentPosition = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocalização não suportada neste navegador'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+      });
+    });
+  };
+
+  const geoErrorMessage = (error: GeolocationPositionError) => {
+    if (error.code === error.PERMISSION_DENIED) {
+      return 'Permissão de localização negada. Habilite o acesso à localização no navegador.';
+    }
+    if (error.code === error.TIMEOUT) {
+      return 'Tempo esgotado ao obter localização. Tente novamente.';
+    }
+    return 'Não foi possível obter a localização.';
+  };
+
+  const handleCheckin = async () => {
+    setGeoError(null);
+    setCheckinLoading(true);
+    try {
+      const position = await getCurrentPosition();
+      const updated = await visitsApi.checkin(params.id as string, {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      });
+      setVisit(updated);
+    } catch (error: any) {
+      setGeoError(
+        error instanceof GeolocationPositionError
+          ? geoErrorMessage(error)
+          : error?.response?.data?.message || error?.message || 'Erro ao fazer checkin',
+      );
+    } finally {
+      setCheckinLoading(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    setGeoError(null);
+    setCheckoutLoading(true);
+    try {
+      const position = await getCurrentPosition();
+      const updated = await visitsApi.checkout(params.id as string, {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      });
+      setVisit(updated);
+    } catch (error: any) {
+      setGeoError(
+        error instanceof GeolocationPositionError
+          ? geoErrorMessage(error)
+          : error?.response?.data?.message || error?.message || 'Erro ao fazer checkout',
+      );
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
+
   const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -73,53 +146,35 @@ export default function VisitDetailsPage() {
   if (!visit) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Roxo */}
-      <div className="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-purple-100 hover:text-white mb-6 transition-colors group"
-          >
-            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            Voltar para lista
-          </button>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-                <ClipboardList className="h-10 w-10 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">{visit.client?.companyName}</h1>
-                <p className="text-purple-100 mt-1 opacity-90 flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  {new Date(visit.visitDate).toLocaleString('pt-BR')}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Link href={`/visits/${visit.id}/edit`}>
-                <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm rounded-xl px-6 font-bold flex items-center gap-2">
-                  <Edit className="h-4 w-4" />
-                  Editar
-                </Button>
-              </Link>
-              {canDelete && (
-                <Button 
-                  onClick={handleDelete}
-                  className="bg-red-500/20 hover:bg-red-500/40 text-red-100 border-red-500/30 backdrop-blur-sm rounded-xl px-6 font-bold flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Excluir
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
+      <DetailHeader
+        icon={ClipboardList}
+        tone="purple"
+        title={visit.client?.companyName || 'Visita técnica'}
+        subtitle={<><Calendar className="h-3.5 w-3.5" />{new Date(visit.visitDate).toLocaleString('pt-BR')}</>}
+        onBack={() => router.back()}
+        backLabel="Voltar para lista"
+        actions={
+          <>
+            <Link href={`/visits/${visit.id}/edit`}>
+              <Button variant="outline" className="rounded-[9px] font-bold gap-2">
+                <Edit className="h-4 w-4" />
+                Editar
+              </Button>
+            </Link>
+            {canDelete && (
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                className="rounded-[9px] font-bold gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Coluna Principal */}
@@ -190,6 +245,87 @@ export default function VisitDetailsPage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
+                <Navigation className="h-5 w-5 text-purple-600" />
+                Checkin / Checkout
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              {geoError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3">
+                  {geoError}
+                </p>
+              )}
+
+              {visit.checkinAt ? (
+                <div className="flex items-start gap-3">
+                  <div className="mt-1 p-2 bg-green-50 rounded-lg">
+                    <Navigation className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Checkin</p>
+                    <p className="text-gray-700 font-medium">{new Date(visit.checkinAt).toLocaleString('pt-BR')}</p>
+                    {visit.checkinLat != null && visit.checkinLng != null && (
+                      <a
+                        href={`https://www.google.com/maps?q=${visit.checkinLat},${visit.checkinLng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-600 hover:underline"
+                      >
+                        Ver no mapa
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleCheckin}
+                  disabled={checkinLoading}
+                  className="w-full rounded-[9px] font-bold gap-2"
+                >
+                  <Navigation className="h-4 w-4" />
+                  {checkinLoading ? 'Obtendo localização...' : 'Fazer Checkin'}
+                </Button>
+              )}
+
+              {visit.checkinAt && (
+                visit.checkoutAt ? (
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 p-2 bg-red-50 rounded-lg">
+                      <LogOut className="h-4 w-4 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Checkout</p>
+                      <p className="text-gray-700 font-medium">{new Date(visit.checkoutAt).toLocaleString('pt-BR')}</p>
+                      {visit.checkoutLat != null && visit.checkoutLng != null && (
+                        <a
+                          href={`https://www.google.com/maps?q=${visit.checkoutLat},${visit.checkoutLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-purple-600 hover:underline"
+                        >
+                          Ver no mapa
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleCheckout}
+                    disabled={checkoutLoading}
+                    variant="outline"
+                    className="w-full rounded-[9px] font-bold gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {checkoutLoading ? 'Obtendo localização...' : 'Fazer Checkout'}
+                  </Button>
+                )
+              )}
             </CardContent>
           </Card>
         </div>

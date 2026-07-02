@@ -14,10 +14,10 @@ import {
   UserCheck,
   UserX,
   Key,
-  Shield,
   Loader2,
-  AlertCircle
+  FileDown
 } from 'lucide-react';
+import { exportToExcel } from '@/lib/utils/export';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function UsersPage() {
   const router = useRouter();
@@ -149,74 +150,70 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Gerenciar Usuários</h1>
-              <p className="text-gray-300">Administre os usuários do sistema em ordem alfabética</p>
-            </div>
-          </div>
-          <Shield className="h-16 w-16 opacity-50" />
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Gerenciar Usuários"
+        subtitle="Administre os usuários do sistema em ordem alfabética"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => exportToExcel(users, 'relatorio-usuarios', 'Usuários')}
+              className="rounded-[9px] font-bold gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar Excel
+            </Button>
+            <Button onClick={() => router.push('/users/new')} className="rounded-[9px] font-bold gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Usuário
+            </Button>
+          </>
+        }
+      />
 
       {/* Ações */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nome ou e-mail..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all"
-            />
-          </div>
-          <button 
-            onClick={() => router.push('/users/new')}
-            className="px-6 py-2 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-lg hover:from-gray-800 hover:to-gray-900 flex items-center gap-2 shadow-lg transition-all active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Usuário
-          </button>
+      <div className="bg-white rounded-[14px] border border-border p-5">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+          <input
+            type="text"
+            placeholder="Buscar por nome ou e-mail..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
+          />
         </div>
       </div>
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-lg p-4">
-          <div className="text-2xl font-bold text-gray-900">{users.length}</div>
-          <div className="text-sm text-gray-600">Total de Usuários</div>
+        <div className="bg-white rounded-[14px] border border-border p-4">
+          <div className="text-2xl font-extrabold text-foreground">{users.length}</div>
+          <div className="text-[12.5px] text-text-muted font-semibold">Total de Usuários</div>
         </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-green-500">
-          <div className="text-2xl font-bold text-green-600">
+        <div className="bg-white rounded-[14px] border border-border p-4">
+          <div className="text-2xl font-extrabold text-status-green-fg">
             {users.filter(u => u.active).length}
           </div>
-          <div className="text-sm text-gray-600">Ativos</div>
+          <div className="text-[12.5px] text-text-muted font-semibold">Ativos</div>
         </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-red-500">
-          <div className="text-2xl font-bold text-red-600">
+        <div className="bg-white rounded-[14px] border border-border p-4">
+          <div className="text-2xl font-extrabold text-status-red-fg">
             {users.filter(u => !u.active).length}
           </div>
-          <div className="text-sm text-gray-600">Inativos</div>
+          <div className="text-[12.5px] text-text-muted font-semibold">Inativos</div>
         </div>
-        <div className="bg-white rounded-xl shadow-lg p-4 border-l-4 border-blue-500">
-          <div className="text-2xl font-bold text-blue-600">
+        <div className="bg-white rounded-[14px] border border-border p-4">
+          <div className="text-2xl font-extrabold text-status-blue-fg">
             {users.filter(u => u.role === 'ADMIN').length}
           </div>
-          <div className="text-sm text-gray-600">Administradores</div>
+          <div className="text-[12.5px] text-text-muted font-semibold">Administradores</div>
         </div>
       </div>
 
       {/* Tabela */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-[14px] border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">

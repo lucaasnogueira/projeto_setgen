@@ -32,15 +32,7 @@ export class ExpensesController {
     UserRole.TECHNICIAN,
   )
   async create(@Body() createExpenseDto: CreateExpenseDto, @Request() req) {
-    try {
-      console.log('📝 Creating expense with data:', JSON.stringify(createExpenseDto, null, 2));
-      console.log('👤 User ID:', req.user.id);
-      return await this.expensesService.create(createExpenseDto, req.user.id);
-    } catch (error) {
-      console.error('❌ Error creating expense:', error);
-      console.error('📋 Request body:', JSON.stringify(createExpenseDto, null, 2));
-      throw error;
-    }
+    return this.expensesService.create(createExpenseDto, req.user.id);
   }
 
   @Get('bank-accounts')

@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { deliveriesApi } from '@/lib/api/deliveries';
-import { Truck } from 'lucide-react';
 import { DeliveryForm } from '../components/DeliveryForm';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function NewDeliveryPage() {
   const router = useRouter();
@@ -24,18 +24,10 @@ export default function NewDeliveryPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <Truck className="h-10 w-10" />
-          <div>
-            <h1 className="text-3xl font-bold">Registrar Baixa de Serviço</h1>
-            <p className="text-indigo-100">Registre a conclusão e aceite do serviço</p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Registrar Baixa de Serviço" subtitle="Registre a conclusão e aceite do serviço" />
 
-      <DeliveryForm 
+      <DeliveryForm
         onSubmit={handleSubmit}
         onCancel={() => router.back()}
         loading={loading}

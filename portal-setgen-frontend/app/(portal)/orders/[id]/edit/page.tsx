@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ordersApi } from '@/lib/api/orders';
 import { ServiceOrder } from '@/types';
-import { FileText } from 'lucide-react';
 import { ServiceOrderForm } from '../../components/ServiceOrderForm';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function EditOrderPage() {
   const params = useParams();
@@ -49,7 +49,7 @@ export default function EditOrderPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -57,24 +57,10 @@ export default function EditOrderPage() {
   if (!order) return null;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Azul */}
-      <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-              <FileText className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Editar OS #{order.orderNumber}</h1>
-              <p className="text-blue-100 mt-1 opacity-90">Atualize os detalhes e o escopo da ordem de serviço</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <PageHeader title={`Editar OS #${order.orderNumber}`} subtitle="Atualize os detalhes e o escopo da ordem de serviço" />
 
-      <ServiceOrderForm 
+      <ServiceOrderForm
         initialData={order}
         onSubmit={handleSubmit}
         onCancel={() => router.back()}

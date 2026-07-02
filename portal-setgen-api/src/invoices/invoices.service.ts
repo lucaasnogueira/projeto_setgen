@@ -12,7 +12,6 @@ import {
   Prisma,
   InvoiceStatus,
   UserRole,
-  ServiceOrderStatus,
   PurchaseOrderStatus,
 } from '@prisma/client';
 
@@ -335,7 +334,7 @@ export class InvoicesService {
     });
   }
 
-  async cancel(id: string, reason?: string) {
+  async cancel(id: string) {
     const invoice = await this.findOne(id);
 
     if (invoice.status === InvoiceStatus.PAID) {

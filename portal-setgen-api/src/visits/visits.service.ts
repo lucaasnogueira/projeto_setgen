@@ -2,11 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
+import { CheckinVisitDto, CheckoutVisitDto } from './dto/checkin-visit.dto';
 import { Prisma, UserRole } from '@prisma/client';
+import { RoutePoint, nearestNeighborRoute } from './route.util';
 
 @Injectable()
 export class VisitsService {
@@ -22,28 +25,44 @@ export class VisitsService {
       throw new NotFoundException('Cliente não encontrado');
     }
 
-    // Verificar se técnico existe
-    const technician = await this.prisma.user.findUnique({
-      where: { id: createVisitDto.technicianId },
-    });
+    // Verificar se técnico principal existe (se fornecido)
+    if (createVisitDto.technicianId) {
+      const technician = await this.prisma.user.findUnique({
+        where: { id: createVisitDto.technicianId },
+      });
 
-    if (!technician) {
-      throw new NotFoundException('Técnico não encontrado');
+      if (!technician) {
+        throw new NotFoundException('Técnico principal não encontrado');
+      }
     }
+
+    // Combinar anexos com legendas
+    const attachmentsData = attachments.map((path, index) => ({
+      url: path,
+      legend:
+        createVisitDto.legends && createVisitDto.legends[index]
+          ? createVisitDto.legends[index]
+          : '',
+    }));
 
     const visitData: Prisma.TechnicalVisitCreateInput = {
       client: { connect: { id: createVisitDto.clientId } },
-      technician: { connect: { id: createVisitDto.technicianId } },
+      ...(createVisitDto.technicianId && {
+        technician: { connect: { id: createVisitDto.technicianId } },
+      }),
       visitDate: new Date(createVisitDto.visitDate),
       visitType: createVisitDto.visitType,
       location: createVisitDto.location,
       description: createVisitDto.description,
+      userReport: createVisitDto.userReport,
       identifiedNeeds: createVisitDto.identifiedNeeds,
       suggestedScope: createVisitDto.suggestedScope,
       estimatedDeadline: createVisitDto.estimatedDeadline,
       estimatedValue: createVisitDto.estimatedValue,
       notes: createVisitDto.notes,
       attachments: attachments,
+      attachmentsData: attachmentsData as any,
+      responsibleIds: createVisitDto.responsibleIds || [],
     };
 
     return this.prisma.technicalVisit.create({
@@ -72,6 +91,7 @@ export class VisitsService {
   async findAll(filters?: {
     clientId?: string;
     technicianId?: string;
+    teamId?: string;
     visitType?: string;
     startDate?: string;
     endDate?: string;
@@ -79,6 +99,9 @@ export class VisitsService {
     const where: Prisma.TechnicalVisitWhereInput = {
       ...(filters?.clientId && { clientId: filters.clientId }),
       ...(filters?.technicianId && { technicianId: filters.technicianId }),
+      ...(filters?.teamId && {
+        technician: { teams: { some: { id: filters.teamId } } },
+      }),
       ...(filters?.visitType && { visitType: filters.visitType as any }),
       ...(filters?.startDate &&
         filters?.endDate && {
@@ -98,6 +121,8 @@ export class VisitsService {
             companyName: true,
             tradeName: true,
             cnpjCpf: true,
+            latitude: true,
+            longitude: true,
           },
         },
         technician: {
@@ -112,6 +137,69 @@ export class VisitsService {
         visitDate: 'desc',
       },
     });
+  }
+
+  async getOptimizedRoute(filters: {
+    date: string;
+    technicianId?: string;
+    teamId?: string;
+  }) {
+    if (!filters.technicianId && !filters.teamId) {
+      throw new BadRequestException(
+        'Informe technicianId ou teamId para otimizar a rota',
+      );
+    }
+
+    const dayStart = new Date(`${filters.date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${filters.date}T23:59:59.999Z`);
+
+    const where: Prisma.TechnicalVisitWhereInput = {
+      visitDate: { gte: dayStart, lte: dayEnd },
+      ...(filters.technicianId && { technicianId: filters.technicianId }),
+      ...(filters.teamId && {
+        technician: { teams: { some: { id: filters.teamId } } },
+      }),
+    };
+
+    const visits = await this.prisma.technicalVisit.findMany({
+      where,
+      include: {
+        client: {
+          select: {
+            id: true,
+            companyName: true,
+            tradeName: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+        technician: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { visitDate: 'asc' },
+    });
+
+    const points: (RoutePoint & { visit: (typeof visits)[number] })[] =
+      visits.map((v) => ({
+        id: v.id,
+        lat: v.client?.latitude ?? null,
+        lng: v.client?.longitude ?? null,
+        visit: v,
+      }));
+
+    const { ordered, totalDistanceKm } = nearestNeighborRoute(points);
+
+    return {
+      date: filters.date,
+      totalDistanceKm: Math.round(totalDistanceKm * 100) / 100,
+      stopsCount: ordered.length,
+      unroutedCount: ordered.filter((p) => p.lat === null || p.lng === null)
+        .length,
+      visits: ordered.map((p, index) => ({
+        ...p.visit,
+        routeOrder: index + 1,
+        hasCoordinates: p.lat !== null && p.lng !== null,
+      })),
+    };
   }
 
   async findOne(id: string) {
@@ -220,6 +308,9 @@ export class VisitsService {
       ...(updateVisitDto.description && {
         description: updateVisitDto.description,
       }),
+      ...(updateVisitDto.userReport && {
+        userReport: updateVisitDto.userReport,
+      }),
       ...(updateVisitDto.identifiedNeeds && {
         identifiedNeeds: updateVisitDto.identifiedNeeds,
       }),
@@ -234,6 +325,14 @@ export class VisitsService {
       }),
       ...(updateVisitDto.notes !== undefined && {
         notes: updateVisitDto.notes,
+      }),
+      ...(updateVisitDto.responsibleIds && {
+        responsibleIds: updateVisitDto.responsibleIds,
+      }),
+      ...(updateVisitDto.technicianId !== undefined && {
+        technician: updateVisitDto.technicianId
+          ? { connect: { id: updateVisitDto.technicianId } }
+          : { disconnect: true },
       }),
     };
 
@@ -255,6 +354,76 @@ export class VisitsService {
             email: true,
           },
         },
+      },
+    });
+  }
+
+  async checkin(
+    id: string,
+    dto: CheckinVisitDto,
+    userId: string,
+    userRole: UserRole,
+  ) {
+    const visit = await this.findOne(id);
+
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      visit.technicianId !== userId
+    ) {
+      throw new ForbiddenException(
+        'Você não tem permissão para fazer checkin nesta visita',
+      );
+    }
+
+    if (visit.checkinAt) {
+      throw new BadRequestException('Visita já teve checkin');
+    }
+
+    return this.prisma.technicalVisit.update({
+      where: { id },
+      data: {
+        checkinAt: new Date(),
+        checkinLat: dto.lat,
+        checkinLng: dto.lng,
+        checkinAccuracy: dto.accuracy,
+      },
+    });
+  }
+
+  async checkout(
+    id: string,
+    dto: CheckoutVisitDto,
+    userId: string,
+    userRole: UserRole,
+  ) {
+    const visit = await this.findOne(id);
+
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      visit.technicianId !== userId
+    ) {
+      throw new ForbiddenException(
+        'Você não tem permissão para fazer checkout nesta visita',
+      );
+    }
+
+    if (!visit.checkinAt) {
+      throw new BadRequestException('Visita ainda não teve checkin');
+    }
+
+    if (visit.checkoutAt) {
+      throw new BadRequestException('Visita já teve checkout');
+    }
+
+    return this.prisma.technicalVisit.update({
+      where: { id },
+      data: {
+        checkoutAt: new Date(),
+        checkoutLat: dto.lat,
+        checkoutLng: dto.lng,
+        checkoutAccuracy: dto.accuracy,
       },
     });
   }

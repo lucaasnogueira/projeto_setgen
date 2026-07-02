@@ -4,9 +4,10 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi } from '@/lib/api/users';
 import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
-import { UserPlus, Save, X, Eye, EyeOff, Loader2, Shield, AlertCircle } from 'lucide-react';
+import { Save, X, Eye, EyeOff, Loader2, Shield, AlertCircle } from 'lucide-react';
 import { PermissionSelector } from '@/components/access-control/permission-selector';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 interface EditUserPageProps {
   params: Promise<{ id: string }>;
@@ -140,27 +141,16 @@ export default function EditUserPage({ params }: EditUserPageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-            <UserPlus className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Editar Usuário</h1>
-            <p className="text-gray-300">Atualize as informações e permissões do usuário</p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Editar Usuário" subtitle="Atualize as informações e permissões do usuário" />
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <form onSubmit={handleSubmit} className="bg-white rounded-[14px] border border-border overflow-hidden">
         <Tabs defaultValue="general" className="w-full">
           <div className="border-b border-gray-100 px-6 pt-4">
             <TabsList className="grid w-full grid-cols-2 max-w-[400px]">

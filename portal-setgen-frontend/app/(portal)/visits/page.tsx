@@ -3,37 +3,22 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { visitsApi } from '@/lib/api/visits';
-import { Visit } from '@/types';
-import { 
-  Plus, 
-  Search, 
+import { TechnicalVisit } from '@/types';
+import {
+  Plus,
+  Search,
   ClipboardList,
   Calendar,
   User,
   MapPin,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
 } from 'lucide-react';
-import Link from 'next/link';
-
-const statusColors = {
-  SCHEDULED: 'bg-blue-100 text-blue-800',
-  IN_PROGRESS: 'bg-yellow-100 text-yellow-800',
-  COMPLETED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-red-100 text-red-800',
-};
-
-const statusLabels = {
-  SCHEDULED: 'Agendada',
-  IN_PROGRESS: 'Em Andamento',
-  COMPLETED: 'Concluída',
-  CANCELLED: 'Cancelada',
-};
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { visitTypeColors, visitTypeLabels } from './lib/visit-type-labels';
 
 export default function VisitsPage() {
-  const [visits, setVisits] = useState<Visit[]>([]);
+  const [visits, setVisits] = useState<TechnicalVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const router = useRouter();
@@ -60,105 +45,92 @@ export default function VisitsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Visitas Técnicas</h1>
-            <p className="text-purple-100">Gerencie as visitas aos clientes</p>
-          </div>
-          <ClipboardList className="h-16 w-16 opacity-50" />
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Visitas Técnicas"
+        subtitle="Gerencie as visitas aos clientes"
+        actions={
+          <Button onClick={() => router.push('/visits/new')} className="rounded-[9px] font-bold gap-2">
+            <Plus className="h-4 w-4" />
+            Nova Visita
+          </Button>
+        }
+      />
 
-      {/* Ações */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por cliente..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-          </div>
-          <Link href="/visits/new">
-            <button className="px-6 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 flex items-center gap-2 shadow-lg w-full md:w-auto justify-center">
-              <Plus className="h-4 w-4" />
-              Nova Visita
-            </button>
-          </Link>
+      <Card className="p-4">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+          <input
+            type="text"
+            placeholder="Buscar por cliente..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-8 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
+          />
         </div>
-      </div>
+      </Card>
 
-      {/* Cards de Visitas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredVisits.length === 0 ? (
-          <div className="col-span-2 bg-white rounded-xl shadow-lg p-12 text-center">
-            <ClipboardList className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">Nenhuma visita encontrada</p>
-            <p className="text-gray-400 text-sm mt-1">
+          <Card className="col-span-2 p-16 text-center">
+            <ClipboardList className="h-12 w-12 text-border mx-auto mb-3" />
+            <p className="text-text-secondary font-medium text-sm">Nenhuma visita encontrada</p>
+            <p className="text-text-muted text-xs mt-1">
               {searchTerm ? 'Tente outro termo de busca' : 'Comece agendando uma nova visita'}
             </p>
-          </div>
+          </Card>
         ) : (
           filteredVisits.map((visit) => (
-            <div
+            <Card
               key={visit.id}
-              className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer border-l-4 border-l-purple-500"
+              className="p-5 hover:border-primary/40 transition-colors cursor-pointer"
               onClick={() => router.push(`/visits/${visit.id}`)}
             >
-              {/* Header do Card */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex items-start justify-between mb-3.5">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <ClipboardList className="h-6 w-6 text-purple-600" />
+                  <div className="w-11 h-11 rounded-[10px] bg-status-purple-bg flex items-center justify-center shrink-0">
+                    <ClipboardList className="h-5 w-5 text-status-purple-fg" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{visit.client?.companyName}</h3>
-                    <span className={`inline-block px-2 py-1 text-xs rounded-full ${statusColors[visit.status]}`}>
-                      {statusLabels[visit.status]}
+                    <h3 className="font-bold text-[13.5px] text-foreground">{visit.client?.companyName}</h3>
+                    <span className={`inline-block px-2 py-0.5 text-[11px] font-bold rounded-full mt-1 ${visitTypeColors[visit.visitType]}`}>
+                      {visitTypeLabels[visit.visitType]}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Informações */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="h-4 w-4 text-gray-400" />
-                  {new Date(visit.scheduledDate).toLocaleDateString('pt-BR')}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                  <Calendar className="h-3.5 w-3.5 text-text-muted" />
+                  {new Date(visit.visitDate).toLocaleDateString('pt-BR')}
                 </div>
                 {visit.technician && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <User className="h-4 w-4 text-gray-400" />
+                  <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                    <User className="h-3.5 w-3.5 text-text-muted" />
                     {visit.technician.name}
                   </div>
                 )}
                 {visit.location && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <MapPin className="h-4 w-4 text-gray-400" />
+                  <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                    <MapPin className="h-3.5 w-3.5 text-text-muted" />
                     {visit.location}
                   </div>
                 )}
               </div>
 
-              {/* Descrição */}
               {visit.description && (
-                <p className="mt-4 text-sm text-gray-600 line-clamp-2">
+                <p className="mt-3.5 text-[12.5px] text-text-secondary line-clamp-2">
                   {visit.description}
                 </p>
               )}
-            </div>
+            </Card>
           ))
         )}
       </div>

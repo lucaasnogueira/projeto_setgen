@@ -2,62 +2,54 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
-import { getRoleLabel } from '@/lib/utils';
+import { getRoleLabel, cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   Users,
   ClipboardList,
   FileText,
   CheckCircle,
-  ShoppingCart,
   DollarSign,
   Truck,
   Package,
   BarChart3,
-  Settings,
   LogOut,
   Building2,
   ChevronLeft,
   ChevronRight,
   UserCog,
   Wallet,
-  ChevronDown,
-  ChevronUp,
   Shield,
+  Tags,
+  Calendar,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'] },
-  { 
-    name: 'Serviços', 
-    id: 'services',
-    icon: ClipboardList, 
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'],
-    children: [
-      { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
-      { name: 'Visitas Técnicas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
-      { name: 'Ordens de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
-      { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'] },
-      { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
-    ]
-  },
-  {
-    name: 'Administrativo',
-    id: 'admin',
-    icon: Settings,
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-    children: [
-      { name: 'Ordens de Compra', href: '/purchase-orders', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-      { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-      { name: 'Financeiro', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-      { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'] },
-      { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-    ]
-  },
-  { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'] },
-  { name: 'Relatórios', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
-  { name: 'Usuários', href: '/users', icon: UserCog, roles: ['ADMIN'] },
+
+  { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'COMERCIAL' },
+  { name: 'Visitas Técnicas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
+  { name: 'Agenda de Visitas', href: '/visits/agenda', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
+
+  { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'OPERAÇÕES' },
+  { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'] },
+  { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
+
+  { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], section: 'ESTOQUE' },
+
+  { name: 'Despesas', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], section: 'FINANCEIRO' },
+  { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
+
+  { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], section: 'RH' },
+
+  { name: 'Relatórios', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'], section: 'ANÁLISE' },
+
+  { name: 'Usuários', href: '/users', icon: UserCog, roles: ['ADMIN'], section: 'CONFIGURAÇÕES' },
+  { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'] },
+  { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN', 'MANAGER'] },
+  { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN', 'MANAGER'] },
 ];
 
 export default function Sidebar() {
@@ -65,158 +57,93 @@ export default function Sidebar() {
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const handleLogout = () => {
     clearAuth();
     router.push('/auth/login');
   };
 
-  const toggleSection = (id: string) => {
-    if (collapsed) {
-      setCollapsed(false);
-      setOpenSections({ [id]: true });
-    } else {
-      setOpenSections(prev => ({
-        ...prev,
-        [id]: !prev[id]
-      }));
-    }
-  };
-
-  const filteredNavigation = navigation.map(item => {
-    if (item.children) {
-      const filteredChildren = item.children.filter(child => 
-        user?.role && child.roles.includes(user.role)
-      );
-      if (filteredChildren.length === 0) return null;
-      return { ...item, children: filteredChildren };
-    }
-    return user?.role && item.roles.includes(user.role) ? item : null;
-  }).filter(Boolean);
+  const filteredNavigation = navigation.filter(
+    (item) => user?.role && item.roles.includes(user.role)
+  );
 
   return (
-    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-gradient-to-b from-gray-800 to-gray-900 text-white flex flex-col transition-all duration-300`}>
+    <div
+      className={cn(
+        'flex flex-col h-screen sticky top-0 shrink-0 overflow-hidden bg-sidebar text-sidebar-fg transition-[width] duration-200 ease-out',
+        collapsed ? 'w-[76px]' : 'w-64'
+      )}
+    >
       {/* Header */}
-      <div className="p-6 border-b border-gray-700">
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 px-4.5 py-5 border-b border-sidebar-border whitespace-nowrap">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-[9px] bg-primary flex items-center justify-center shrink-0">
+            <Building2 className="h-[18px] w-[18px] text-white" />
+          </div>
           {!collapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <Building2 className="h-6 w-6" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Portal</h1>
-                <p className="text-xs text-gray-400">Setgen</p>
-              </div>
-            </div>
+            <span className="font-extrabold text-[15px] tracking-wide truncate">SETGEN</span>
           )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-          </button>
         </div>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-[26px] h-[26px] rounded-[7px] bg-sidebar-hover text-sidebar-fg-muted flex items-center justify-center shrink-0 hover:text-white transition-colors"
+        >
+          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto">
-        {filteredNavigation.map((item: any) => {
-          if (item.children) {
-            const isAnyChildActive = item.children.some((child: any) => 
-              pathname === child.href || pathname?.startsWith(child.href + '/')
-            );
-            const isOpen = openSections[item.id];
-
-            return (
-              <div key={item.name} className="space-y-1">
-                <button
-                  onClick={() => toggleSection(item.id)}
-                  className={`w-full flex items-center justify-between gap-3 px-3 py-3 rounded-lg transition-all ${
-                    isAnyChildActive && !isOpen
-                      ? 'bg-gray-700/50 text-orange-400'
-                      : 'hover:bg-gray-700'
-                  }`}
-                  title={collapsed ? item.name : ''}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5 flex-shrink-0" />
-                    {!collapsed && <span className="text-sm font-medium">{item.name}</span>}
-                  </div>
-                  {!collapsed && (
-                    isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-
-                {isOpen && !collapsed && (
-                  <div className="pl-4 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                    {item.children.map((child: any) => {
-                      const isChildActive = pathname === child.href || pathname?.startsWith(child.href + '/');
-                      return (
-                        <button
-                          key={child.name}
-                          onClick={() => router.push(child.href)}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                            isChildActive
-                              ? 'bg-orange-500/20 text-orange-500 font-semibold'
-                              : 'hover:bg-gray-700/50 text-gray-300'
-                          }`}
-                        >
-                          <child.icon className="h-4 w-4 flex-shrink-0" />
-                          <span className="text-sm">{child.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 whitespace-nowrap scrollbar-thin-sidebar">
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
           return (
-            <button
-              key={item.name}
-              onClick={() => router.push(item.href)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-lg'
-                  : 'hover:bg-gray-700'
-              }`}
-              title={collapsed ? item.name : ''}
-            >
-              <item.icon className="h-5 w-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm font-medium">{item.name}</span>}
-            </button>
+            <div key={item.href}>
+              {item.section && !collapsed && (
+                <div className="text-[10.5px] font-bold tracking-wider text-sidebar-fg-dim px-3 pt-3.5 pb-2">
+                  {item.section}
+                </div>
+              )}
+              {item.section && collapsed && <div className="h-2" />}
+              <button
+                onClick={() => router.push(item.href)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13.5px] font-medium transition-colors mb-0.5',
+                  isActive
+                    ? 'bg-primary text-white font-bold'
+                    : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
+                )}
+                title={collapsed ? item.name : ''}
+              >
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                {!collapsed && <span>{item.name}</span>}
+              </button>
+            </div>
           );
         })}
       </nav>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-gray-700">
-        {!collapsed && user && (
-          <div className="mb-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user.name}</p>
-                <p className="text-xs text-gray-400 truncate">{getRoleLabel(user.role)}</p>
-              </div>
+      <div className="border-t border-sidebar-border p-3.5 whitespace-nowrap">
+        {user && (
+          <div className="flex items-center gap-2.5 p-2 rounded-[9px] mb-1.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-primary text-white font-bold text-[12.5px] flex items-center justify-center shrink-0">
+              {user.name.charAt(0).toUpperCase()}
             </div>
+            {!collapsed && (
+              <div className="min-w-0 overflow-hidden">
+                <div className="text-white text-[12.5px] font-bold truncate">{user.name}</div>
+                <div className="text-sidebar-fg-dim text-[11px] truncate">{getRoleLabel(user.role)}</div>
+              </div>
+            )}
           </div>
         )}
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-red-600 transition-colors ${
-            collapsed ? 'justify-center' : ''
-          }`}
+          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[9px] text-sidebar-fg-muted text-[12.5px] font-semibold hover:bg-sidebar-hover hover:text-white transition-colors"
           title={collapsed ? 'Sair' : ''}
         >
-          <LogOut className="h-5 w-5" />
-          {!collapsed && <span className="text-sm font-medium">Sair</span>}
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Sair</span>}
         </button>
       </div>
     </div>

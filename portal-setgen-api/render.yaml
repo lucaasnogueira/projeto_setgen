@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: portal-setgen-api
+    runtime: node
+    plan: free
+    rootDir: portal-setgen-api
+    buildCommand: npm install && npx prisma migrate deploy && npm run build
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION
+        value: 8h
+      - key: CORS_ORIGIN
+        sync: false
+      - key: CNPJ_API_URL
+        value: https://brasilapi.com.br/api/cnpj/v1
+      - key: MAX_FILE_SIZE
+        value: 5242880
+      - key: UPLOAD_PATH
+        value: ./uploads

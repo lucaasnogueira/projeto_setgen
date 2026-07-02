@@ -34,4 +34,7 @@ async function bootstrap() {
   console.log(`🚀 API running on: http://localhost:${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Falha ao iniciar a API', err);
+  process.exit(1);
+});

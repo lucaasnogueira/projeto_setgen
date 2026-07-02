@@ -132,7 +132,7 @@ export class RolesService {
   }
 
   async remove(id: string) {
-    const role = await this.findOne(id);
+    await this.findOne(id);
 
     // Verificar se existem usuários vinculados
     const usersCount = await this.prisma.user.count({

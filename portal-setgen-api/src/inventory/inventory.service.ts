@@ -142,80 +142,91 @@ export class InventoryService {
     createMovementDto: CreateStockMovementDto,
     createdById: string,
   ) {
-    const product = await this.findOneProduct(createMovementDto.productId);
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: createMovementDto.productId },
+      });
 
-    // Validar quantidade para saída
-    if (
-      createMovementDto.type === MovementType.EXIT &&
-      product.currentStock < createMovementDto.quantity
-    ) {
-      throw new BadRequestException(
-        `Estoque insuficiente. Disponível: ${product.currentStock} ${product.unit}`,
-      );
-    }
+      if (!product) {
+        throw new NotFoundException('Produto não encontrado');
+      }
 
-    // Calcular custo total
-    const totalCost = createMovementDto.unitCost
-      ? createMovementDto.unitCost * createMovementDto.quantity
-      : null;
+      // Validar quantidade para saída (checagem otimista; a validação
+      // definitiva contra estoque negativo ocorre após o update atômico abaixo)
+      if (
+        (createMovementDto.type === MovementType.EXIT ||
+          createMovementDto.type === MovementType.ADJUSTMENT) &&
+        product.currentStock < createMovementDto.quantity
+      ) {
+        throw new BadRequestException(
+          `Estoque insuficiente. Disponível: ${product.currentStock} ${product.unit}`,
+        );
+      }
 
-    const movementData: Prisma.StockMovementCreateInput = {
-      product: { connect: { id: createMovementDto.productId } },
-      type: createMovementDto.type,
-      quantity: createMovementDto.quantity,
-      unitCost: createMovementDto.unitCost,
-      totalCost,
-      reason: createMovementDto.reason,
-      referenceId: createMovementDto.referenceId,
-      createdBy: { connect: { id: createdById } },
-    };
+      // Calcular custo total
+      const totalCost = createMovementDto.unitCost
+        ? createMovementDto.unitCost * createMovementDto.quantity
+        : null;
 
-    // Criar movimentação
-    const movement = await this.prisma.stockMovement.create({
-      data: movementData,
-      include: {
-        product: {
-          select: {
-            code: true,
-            name: true,
-            unit: true,
+      const movementData: Prisma.StockMovementCreateInput = {
+        product: { connect: { id: createMovementDto.productId } },
+        type: createMovementDto.type,
+        quantity: createMovementDto.quantity,
+        unitCost: createMovementDto.unitCost,
+        totalCost,
+        reason: createMovementDto.reason,
+        referenceId: createMovementDto.referenceId,
+        createdBy: { connect: { id: createdById } },
+      };
+
+      // Criar movimentação
+      const movement = await tx.stockMovement.create({
+        data: movementData,
+        include: {
+          product: {
+            select: {
+              code: true,
+              name: true,
+              unit: true,
+            },
+          },
+          createdBy: {
+            select: {
+              name: true,
+              email: true,
+            },
           },
         },
-        createdBy: {
-          select: {
-            name: true,
-            email: true,
-          },
+      });
+
+      // Atualizar estoque do produto de forma atômica (increment/decrement
+      // no banco, não a partir do valor lido acima) para evitar corrida
+      // entre movimentações concorrentes no mesmo produto.
+      const isInbound = createMovementDto.type === MovementType.ENTRY;
+      const updatedProduct = await tx.product.update({
+        where: { id: createMovementDto.productId },
+        data: {
+          currentStock: isInbound
+            ? { increment: createMovementDto.quantity }
+            : { decrement: createMovementDto.quantity },
+          ...(createMovementDto.unitCost && {
+            unitCost: createMovementDto.unitCost,
+          }),
         },
-      },
+      });
+
+      if (updatedProduct.currentStock < 0) {
+        throw new BadRequestException(
+          `Estoque insuficiente. Disponível: ${product.currentStock} ${product.unit}`,
+        );
+      }
+
+      return {
+        ...movement,
+        previousStock: product.currentStock,
+        newStock: updatedProduct.currentStock,
+      };
     });
-
-    // Atualizar estoque do produto
-    let newStock = product.currentStock;
-    if (createMovementDto.type === MovementType.ENTRY) {
-      newStock += createMovementDto.quantity;
-    } else if (
-      createMovementDto.type === MovementType.EXIT ||
-      createMovementDto.type === MovementType.ADJUSTMENT
-    ) {
-      newStock -= createMovementDto.quantity;
-    }
-
-    await this.prisma.product.update({
-      where: { id: createMovementDto.productId },
-      data: {
-        currentStock: newStock,
-        ...(createMovementDto.unitCost && {
-          unitCost: createMovementDto.unitCost,
-        }),
-      },
-    });
-
-    return {
-      ...movement,
-      previousStock: product.currentStock,
-      newStock,
-    };
   }
 
   async findAllMovements(filters?: {
@@ -277,17 +288,15 @@ export class InventoryService {
   // ==================== RELATÓRIOS ====================
 
   async getLowStockProducts() {
-    return this.prisma.product.findMany({
-      where: {
-        active: true,
-        currentStock: {
-          lte: this.prisma.product.fields.minStock,
-        },
-      },
-      orderBy: {
-        currentStock: 'asc',
-      },
+    // Comparação coluna-a-coluna (currentStock <= minStock) não é suportada
+    // diretamente pelo `where` do Prisma Client; filtra em memória após buscar
+    // os produtos ativos, mesma abordagem usada em findAllProducts({lowStock: true}).
+    const products = await this.prisma.product.findMany({
+      where: { active: true },
+      orderBy: { currentStock: 'asc' },
     });
+
+    return products.filter((p) => p.currentStock <= p.minStock);
   }
 
   async getInventoryValue() {

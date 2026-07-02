@@ -126,7 +126,6 @@ export default function EditExpensePage() {
           clients={data.clients}
           visits={data.visits}
           serviceOrders={data.serviceOrders}
-          bankAccounts={data.bankAccounts}
           onSubmit={handleSubmit}
           initialData={formattedInitialData}
           isLoading={isLoading}

@@ -8,6 +8,7 @@ import { CheckCircle, Save, X, FileText, User, MessageSquare, AlertCircle } from
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function NewApprovalPage() {
   const router = useRouter();
@@ -49,22 +50,8 @@ export default function NewApprovalPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Amarelo/Laranja */}
-      <div className="bg-gradient-to-br from-yellow-500 via-orange-500 to-orange-600 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-              <CheckCircle className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Registrar Aprovação</h1>
-              <p className="text-yellow-100 mt-1 opacity-90">Aprovar ou rejeitar ordens de serviço pendentes</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <PageHeader title="Registrar Aprovação" subtitle="Aprovar ou rejeitar ordens de serviço pendentes" />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Seleção da OS */}

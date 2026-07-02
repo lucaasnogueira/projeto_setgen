@@ -42,6 +42,7 @@ export class EmployeesController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Listar todos os funcionários' })
   @ApiQuery({ name: 'status', enum: EmployeeStatus, required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -62,6 +63,7 @@ export class EmployeesController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Buscar funcionário por ID' })
   findOne(@Param('id') id: string) {
     return this.employeesService.findOne(id);

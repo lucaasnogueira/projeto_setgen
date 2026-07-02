@@ -1,18 +1,12 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateApprovalDto } from './dto/create-approval.dto';
 import { ApproveDto, RejectDto } from './dto/approve-reject.dto';
-import {
-  UserRole,
-  ApprovalStatus,
-  ServiceOrderStatus,
-  ServiceOrderType,
-} from '@prisma/client';
+import { ApprovalStatus, ServiceOrderStatus } from '@prisma/client';
 
 @Injectable()
 export class ApprovalsService {
@@ -23,7 +17,10 @@ export class ApprovalsService {
     const serviceOrder = await this.prisma.serviceOrder.findUnique({
       where: { id: createApprovalDto.serviceOrderId },
       include: {
-        approvals: true,
+        approvals: {
+          orderBy: { approvedAt: 'desc' },
+          take: 1,
+        },
       },
     });
 

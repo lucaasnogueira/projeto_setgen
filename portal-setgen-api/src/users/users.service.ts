@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -182,7 +183,7 @@ export class UsersService {
     });
   }
 
-  async resetPassword(id: string, resetPasswordDto: any) {
+  async resetPassword(id: string, resetPasswordDto: ResetPasswordDto) {
     await this.findOne(id);
     const hashedPassword = await bcrypt.hash(resetPasswordDto.password, 10);
 

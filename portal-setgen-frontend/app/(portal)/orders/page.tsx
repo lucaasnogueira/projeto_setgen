@@ -1,39 +1,30 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ordersApi } from '@/lib/api/orders';
 import { ServiceOrder } from '@/types';
-import { 
-  Plus, 
-  Search, 
-  FileText,
-  Calendar,
-  User,
-  Building2,
-  Eye,
-  Edit,
-} from 'lucide-react';
-
-const statusColors = {
-  DRAFT: 'bg-gray-100 text-gray-800',
-  PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
-  APPROVED: 'bg-green-100 text-green-800',
-  REJECTED: 'bg-red-100 text-red-800',
-  IN_PROGRESS: 'bg-blue-100 text-blue-800',
-  COMPLETED: 'bg-emerald-100 text-emerald-800',
-  CANCELLED: 'bg-red-100 text-red-800',
-};
-
-const statusLabels = {
-  DRAFT: 'Rascunho',
-  PENDING_APPROVAL: 'Aguardando Aprovação',
-  APPROVED: 'Aprovada',
-  REJECTED: 'Rejeitada',
-  IN_PROGRESS: 'Em Andamento',
-  COMPLETED: 'Concluída',
-  CANCELLED: 'Cancelada',
-};
+import { getStatusColor, getStatusLabel, getInitials, getAvatarColor, formatDate } from '@/lib/utils';
+import { Plus, Search, Eye, Edit } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+} from '@/components/ui/table';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
@@ -67,155 +58,121 @@ export default function OrdersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Ordens de Serviço</h1>
-            <p className="text-blue-100">Gerencie todas as ordens de serviço</p>
-          </div>
-          <FileText className="h-16 w-16 opacity-50" />
-        </div>
-      </div>
-
-      {/* Filtros e Ações */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="flex gap-4 flex-1">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por número ou cliente..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="ALL">Todos os Status</option>
-              <option value="DRAFT">Rascunho</option>
-              <option value="PENDING_APPROVAL">Aguardando Aprovação</option>
-              <option value="APPROVED">Aprovada</option>
-              <option value="IN_PROGRESS">Em Andamento</option>
-              <option value="COMPLETED">Concluída</option>
-            </select>
-          </div>
-          <button 
-            onClick={() => router.push('/orders/new')}
-            className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 flex items-center gap-2 shadow-lg"
-          >
+    <div className="space-y-5">
+      <PageHeader
+        title="Ordens de Serviço"
+        subtitle={`${filteredOrders.length} ordens neste mês`}
+        actions={
+          <Button onClick={() => router.push('/orders/new')} className="rounded-[9px] font-bold gap-2">
             <Plus className="h-4 w-4" />
             Nova OS
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  OS
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Cliente
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Tipo
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Data
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 font-medium">Nenhuma OS encontrada</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{order.orderNumber}</p>
-                          <p className="text-xs text-gray-500">#{order.id.slice(0, 8)}</p>
-                        </div>
+      <Card className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[190px] h-9 text-[12.5px] rounded-[8px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Todos os status</SelectItem>
+              <SelectItem value="DRAFT">Rascunho</SelectItem>
+              <SelectItem value="PENDING_APPROVAL">Aguardando Aprovação</SelectItem>
+              <SelectItem value="APPROVED">Aprovada</SelectItem>
+              <SelectItem value="IN_PROGRESS">Em Andamento</SelectItem>
+              <SelectItem value="COMPLETED">Concluída</SelectItem>
+              <SelectItem value="CANCELLED">Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="relative w-60">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Buscar por número ou cliente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+        </div>
+
+        <Table>
+          <TableHeader>
+            <TableRow className="border-t-0 hover:bg-transparent">
+              <TableHead>OS</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Responsável</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Abertura</TableHead>
+              <TableHead className="w-11" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredOrders.length === 0 ? (
+              <TableEmpty colSpan={6} message="Nenhuma OS encontrada" />
+            ) : (
+              filteredOrders.map((order) => {
+                const respName = order.createdBy?.name ?? '—';
+                const color = getAvatarColor(respName);
+                return (
+                  <TableRow key={order.id}>
+                    <TableCell>
+                      <div className="text-[13px] font-bold text-foreground">{order.orderNumber}</div>
+                      <div className="text-[11.5px] text-text-muted">
+                        {order.type === 'VISIT_REPORT' ? 'Visita' : 'Execução'}
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="text-[12.5px] text-text-secondary">{order.client?.companyName}</TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-900">{order.client?.companyName}</span>
+                        <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center font-bold text-[10.5px] shrink-0 ${color.bg} ${color.fg}`}>
+                          {getInitials(respName)}
+                        </div>
+                        <span className="text-[12.5px] text-text-secondary">{respName}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {order.type === 'VISIT_REPORT' ? 'Visita' : 'Execução'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Calendar className="h-4 w-4 text-gray-400" />
-                        {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-block px-2 py-1 text-xs rounded-full ${statusColors[order.status]}`}>
-                        {statusLabels[order.status]}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-block text-[11.5px] font-bold px-2.5 py-1 rounded-full ${getStatusColor(order.status)}`}>
+                        {getStatusLabel(order.status)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
+                    </TableCell>
+                    <TableCell className="text-[12.5px] text-text-secondary">{formatDate(order.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => router.push(`/orders/${order.id}`)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-1.5 text-text-muted hover:text-primary hover:bg-muted/40 rounded-md transition-colors"
                           title="Visualizar"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {order.status === 'DRAFT' && (
+                        {(order.status === 'DRAFT' || order.status === 'REJECTED') && (
                           <button
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            onClick={() => router.push(`/orders/${order.id}/edit`)}
+                            className="p-1.5 text-text-muted hover:text-primary hover:bg-muted/40 rounded-md transition-colors"
                             title="Editar"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

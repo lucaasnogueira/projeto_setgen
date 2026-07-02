@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Pagination } from '@/components/ui/pagination';
 import { PaginatedResponse } from '@/types';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -93,31 +94,20 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-1">Recursos Humanos</h1>
-              <p className="text-gray-300">Gestão de funcionários, ASOs e documentação</p>
-            </div>
-          </div>
-          <Button 
-            onClick={() => router.push('/rh/employees/new')}
-            className="bg-orange-600 hover:bg-orange-500 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
+    <div className="space-y-5">
+      <PageHeader
+        title="Recursos Humanos"
+        subtitle="Gestão de funcionários, ASOs e documentação"
+        actions={
+          <Button onClick={() => router.push('/rh/employees/new')} className="rounded-[9px] font-bold gap-2">
+            <Plus className="h-4 w-4" />
             Novo Funcionário
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-white rounded-[14px] border border-border p-5">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -149,7 +139,7 @@ export default function EmployeesPage() {
       </div>
 
       {/* Lista de Funcionários */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-[14px] border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50/50 border-b border-gray-100">
@@ -245,7 +235,7 @@ export default function EmployeesPage() {
 
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
-        <div className="bg-white rounded-xl shadow-md p-4 flex justify-center">
+        <div className="bg-white rounded-[14px] border border-border p-4 flex justify-center">
           <Pagination
             currentPage={currentPage}
             totalPages={meta.totalPages}

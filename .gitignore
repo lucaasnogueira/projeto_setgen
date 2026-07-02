@@ -1,0 +1,31 @@
+# ─── Segredos — NUNCA commitar ──────────────────────────────
+# Certificados digitais A1 (contêm chave privada)
+certs/
+**/certs/
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# ─── Dependências / build ───────────────────────────────────
+node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# ─── Uploads locais ─────────────────────────────────────────
+uploads/
+**/uploads/
+
+# ─── OS / editor ────────────────────────────────────────────
+.DS_Store
+*.log
+
+# ─── Config local ───────────────────────────────────────────
+.mcp.json

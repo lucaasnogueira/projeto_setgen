@@ -3,11 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { employeeApi } from '@/lib/api/employees';
-import { Employee, ASO, EmployeeDocument, EmployeeStatus } from '@/types';
-import { 
-  User, 
-  Briefcase, 
-  ArrowLeft,
+import { Employee, ASO, EmployeeDocument } from '@/types';
+import {
+  User,
+  Briefcase,
   Info,
   ShieldCheck,
   FileBox,
@@ -21,6 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeForm } from '@/components/rh/EmployeeForm';
 import { ASOList } from '@/components/rh/ASOList';
 import { DocumentList } from '@/components/rh/DocumentList';
+import { DetailHeader } from '@/components/layout/DetailHeader';
+import { getStatusColor, getStatusLabel } from '@/lib/utils';
 
 export default function EmployeeDetailsPage() {
   const params = useParams();
@@ -60,7 +61,7 @@ export default function EmployeeDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -68,48 +69,23 @@ export default function EmployeeDetailsPage() {
   if (!employee) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="relative z-10">
-          <button 
-            onClick={() => router.push('/rh/employees')}
-            className="flex items-center gap-2 text-gray-300 hover:text-white mb-6 transition-colors group"
-          >
-            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            Voltar para lista
-          </button>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/20">
-                <User className="h-10 w-10 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">{employee.name}</h1>
-                <p className="text-gray-300 mt-1 opacity-90 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  {employee.position || 'Cargo não informado'} • CPF: {employee.cpf}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm border border-white/10 text-sm">
-              <span className="text-gray-400">Status:</span>
-              <span className={`ml-2 font-bold ${
-                employee.status === EmployeeStatus.ACTIVE ? 'text-green-400' : 
-                employee.status === EmployeeStatus.TERMINATED ? 'text-red-400' : 
-                employee.status === EmployeeStatus.VACATION ? 'text-blue-400' : 
-                'text-amber-400'
-              }`}>
-                {employee.status === EmployeeStatus.ACTIVE ? 'Ativo' : 
-                 employee.status === EmployeeStatus.AWAY ? 'Afastado' :
-                 employee.status === EmployeeStatus.VACATION ? 'Férias' : 'Desligado'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
+      <DetailHeader
+        icon={User}
+        tone="gray"
+        title={employee.name}
+        subtitle={
+          <>
+            <Briefcase className="h-3.5 w-3.5" />
+            {employee.position || 'Cargo não informado'} • CPF: {employee.cpf}
+            <span className={`ml-2 px-2.5 py-0.5 text-[11px] font-bold rounded-full ${getStatusColor(employee.status)}`}>
+              {getStatusLabel(employee.status)}
+            </span>
+          </>
+        }
+        onBack={() => router.push('/rh/employees')}
+        backLabel="Voltar para lista"
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-white p-1 rounded-xl shadow-md border mb-6">

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DetailHeader } from "@/components/layout/DetailHeader";
 import Link from 'next/link';
 
 export default function PurchaseOrderDetailsPage() {
@@ -66,7 +67,7 @@ export default function PurchaseOrderDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -76,53 +77,35 @@ export default function PurchaseOrderDetailsPage() {
   const isExpired = order.expiryDate && new Date(order.expiryDate) < new Date();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Verde */}
-      <div className="bg-gradient-to-br from-green-500 via-green-600 to-teal-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-green-100 hover:text-white mb-6 transition-colors group"
-          >
-            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            Voltar para lista
-          </button>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-                <ShoppingCart className="h-10 w-10 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Ordem de Compra #{order.orderNumber}</h1>
-                <p className="text-green-100 mt-1 opacity-90 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  {order.client?.companyName}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Link href={`/purchase-orders/${order.id}/edit`}>
-                <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm rounded-xl px-6 font-bold flex items-center gap-2">
-                  <Edit className="h-4 w-4" />
-                  Editar
-                </Button>
-              </Link>
-              {canDelete && (
-                <Button 
-                  onClick={handleDelete}
-                  className="bg-red-500/20 hover:bg-red-500/40 text-red-100 border-red-500/30 backdrop-blur-sm rounded-xl px-6 font-bold flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Excluir
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
+      <DetailHeader
+        icon={ShoppingCart}
+        tone="green"
+        title={`Ordem de Compra #${order.orderNumber}`}
+        subtitle={<><Briefcase className="h-3.5 w-3.5" />{order.client?.companyName}</>}
+        onBack={() => router.back()}
+        backLabel="Voltar para lista"
+        actions={
+          <>
+            <Link href={`/purchase-orders/${order.id}/edit`}>
+              <Button variant="outline" className="rounded-[9px] font-bold gap-2">
+                <Edit className="h-4 w-4" />
+                Editar
+              </Button>
+            </Link>
+            {canDelete && (
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                className="rounded-[9px] font-bold gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Coluna Principal */}

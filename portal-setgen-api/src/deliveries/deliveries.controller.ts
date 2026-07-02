@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
@@ -56,7 +57,7 @@ export class DeliveriesController {
       }),
       fileFilter: (req, file, callback) => {
         if (!file.originalname.match(/\.(jpg|jpeg|png|pdf|mp4|mov)$/)) {
-          callback(null, false);
+          return callback(new BadRequestException('Tipo de arquivo não permitido'), false);
         }
         callback(null, true);
       },
@@ -141,6 +142,15 @@ export class DeliveriesController {
           callback(null, `additional-evidence-${uniqueSuffix}${ext}`);
         },
       }),
+      fileFilter: (req, file, callback) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|pdf|mp4|mov)$/)) {
+          return callback(new BadRequestException('Tipo de arquivo não permitido'), false);
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB por arquivo
+      },
     }),
   )
   @ApiConsumes('multipart/form-data')
@@ -168,7 +178,7 @@ export class DeliveriesController {
       }),
       fileFilter: (req, file, callback) => {
         if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-          callback(null, false);
+          return callback(new BadRequestException('Tipo de arquivo não permitido'), false);
         }
         callback(null, true);
       },

@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { purchaseOrdersApi } from '@/lib/api/purchase-orders';
 import { ordersApi } from '@/lib/api/orders';
-import { ShoppingCart, Save, X, FileText, DollarSign, Calendar, Info, ArrowLeft } from 'lucide-react';
+import { ShoppingCart, Save, X, FileText, DollarSign, Calendar, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DetailHeader } from "@/components/layout/DetailHeader";
 
 export default function EditPurchaseOrderPage() {
   const params = useParams();
@@ -92,36 +93,20 @@ export default function EditPurchaseOrderPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Verde */}
-      <div className="bg-gradient-to-br from-green-500 via-green-600 to-teal-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-green-100 hover:text-white mb-6 transition-colors group"
-          >
-            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            Voltar
-          </button>
-          
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-              <ShoppingCart className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Editar Ordem de Compra</h1>
-              <p className="text-green-100 mt-1 opacity-90">Atualize as informações da OC #{formData.orderNumber}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <DetailHeader
+        icon={ShoppingCart}
+        tone="green"
+        title="Editar Ordem de Compra"
+        subtitle={`Atualize as informações da OC #${formData.orderNumber}`}
+        onBack={() => router.back()}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Vínculo com OS */}

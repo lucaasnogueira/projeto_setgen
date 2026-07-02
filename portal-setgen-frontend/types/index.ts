@@ -27,6 +27,15 @@ export enum ServiceOrderType {
   EXECUTION = 'EXECUTION',
 }
 
+export enum ChecklistFieldType {
+  TEXT = 'TEXT',
+  NUMBER = 'NUMBER',
+  PHOTO = 'PHOTO',
+  SIGNATURE = 'SIGNATURE',
+  BOOLEAN = 'BOOLEAN',
+  MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
+}
+
 export enum ServiceOrderStatus {
   DRAFT = 'DRAFT',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
@@ -127,6 +136,31 @@ export enum ASOType {
   DISMISSAL = 'DISMISSAL',
 }
 
+export enum FiscalStatus {
+  PENDENTE = 'PENDENTE',
+  PROCESSANDO = 'PROCESSANDO',
+  AUTORIZADA = 'AUTORIZADA',
+  REJEITADA = 'REJEITADA',
+  CANCELADA = 'CANCELADA',
+  DENEGADA = 'DENEGADA',
+}
+
+export enum FiscalType {
+  NFE = 'NFE',
+  NFSE = 'NFSE',
+}
+
+export enum IcmsTaxpayerType {
+  CONTRIBUINTE = 'CONTRIBUINTE',
+  ISENTO = 'ISENTO',
+  NAO_CONTRIBUINTE = 'NAO_CONTRIBUINTE',
+}
+
+export enum ClientTaxonomyKind {
+  GROUP = 'GROUP',
+  SEGMENT = 'SEGMENT',
+}
+
 // ========================================
 // INTERFACES
 // ========================================
@@ -164,6 +198,46 @@ export interface Client {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+
+  // Paridade Auvo
+  externalCode?: string;
+  onSiteContact?: string;
+  corporatePhones?: string[];
+  corporateEmails?: string[];
+  internalNotes?: string;
+  icmsTaxpayerType?: IcmsTaxpayerType;
+  stateRegistration?: string;
+  municipalRegistration?: string;
+  billingEmail?: string;
+  latitude?: number;
+  longitude?: number;
+  responsibleUserId?: string;
+  responsibleTeamId?: string;
+  groupId?: string;
+  segmentId?: string;
+  responsibleUser?: Pick<User, 'id' | 'name'>;
+  responsibleTeam?: Team;
+  group?: ClientTaxonomy;
+  segment?: ClientTaxonomy;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  members?: Pick<User, 'id' | 'name'>[];
+}
+
+export interface ClientTaxonomy {
+  id: string;
+  kind: ClientTaxonomyKind;
+  name: string;
+  color?: string;
+  active: boolean;
+  createdAt: string;
 }
 
 export interface Address {
@@ -183,20 +257,36 @@ export interface Contact {
   email: string;
 }
 
+export interface AttachmentData {
+  url: string;
+  legend?: string;
+}
+
 export interface TechnicalVisit {
   id: string;
   clientId: string;
-  technicianId: string;
+  technicianId?: string;
   visitDate: string;
   visitType: VisitType;
   location: string;
   description: string;
+  userReport?: string;
   identifiedNeeds?: string;
   suggestedScope?: string;
   estimatedDeadline?: string;
   estimatedValue?: number;
   attachments: string[];
+  attachmentsData?: AttachmentData[];
+  responsibleIds?: string[];
   notes?: string;
+  checkinAt?: string;
+  checkinLat?: number;
+  checkinLng?: number;
+  checkinAccuracy?: number;
+  checkoutAt?: string;
+  checkoutLat?: number;
+  checkoutLng?: number;
+  checkoutAccuracy?: number;
   createdAt: string;
   updatedAt: string;
   client?: Client;
@@ -217,7 +307,9 @@ export interface ServiceOrder {
   requiredResources?: any;
   deadline?: string;
   responsibleIds: string[];
-  checklist: ChecklistItem[];
+  checklist: ChecklistAnswerItem[];
+  checklistTemplateId?: string;
+  checklistTemplate?: Pick<ChecklistTemplate, 'id' | 'name'>;
   progress: number;
   attachments: string[];
   createdById: string;
@@ -228,6 +320,32 @@ export interface ServiceOrder {
   createdBy?: User;
   items?: ServiceOrderProduct[];
   statusHistory?: ServiceOrderStatusHistory[];
+}
+
+export interface ChecklistFieldDefinition {
+  id: string;
+  type: ChecklistFieldType;
+  label: string;
+  required: boolean;
+  options?: string[];
+}
+
+export interface ChecklistAnswerItem extends ChecklistFieldDefinition {
+  answer: string | number | boolean | null;
+  completed: boolean;
+  // Shape legado (pré-templates): { item, completed }
+  item?: string;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  serviceOrderType?: ServiceOrderType;
+  active: boolean;
+  fields: ChecklistFieldDefinition[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ServiceOrderStatusHistory {
@@ -292,13 +410,17 @@ export interface PurchaseOrder {
 export interface Invoice {
   id: string;
   serviceOrderId: string;
-  purchaseOrderId: string;
+  purchaseOrderId?: string;
   invoiceNumber: string;
   series: string;
+  serie?: string;
   value: number;
   issueDate: string;
   dueDate: string;
-  status: InvoiceStatus;
+  status: InvoiceStatus | FiscalStatus;
+  tipo?: FiscalType;
+  chaveAcesso?: string;
+  protocolo?: string;
   xmlUrl?: string;
   pdfUrl?: string;
   createdById: string;
@@ -307,6 +429,45 @@ export interface Invoice {
   serviceOrder?: ServiceOrder;
   purchaseOrder?: PurchaseOrder;
   createdBy?: User;
+  impostos?: FiscalTax[];
+  splitPayment?: FiscalSplitPayment;
+  eventos?: EventoSefaz[];
+}
+
+export interface EventoSefaz {
+  id: string;
+  notaId: string;
+  tipo: string;
+  codigo: string;
+  descricao: string;
+  protocolo?: string;
+  xmlEvento?: string;
+  xmlRetorno?: string;
+  createdAt: string;
+}
+
+export interface FiscalTax {
+  id: string;
+  notaId: string;
+  valorIss?: number;
+  valorIcms?: number;
+  valorPis?: number;
+  valorCofins?: number;
+  aliquotaCbs: number;
+  valorCbs: number;
+  aliquotaIbs: number;
+  valorIbs: number;
+  creditoPresumidoZfm?: number;
+  beneficioZfmAtivo: boolean;
+  totalImposto: number;
+  createdAt: string;
+}
+
+export interface FiscalSplitPayment {
+  valorRetido: number;
+  banco?: string;
+  chavePix?: string;
+  descricao?: string;
 }
 
 export interface Delivery {

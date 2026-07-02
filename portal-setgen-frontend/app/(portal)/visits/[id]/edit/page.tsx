@@ -36,7 +36,37 @@ export default function EditVisitPage() {
   const handleSubmit = async (payload: any) => {
     setSubmitting(true);
     try {
-      await visitsApi.update(params.id as string, payload);
+      if (payload instanceof FormData) {
+        const files = payload.getAll('files');
+        const legends = payload.getAll('legends[]');
+
+        payload.delete('files');
+        payload.delete('legends[]');
+
+        const visitData: any = {};
+        payload.forEach((value, key) => {
+          if (key === 'responsibleIds[]') {
+            if (!visitData.responsibleIds) visitData.responsibleIds = [];
+            visitData.responsibleIds.push(value);
+          } else {
+            visitData[key] = value;
+          }
+        });
+
+        await visitsApi.update(params.id as string, visitData);
+
+        if (files.length > 0) {
+          const attachmentData = new FormData();
+          files.forEach((file, index) => {
+            attachmentData.append('files', file);
+            if (legends[index]) attachmentData.append('legends[]', legends[index]);
+          });
+          await visitsApi.addAttachments(params.id as string, attachmentData);
+        }
+      } else {
+        await visitsApi.update(params.id as string, payload);
+      }
+      
       alert('Visita atualizada com sucesso!');
       router.push(`/visits/${params.id}`);
     } catch (error: any) {
@@ -57,22 +87,7 @@ export default function EditVisitPage() {
   if (!visit) return null;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Roxo */}
-      <div className="bg-gradient-to-br from-purple-500 via-purple-600 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-              <ClipboardList className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Editar Visita</h1>
-              <p className="text-purple-100 mt-1 opacity-90">Atualize as informações do agendamento técnico</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="w-full max-w-4xl mx-auto pt-4 pb-12 flex flex-col">
 
       <VisitForm 
         initialData={visit}

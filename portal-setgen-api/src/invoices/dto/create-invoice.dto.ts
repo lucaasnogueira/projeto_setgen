@@ -6,7 +6,6 @@ import {
   IsNumber,
   Min,
   IsDateString,
-  IsOptional,
 } from 'class-validator';
 
 export class CreateInvoiceDto {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DetailHeader } from "@/components/layout/DetailHeader";
 
 export default function ApprovalDetailsPage() {
   const params = useParams();
@@ -83,7 +84,7 @@ export default function ApprovalDetailsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -91,54 +92,36 @@ export default function ApprovalDetailsPage() {
   if (!order) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Amarelo/Laranja */}
-      <div className="bg-gradient-to-br from-yellow-500 via-orange-500 to-orange-600 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10">
-          <button 
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-yellow-100 hover:text-white mb-6 transition-colors group"
-          >
-            <ArrowLeft className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-            Voltar para lista
-          </button>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
-              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-                <FileText className="h-10 w-10 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">OS #{order.orderNumber}</h1>
-                <p className="text-yellow-100 mt-1 opacity-90 flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  {order.client?.companyName}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button 
-                onClick={handleApprove}
-                disabled={acting}
-                className="bg-green-500 hover:bg-green-600 text-white rounded-xl px-6 font-bold flex items-center gap-2 shadow-lg"
-              >
-                <CheckCircle className="h-4 w-4" />
-                Aprovar
-              </Button>
-              <Button 
-                onClick={handleReject}
-                disabled={acting}
-                className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-6 font-bold flex items-center gap-2 shadow-lg"
-              >
-                <XCircle className="h-4 w-4" />
-                Rejeitar
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
+      <DetailHeader
+        icon={FileText}
+        tone="amber"
+        title={`OS #${order.orderNumber}`}
+        subtitle={<><Building2 className="h-3.5 w-3.5" />{order.client?.companyName}</>}
+        onBack={() => router.back()}
+        backLabel="Voltar para lista"
+        actions={
+          <>
+            <Button
+              onClick={handleApprove}
+              disabled={acting}
+              className="rounded-[9px] font-bold gap-2 bg-status-green-fg hover:bg-status-green-fg/90"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Aprovar
+            </Button>
+            <Button
+              onClick={handleReject}
+              disabled={acting}
+              variant="destructive"
+              className="rounded-[9px] font-bold gap-2"
+            >
+              <XCircle className="h-4 w-4" />
+              Rejeitar
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Coluna Principal */}

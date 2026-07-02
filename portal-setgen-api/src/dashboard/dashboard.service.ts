@@ -220,25 +220,30 @@ export class DashboardService {
       },
     });
 
-    const result = await Promise.all(
-      clients.map(async (client) => {
-        const invoices = await this.prisma.invoice.findMany({
-          where: { serviceOrder: { clientId: client.id } },
-          select: { value: true, status: true },
-        });
+    // Uma única consulta para todas as faturas em vez de uma por cliente
+    // (evita N+1 — antes disparava 1 query de invoice por cliente ativo).
+    const invoices = await this.prisma.invoice.findMany({
+      where: { serviceOrder: { clientId: { in: clients.map((c) => c.id) } } },
+      select: { value: true, serviceOrder: { select: { clientId: true } } },
+    });
 
-        const total = invoices.reduce((s, i) => s + Number(i.value), 0);
+    const revenueByClient = new Map<string, number>();
+    for (const invoice of invoices) {
+      const clientId = invoice.serviceOrder.clientId;
+      revenueByClient.set(
+        clientId,
+        (revenueByClient.get(clientId) ?? 0) + Number(invoice.value),
+      );
+    }
 
-        return {
-          client: {
-            id: client.id,
-            name: client.tradeName || client.companyName,
-            cnpjCpf: client.cnpjCpf,
-          },
-          totalRevenue: total,
-        };
-      }),
-    );
+    const result = clients.map((client) => ({
+      client: {
+        id: client.id,
+        name: client.tradeName || client.companyName,
+        cnpjCpf: client.cnpjCpf,
+      },
+      totalRevenue: revenueByClient.get(client.id) ?? 0,
+    }));
 
     return result
       .sort((a, b) => b.totalRevenue - a.totalRevenue)

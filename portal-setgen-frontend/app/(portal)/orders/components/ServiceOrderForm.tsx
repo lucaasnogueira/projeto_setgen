@@ -1,14 +1,56 @@
 "use client"
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { clientsApi } from '@/lib/api/clients';
-import { FileText, Save, X, User, Briefcase, Calendar, Info, Layers, Tag, Trash2, Plus, DollarSign } from 'lucide-react';
-import { ServiceOrderType, ServiceOrder } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileText, Save, X, User, Briefcase, Calendar, Info, Layers, Tag, Trash2, Plus, DollarSign, Loader2, ClipboardCheck, Camera } from 'lucide-react';
+import { ServiceOrderType, ServiceOrder, ChecklistTemplate, ChecklistAnswerItem, ChecklistFieldType } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select';
 import { inventoryApi } from '@/lib/api/inventory';
+import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
+import { ordersApi } from '@/lib/api/orders';
+
+const SignaturePad = dynamic(
+  () => import('./SignaturePad').then((m) => m.SignaturePad),
+  { ssr: false },
+);
+
+const NONE = '__none__';
+
+const fieldTypeLabels: Record<ChecklistFieldType, string> = {
+  [ChecklistFieldType.TEXT]: 'Texto',
+  [ChecklistFieldType.NUMBER]: 'Número',
+  [ChecklistFieldType.PHOTO]: 'Foto',
+  [ChecklistFieldType.SIGNATURE]: 'Assinatura',
+  [ChecklistFieldType.BOOLEAN]: 'Sim/Não',
+  [ChecklistFieldType.MULTIPLE_CHOICE]: 'Múltipla Escolha',
+};
+
+const serviceOrderSchema = z.object({
+  clientId: z.string().min(1, "Selecione um cliente"),
+  type: z.nativeEnum(ServiceOrderType),
+  scope: z.string().min(10, "Descreva o escopo com no mínimo 10 caracteres"),
+  reportedDefects: z.string().optional(),
+  requestedServices: z.string().optional(),
+  notes: z.string().optional(),
+  deadline: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Data inválida"),
+  checklistTemplateId: z.string().optional(),
+});
+
+type ServiceOrderFormValues = z.infer<typeof serviceOrderSchema>;
 
 interface ServiceOrderFormProps {
   initialData?: Partial<ServiceOrder>;
@@ -26,16 +68,6 @@ export function ServiceOrderForm({
   submitLabel
 }: ServiceOrderFormProps) {
   const [clients, setClients] = useState<any[]>([]);
-  const [formData, setFormData] = useState({
-    clientId: initialData?.clientId || '',
-    type: initialData?.type || ServiceOrderType.VISIT_REPORT,
-    scope: initialData?.scope || '',
-    reportedDefects: initialData?.reportedDefects || '',
-    requestedServices: initialData?.requestedServices || '',
-    notes: initialData?.notes || '',
-    deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
-  });
-
   const [products, setProducts] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>(initialData?.items?.map(i => ({
     productId: i.productId,
@@ -48,10 +80,64 @@ export function ServiceOrderForm({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [itemQuantity, setItemQuantity] = useState('1');
 
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [checklistAnswers, setChecklistAnswers] = useState<ChecklistAnswerItem[]>(
+    initialData?.checklist || []
+  );
+  const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null);
+  const [knownAttachments, setKnownAttachments] = useState<string[]>(initialData?.attachments || []);
+
+  const form = useForm<ServiceOrderFormValues>({
+    resolver: zodResolver(serviceOrderSchema),
+    defaultValues: {
+      clientId: initialData?.clientId || '',
+      type: initialData?.type || ServiceOrderType.VISIT_REPORT,
+      scope: initialData?.scope || '',
+      reportedDefects: initialData?.reportedDefects || '',
+      requestedServices: initialData?.requestedServices || '',
+      notes: initialData?.notes || '',
+      deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
+      checklistTemplateId: initialData?.checklistTemplateId || NONE,
+    }
+  });
+
+  const { register, handleSubmit, control, watch, formState: { errors } } = form;
+  const watchedType = watch('type');
+
   useEffect(() => {
     loadClients();
     loadProducts();
   }, []);
+
+  useEffect(() => {
+    if (initialData) return; // seleção de template só faz sentido na criação
+    checklistTemplatesApi.getAll(watchedType, true).then(setTemplates).catch(() => setTemplates([]));
+  }, [watchedType, initialData]);
+
+  const updateAnswer = (index: number, patch: Partial<ChecklistAnswerItem>) => {
+    setChecklistAnswers((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
+  };
+
+  const uploadChecklistFile = async (index: number, file: File) => {
+    if (!initialData?.id) return;
+    setUploadingFieldId(checklistAnswers[index].id);
+    try {
+      const before = new Set(knownAttachments);
+      const updated = await ordersApi.uploadAttachments(initialData.id, [file]);
+      const newAttachments = updated.attachments || [];
+      const newPath = newAttachments.find((p) => !before.has(p));
+      setKnownAttachments(newAttachments);
+      updateAnswer(index, { answer: newPath || null, completed: true });
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Erro ao enviar arquivo');
+    } finally {
+      setUploadingFieldId(null);
+    }
+  };
 
   const loadProducts = async () => {
     try {
@@ -71,17 +157,26 @@ export function ServiceOrderForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const payload = {
-      ...formData,
-      deadline: formData.deadline ? new Date(formData.deadline).toISOString() : undefined,
+  const onFormSubmit = (data: ServiceOrderFormValues) => {
+    const payload: any = {
+      ...data,
+      deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
       items: items.map(i => ({
         productId: i.productId,
         quantity: i.quantity,
         unitPrice: i.unitPrice
-      }))
+      })),
     };
+
+    if (!initialData) {
+      payload.checklistTemplateId = data.checklistTemplateId && data.checklistTemplateId !== NONE
+        ? data.checklistTemplateId
+        : undefined;
+    } else {
+      delete payload.checklistTemplateId;
+      payload.checklist = checklistAnswers;
+    }
+
     onSubmit(payload);
   };
 
@@ -112,208 +207,235 @@ export function ServiceOrderForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Card de Informações Básicas */}
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
       <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
             <Info className="h-5 w-5 text-blue-600" />
-            Informações Básicas
+            Informações da Ordem
           </CardTitle>
+          <CardDescription>Defina o tipo de serviço e o cliente responsável</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Tipo de OS <span className="text-red-500">*</span></Label>
-              <select
-                required
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as ServiceOrderType })}
-                className="w-full flex h-11 rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-              >
-                <option value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita</option>
-                <option value={ServiceOrderType.EXECUTION}>Execução de Serviço</option>
-              </select>
+              <Label className="font-bold text-sm">Tipo de OS *</Label>
+              <Controller
+                name="type"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita</SelectItem>
+                      <SelectItem value={ServiceOrderType.EXECUTION}>Execução de Serviço</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.type && <p className="text-xs font-bold text-red-500">{errors.type.message}</p>}
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Cliente <span className="text-red-500">*</span></Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <select
-                  required
-                  value={formData.clientId}
-                  onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-                  className="w-full flex h-11 rounded-xl border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                >
-                  <option value="">Selecione um cliente</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>
-                      {client.companyName}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Label className="font-bold text-sm">Cliente *</Label>
+              <Controller
+                name="clientId"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map(client => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.companyName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.clientId && <p className="text-xs font-bold text-red-500">{errors.clientId.message}</p>}
             </div>
           </div>
+
+          {!initialData && (
+            <div className="space-y-2">
+              <Label className="font-bold text-sm flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4 text-blue-600" />
+                Template de Checklist
+              </Label>
+              <Controller
+                name="checklistTemplateId"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                      <SelectValue placeholder="Nenhum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Nenhum</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Card do Escopo */}
       <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
             <Briefcase className="h-5 w-5 text-blue-600" />
-            Detalhes do Serviço
+            Escopo e Detalhamento
           </CardTitle>
+          <CardDescription>Descreva tecnicamente o que será realizado</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Defeitos Relatados</Label>
-            <textarea
-              value={formData.reportedDefects}
-              onChange={(e) => setFormData({ ...formData, reportedDefects: e.target.value })}
-              rows={3}
-              placeholder="Descreva os problemas relatados pelo cliente..."
-              className="w-full flex min-h-[80px] rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            />
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Defeitos Relatados</Label>
+              <textarea
+                className="w-full flex min-h-[100px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                placeholder="Problemas informados pelo cliente..."
+                {...register('reportedDefects')}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Serviços Solicitados</Label>
+              <textarea
+                className="w-full flex min-h-[100px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                placeholder="Ações específicas solicitadas..."
+                {...register('requestedServices')}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Serviços Solicitados</Label>
+            <Label className="font-bold text-sm">Escopo do Serviço *</Label>
             <textarea
-              value={formData.requestedServices}
-              onChange={(e) => setFormData({ ...formData, requestedServices: e.target.value })}
-              rows={3}
-              placeholder="Liste as ações e serviços a serem realizados..."
-              className="w-full flex min-h-[80px] rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="w-full flex min-h-[120px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              placeholder="Descrição técnica detalhada do trabalho..."
+              {...register('scope')}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Escopo do Serviço <span className="text-red-500">*</span></Label>
-            <textarea
-              required
-              value={formData.scope}
-              onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
-              rows={4}
-              placeholder="Descrição geral do que será feito..."
-              className="w-full flex min-h-[100px] rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">Observações Importantes</Label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={2}
-              placeholder="Urgência, restrições, histórico ou outros detalhes..."
-              className="w-full flex min-h-[60px] rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            />
+            {errors.scope && <p className="text-xs font-bold text-red-500">{errors.scope.message}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Prazo de Execução</Label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Label className="font-bold text-sm">Prazo de Execução</Label>
+              <div className="relative group">
+                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
                 <Input
                   type="date"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                  className="h-11 pl-10 rounded-xl focus:ring-blue-500"
+                  className="h-12 pl-10 rounded-2xl border-gray-200 focus:ring-blue-500/20 focus:border-blue-500"
+                  {...register('deadline')}
                 />
               </div>
+              {errors.deadline && <p className="text-xs font-bold text-red-500">{errors.deadline.message}</p>}
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Observações Internas</Label>
+              <Input
+                placeholder="Notas para a equipe técnica..."
+                className="h-12 rounded-2xl border-gray-200 focus:ring-blue-500/20 focus:border-blue-500"
+                {...register('notes')}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Card de Materiais e Produtos */}
       <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
             <Layers className="h-5 w-5 text-blue-600" />
-            Materiais e Produtos
+            Materiais e Estoque
           </CardTitle>
+          <CardDescription>Produtos que serão utilizados na OS</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex flex-col md:flex-row gap-4 items-end bg-gray-50/50 p-6 rounded-2xl border border-dashed">
             <div className="flex-1 space-y-2">
-              <Label className="text-gray-700 font-semibold">Adicionar Produto do Estoque</Label>
-              <div className="relative">
-                <Tag className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <select
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="w-full flex h-11 rounded-xl border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                >
-                  <option value="">Selecione um produto</option>
+              <Label className="font-bold text-sm">Produto</Label>
+              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                <SelectTrigger className="h-12 rounded-2xl bg-white">
+                  <SelectValue placeholder="Selecione um produto do estoque" />
+                </SelectTrigger>
+                <SelectContent>
                   {products.map(prod => (
-                    <option key={prod.id} value={prod.id}>
-                      {prod.code} - {prod.name} (Disponível: {prod.currentStock})
-                    </option>
+                    <SelectItem key={prod.id} value={prod.id}>
+                      {prod.code} - {prod.name} (Qtd: {prod.currentStock})
+                    </SelectItem>
                   ))}
-                </select>
-              </div>
+                </SelectContent>
+              </Select>
             </div>
             <div className="w-full md:w-32 space-y-2">
-              <Label className="text-gray-700 font-semibold">Qtd</Label>
+              <Label className="font-bold text-sm">Qtd</Label>
               <Input
                 type="number"
                 min="1"
                 value={itemQuantity}
                 onChange={(e) => setItemQuantity(e.target.value)}
-                className="h-11 rounded-xl"
+                className="h-12 rounded-2xl bg-white"
               />
             </div>
             <Button 
               type="button" 
               onClick={addItem}
-              className="h-11 bg-blue-100 text-blue-600 hover:bg-blue-200 border-none rounded-xl font-bold flex items-center gap-2 px-6"
+              className="h-12 bg-blue-600 hover:bg-blue-700 rounded-2xl font-bold flex items-center gap-2 px-8 transition-all active:scale-95"
             >
               <Plus className="h-4 w-4" />
               Adicionar
             </Button>
           </div>
 
-          <div className="border rounded-2xl overflow-hidden bg-gray-50/30">
-            <table className="w-full border-collapse">
-              <thead className="bg-gray-100/50">
+          <div className="border rounded-2xl overflow-hidden shadow-sm">
+            <table className="w-full border-collapse bg-white">
+              <thead className="bg-muted/50 border-b">
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cód</th>
-                  <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Produto</th>
-                  <th className="text-right py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Qtd</th>
-                  <th className="text-right py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">V. Unit</th>
-                  <th className="text-right py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="w-10"></th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Cód</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Produto</th>
+                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Qtd</th>
+                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">V. Unit</th>
+                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Total</th>
+                  <th className="w-16"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-400 italic text-sm">
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground italic text-sm">
                       Nenhum material adicionado ainda.
                     </td>
                   </tr>
                 ) : (
                   items.map((item, index) => (
-                    <tr key={index} className="hover:bg-white transition-colors">
-                      <td className="py-3 px-4 text-sm font-medium text-gray-600">{item.code}</td>
-                      <td className="py-3 px-4 text-sm font-bold text-gray-800">{item.name}</td>
-                      <td className="py-3 px-4 text-sm text-right text-gray-700 font-semibold">{item.quantity}</td>
-                      <td className="py-3 px-4 text-sm text-right text-gray-700">
+                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-4 px-6 text-sm font-medium text-muted-foreground">{item.code}</td>
+                      <td className="py-4 px-6 text-sm font-bold">{item.name}</td>
+                      <td className="py-4 px-6 text-sm text-right font-semibold">{item.quantity}</td>
+                      <td className="py-4 px-6 text-sm text-right">
                         {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
-                      <td className="py-3 px-4 text-sm text-right text-blue-600 font-bold">
+                      <td className="py-4 px-6 text-sm text-right text-blue-600 font-bold">
                         {(item.quantity * item.unitPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-4 px-6 text-right">
                         <button 
                           type="button" 
                           onClick={() => removeItem(item.productId)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -323,10 +445,10 @@ export function ServiceOrderForm({
                 )}
               </tbody>
               {items.length > 0 && (
-                <tfoot className="bg-blue-50/50">
+                <tfoot className="bg-muted/30">
                   <tr>
-                    <td colSpan={4} className="py-4 px-4 text-right font-bold text-gray-700">Custo Total de Materiais:</td>
-                    <td className="py-4 px-4 text-right text-lg font-black text-blue-700">
+                    <td colSpan={4} className="py-5 px-6 text-right font-bold text-muted-foreground">Total de Materiais:</td>
+                    <td className="py-5 px-6 text-right text-lg font-black text-blue-600">
                       {items.reduce((acc, i) => acc + (i.quantity * i.unitPrice), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
                     <td></td>
@@ -338,13 +460,166 @@ export function ServiceOrderForm({
         </CardContent>
       </Card>
 
-      {/* Ações */}
-      <div className="flex gap-4 pt-4">
+      {checklistAnswers.length > 0 && (
+        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+          <CardHeader className="bg-muted/30 border-b">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <ClipboardCheck className="h-5 w-5 text-blue-600" />
+              Checklist
+            </CardTitle>
+            <CardDescription>
+              {initialData?.checklistTemplate
+                ? `Template: ${initialData.checklistTemplate.name}`
+                : 'Preencha as respostas do checklist'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-8 space-y-4">
+            {checklistAnswers.map((item, index) => {
+              // Shape legado (pré-templates): { item, completed }, sem type
+              if (!item.type) {
+                return (
+                  <label key={item.id ?? index} className="flex items-center gap-3 p-3 rounded-xl border bg-gray-50/50">
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={(e) => updateAnswer(index, { completed: e.target.checked })}
+                    />
+                    <span className={item.completed ? 'line-through text-muted-foreground' : ''}>
+                      {item.item}
+                    </span>
+                  </label>
+                );
+              }
+
+              return (
+                <div key={item.id} className="p-5 rounded-2xl border bg-gray-50/50 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="font-bold text-sm">
+                      {item.label}
+                      {item.required && <span className="text-red-500 ml-1">*</span>}
+                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
+                        {fieldTypeLabels[item.type]}
+                      </span>
+                    </Label>
+                    <label className="flex items-center gap-2 text-xs font-semibold shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        onChange={(e) => updateAnswer(index, { completed: e.target.checked })}
+                      />
+                      Concluído
+                    </label>
+                  </div>
+
+                  {item.type === ChecklistFieldType.TEXT && (
+                    <Input
+                      value={(item.answer as string) || ''}
+                      onChange={(e) => updateAnswer(index, { answer: e.target.value })}
+                      className="h-11 rounded-xl bg-white"
+                    />
+                  )}
+
+                  {item.type === ChecklistFieldType.NUMBER && (
+                    <Input
+                      type="number"
+                      value={item.answer === null ? '' : String(item.answer)}
+                      onChange={(e) => updateAnswer(index, { answer: e.target.value === '' ? null : Number(e.target.value) })}
+                      className="h-11 rounded-xl bg-white"
+                    />
+                  )}
+
+                  {item.type === ChecklistFieldType.BOOLEAN && (
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={item.answer === true ? 'default' : 'outline'}
+                        className="rounded-xl"
+                        onClick={() => updateAnswer(index, { answer: true })}
+                      >
+                        Sim
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={item.answer === false ? 'default' : 'outline'}
+                        className="rounded-xl"
+                        onClick={() => updateAnswer(index, { answer: false })}
+                      >
+                        Não
+                      </Button>
+                    </div>
+                  )}
+
+                  {item.type === ChecklistFieldType.MULTIPLE_CHOICE && (
+                    <Select
+                      value={(item.answer as string) || undefined}
+                      onValueChange={(v) => updateAnswer(index, { answer: v })}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl bg-white">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(item.options || []).map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {item.type === ChecklistFieldType.PHOTO && (
+                    <div className="space-y-2">
+                      {item.answer && (
+                        <img src={String(item.answer)} alt="Foto enviada" className="h-24 rounded-xl border object-cover" />
+                      )}
+                      <label className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border bg-white cursor-pointer text-sm font-semibold hover:bg-gray-50">
+                        {uploadingFieldId === item.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Camera className="h-4 w-4" />
+                        )}
+                        {item.answer ? 'Trocar foto' : 'Enviar foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={!initialData?.id || uploadingFieldId !== null}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) uploadChecklistFile(index, file);
+                          }}
+                        />
+                      </label>
+                      {!initialData?.id && (
+                        <p className="text-xs text-muted-foreground">Salve a OS antes de anexar fotos.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {item.type === ChecklistFieldType.SIGNATURE && (
+                    <div className="space-y-2">
+                      {item.answer ? (
+                        <img src={String(item.answer)} alt="Assinatura" className="h-24 rounded-xl border bg-white" />
+                      ) : initialData?.id ? (
+                        <SignaturePad
+                          onSave={(blob) => uploadChecklistFile(index, new File([blob], 'assinatura.png', { type: 'image/png' }))}
+                        />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Salve a OS antes de coletar a assinatura.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="flex gap-4 pt-6 pb-12">
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="flex-1 h-12 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
+          className="flex-1 h-14 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
         >
           <X className="h-5 w-5" />
           Cancelar
@@ -352,9 +627,9 @@ export function ServiceOrderForm({
         <Button
           type="submit"
           disabled={loading}
-          className="flex-1 h-12 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
+          className="flex-1 h-14 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
         >
-          <Save className="h-5 w-5" />
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
           {loading ? 'Salvando...' : submitLabel}
         </Button>
       </div>

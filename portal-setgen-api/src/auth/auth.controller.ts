@@ -15,6 +15,7 @@ import {
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -22,6 +23,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Login de usuário' })
   @ApiResponse({ status: 200, description: 'Login realizado com sucesso' })
   @ApiResponse({ status: 401, description: 'Credenciais inválidas' })

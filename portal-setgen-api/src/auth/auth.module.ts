@@ -15,10 +15,17 @@ import { UsersModule } from '../users/users.module';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'default-secret-key',
-        signOptions: { expiresIn: '1d' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error(
+            '[AuthModule] JWT_SECRET não definido nas variáveis de ambiente. ' +
+            'Configure JWT_SECRET antes de iniciar a aplicação.',
+          );
+        }
+        const expiresIn = (config.get<string>('JWT_EXPIRATION') || '8h') as any;
+        return { secret, signOptions: { expiresIn } };
+      },
     }),
   ],
   controllers: [AuthController],

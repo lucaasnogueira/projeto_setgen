@@ -1,21 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { inventoryApi } from "@/lib/api/inventory";
 import { Product } from "@/types";
-
+import { formatCurrency } from "@/lib/utils";
+import { Package, Plus, AlertTriangle } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
-  Package,
-  Plus,
-  AlertTriangle,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
-import Link from 'next/link';
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+} from "@/components/ui/table";
 
 export default function InventoryPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     inventoryApi
@@ -27,198 +34,104 @@ export default function InventoryPage() {
 
   if (loading)
     return (
-      <div className="flex justify-center p-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
 
-  const lowStockItems = items.filter(
-    (item) => item.currentStock <= item.minStock,
-  );
+  const lowStockItems = items.filter((item) => item.currentStock <= item.minStock);
+  const criticalItems = items.filter((item) => item.currentStock <= item.minStock / 2);
+
+  const statusOf = (item: Product) => {
+    if (item.currentStock <= item.minStock / 2) return { label: 'Crítico', cls: 'bg-status-red-bg text-status-red-fg' };
+    if (item.currentStock <= item.minStock) return { label: 'Baixo', cls: 'bg-status-amber-bg text-status-amber-fg' };
+    return { label: 'OK', cls: 'bg-status-green-bg text-status-green-fg' };
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Estoque</h1>
-            <p className="text-amber-100">
-              {lowStockItems.length > 0 &&
-                `${lowStockItems.length} itens com estoque baixo`}
-            </p>
-          </div>
-          <Package className="h-16 w-16 opacity-50" />
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Estoque"
+        subtitle={`${items.length} peças cadastradas${criticalItems.length > 0 ? ` · ${criticalItems.length} em nível crítico` : ''}`}
+        actions={
+          <Button onClick={() => router.push('/inventory/new')} className="rounded-[9px] font-bold gap-2">
+            <Plus className="h-4 w-4" />
+            Nova Peça
+          </Button>
+        }
+      />
 
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex justify-between items-center">
-          <div className="flex gap-4">
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-green-600" />
-              Entrada
-            </button>
-
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-red-600" />
-              Saída
-            </button>
-          </div>
-
-          <Link href="/inventory/new">
-            <button className="px-6 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg hover:from-amber-600 hover:to-amber-700 flex items-center gap-2 shadow-lg">
-              <Plus className="h-4 w-4" />
-              Novo Produto
-            </button>
-          </Link>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Produto
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Código
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Estoque Atual
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Estoque Mínimo
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Preço Unitário
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Unid./Caixa
-                </th>
-
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
-                  Status
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y">
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500 font-medium">
-                      Nenhum produto cadastrado
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => {
-                  const isLowStock = item.currentStock <= item.minStock;
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                              isLowStock ? "bg-red-100" : "bg-amber-100"
-                            }`}
-                          >
-                            <Package
-                              className={`h-5 w-5 ${
-                                isLowStock ? "text-red-600" : "text-amber-600"
-                              }`}
-                            />
-                          </div>
-
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {item.name}
-                            </p>
-
-                            <p className="text-xs text-gray-500">
-                              {item.description}
-                            </p>
-                          </div>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-t-0 hover:bg-transparent">
+              <TableHead>Peça</TableHead>
+              <TableHead>Código</TableHead>
+              <TableHead className="text-center">Qtd.</TableHead>
+              <TableHead className="text-center">Mínimo</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Valor Un.</TableHead>
+              <TableHead className="text-right">Unid./Caixa</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 ? (
+              <TableEmpty colSpan={7} icon={Package} message="Nenhum produto cadastrado" />
+            ) : (
+              items.map((item) => {
+                const status = statusOf(item);
+                return (
+                  <TableRow key={item.id} className="cursor-pointer" onClick={() => router.push(`/inventory/${item.id}`)}>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-[34px] h-[34px] rounded-[9px] bg-muted/60 flex items-center justify-center shrink-0">
+                          <Package className="h-4 w-4 text-text-secondary" />
                         </div>
-                      </td>
-
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.code}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <span
-                          className={`font-semibold ${
-                            isLowStock ? "text-red-600" : "text-gray-900"
-                          }`}
-                        >
-                          {item.currentStock} {item.unit}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.minStock} {item.unit}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        {item.unitPrice ? (
-                          <span className="font-semibold text-green-600">
-                            {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">Não definido</span>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {item.unitsPerPackage ? (
-                          <div>
-                            <span className="font-medium">{item.unitsPerPackage} unidades</span>
-                            {item.unitPrice && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                Caixa: {(item.unitPrice * item.unitsPerPackage).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400 italic">-</span>
-                        )}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        {isLowStock ? (
-                          <span className="flex items-center gap-1 text-red-600">
-                            <AlertTriangle className="h-4 w-4" />
-                            <span className="text-sm font-medium">
-                              Estoque Baixo
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                            OK
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                        <div>
+                          <div className="text-[13px] font-bold text-foreground">{item.name}</div>
+                          {item.description && <div className="text-[11.5px] text-text-muted">{item.description}</div>}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-[12.5px] text-text-secondary">{item.code}</TableCell>
+                    <TableCell className="text-center text-[12.5px] font-bold text-foreground">
+                      {item.currentStock} {item.unit}
+                    </TableCell>
+                    <TableCell className="text-center text-[12.5px] text-text-muted">
+                      {item.minStock} {item.unit}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center gap-1 text-[11.5px] font-bold px-2.5 py-1 rounded-full ${status.cls}`}>
+                        {status.label === 'Crítico' && <AlertTriangle className="h-3 w-3" />}
+                        {status.label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-[12.5px] font-bold text-foreground">
+                      {item.unitPrice ? formatCurrency(item.unitPrice) : (
+                        <span className="text-xs text-text-muted italic font-normal">Não definido</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-[12.5px] text-text-secondary">
+                      {item.unitsPerPackage ? (
+                        <div>
+                          <div>{item.unitsPerPackage} un.</div>
+                          {item.unitPrice && (
+                            <div className="text-[11px] text-text-muted">
+                              Caixa: {formatCurrency(item.unitPrice * item.unitsPerPackage)}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted italic">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

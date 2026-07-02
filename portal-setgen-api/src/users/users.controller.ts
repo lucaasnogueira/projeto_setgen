@@ -12,6 +12,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -39,6 +40,8 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Buscar usuário por ID' })
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
@@ -65,7 +68,7 @@ export class UsersController {
   @Patch(':id/reset-password')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Resetar senha do usuário' })
-  resetPassword(@Param('id') id: string, @Body() resetPasswordDto: any) {
+  resetPassword(@Param('id') id: string, @Body() resetPasswordDto: ResetPasswordDto) {
     return this.usersService.resetPassword(id, resetPasswordDto);
   }
 }

@@ -5,6 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/lib/api/auth';
 import { Search, Bell, User, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { CommandMenu } from './CommandMenu';
+import { ThemeToggle } from './ThemeToggle';
+import { NotificationCenter } from './NotificationCenter';
 
 export default function Topbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -33,26 +36,26 @@ export default function Topbar() {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-      <div className="h-16 px-6 flex items-center justify-between">
+    <header className="bg-white border-b border-border sticky top-0 z-20 h-16 shrink-0">
+      <div className="h-full px-6 flex items-center justify-between">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-[13.5px]">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-gray-500 hover:text-orange-600 transition-colors"
+            className="text-text-muted font-semibold hover:text-foreground transition-colors"
           >
             Início
           </button>
           {breadcrumb.map((item, index) => (
             <div key={item.href} className="flex items-center gap-2">
-              <ChevronRight className="h-4 w-4 text-gray-400" />
+              <ChevronRight className="h-3.5 w-3.5 text-border" />
               <button
                 onClick={() => router.push(item.href)}
-                className={`${
+                className={
                   index === breadcrumb.length - 1
-                    ? 'text-orange-600 font-medium'
-                    : 'text-gray-500 hover:text-orange-600'
-                } transition-colors`}
+                    ? 'text-foreground font-bold'
+                    : 'text-text-muted font-semibold hover:text-foreground transition-colors'
+                }
               >
                 {item.label}
               </button>
@@ -61,37 +64,24 @@ export default function Topbar() {
         </div>
 
         {/* Busca Global e Ações */}
-        <div className="flex items-center gap-4">
-          {/* Campo de Busca */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
-            />
-          </div>
+        <div className="flex items-center gap-3.5">
+          <CommandMenu />
 
-          {/* Notificações */}
-          <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
-            <Bell className="h-5 w-5 text-gray-600" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          <NotificationCenter />
+
+          {/* Theme Toggle */}
+          <ThemeToggle />
 
           {/* Menu do Usuário */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-3 hover:bg-gray-100 rounded-lg p-2 pr-3 transition-colors"
+              className="flex items-center gap-2 border border-border rounded-[9px] py-[5px] pl-[5px] pr-2.5 hover:bg-muted/40 transition-colors"
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-semibold shadow-lg">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white font-bold text-[11.5px]">
                 {user?.name.charAt(0).toUpperCase()}
               </div>
-              <div className="text-left hidden md:block">
-                <p className="text-sm font-medium text-gray-700">{user?.name}</p>
-              </div>
+              <span className="text-[13px] font-semibold text-foreground hidden md:block">{user?.name}</span>
             </button>
 
             {/* Dropdown Menu */}
@@ -101,32 +91,32 @@ export default function Topbar() {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowUserMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-[0_12px_32px_rgba(20,30,40,0.14)] border border-border py-1.5 z-50">
                   <button
                     onClick={() => {
                       router.push('/profile');
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold text-foreground hover:bg-muted/40 rounded-lg transition-colors"
                   >
-                    <User className="h-4 w-4" />
+                    <User className="h-[15px] w-[15px]" />
                     Meu Perfil
                   </button>
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold text-foreground hover:bg-muted/40 rounded-lg transition-colors"
                   >
-                    <Settings className="h-4 w-4" />
+                    <Settings className="h-[15px] w-[15px]" />
                     Configurações
                   </button>
-                  <hr className="my-2 border-gray-200" />
+                  <hr className="my-1.5 border-border mx-1" />
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold text-destructive hover:bg-status-red-bg rounded-lg transition-colors"
                   >
-                    <LogOut className="h-4 w-4" />
+                    <LogOut className="h-[15px] w-[15px]" />
                     Sair
                   </button>
                 </div>

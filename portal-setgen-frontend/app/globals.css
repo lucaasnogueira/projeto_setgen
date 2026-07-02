@@ -1,34 +1,63 @@
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base neutra do mockup Setgen (fundo cinza-claro fora dos cards) */
+    --background: 220 14% 97%;
+    --foreground: 209 30% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
- 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
- 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
- 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
- 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
- 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
- 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --card-foreground: 209 30% 15%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
- 
-    --radius: 0.5rem;
+    --popover: 0 0% 100%;
+    --popover-foreground: 209 30% 15%;
+
+    /* Laranja Setgen #e2661d */
+    --primary: 23 82% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 95%;
+    --secondary-foreground: 209 30% 15%;
+
+    --muted: 220 14% 95%;
+    --muted-foreground: 210 12% 63%;
+
+    --accent: 220 14% 95%;
+    --accent-foreground: 209 30% 15%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 14% 91%;
+    --input: 216 14% 91%;
+    --ring: 23 82% 49%;
+
+    --radius: 0.875rem;
+    --radius-sm: 0.5625rem;
+
+    /* Sidebar navy #1c2733 */
+    --sidebar-bg: 206 27% 16%;
+    --sidebar-bg-hover: 205 22% 20%;
+    --sidebar-border: 205 20% 22%;
+    --sidebar-fg: 0 0% 100%;
+    --sidebar-fg-muted: 213 12% 68%;
+    --sidebar-fg-dim: 210 10% 41%;
+
+    /* Texto secundário/mudo (fora dos vars shadcn) */
+    --text-secondary: 210 12% 40%;
+    --text-muted: 210 12% 63%;
+
+    /* Pares bg/cor de status (badges pill) */
+    --status-green-bg: 152 48% 94%;
+    --status-green-fg: 142 62% 29%;
+    --status-blue-bg: 213 76% 95%;
+    --status-blue-fg: 221 76% 51%;
+    --status-amber-bg: 37 88% 94%;
+    --status-amber-fg: 32 90% 44%;
+    --status-red-bg: 0 71% 96%;
+    --status-red-fg: 0 72% 51%;
+    --status-purple-bg: 262 68% 95%;
+    --status-purple-fg: 263 67% 41%;
+    --status-gray-bg: 220 14% 95%;
+    --status-gray-fg: 210 12% 40%;
   }
  
   .dark {
@@ -92,5 +121,27 @@
   @keyframes fadeOut {
     from { opacity: 1; transform: translateY(0); }
     to { opacity: 0; transform: translateY(-10px); }
+  }
+
+  .scrollbar-thin-sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-border)) transparent;
+  }
+
+  .scrollbar-thin-sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin-sidebar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--sidebar-border));
+    border-radius: 9999px;
+  }
+
+  .scrollbar-thin-sidebar::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--sidebar-fg-dim));
   }
 }

@@ -7,9 +7,11 @@ import {
   IsOptional,
   ValidateNested,
   IsObject,
+  IsArray,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { ClientStatus } from '@prisma/client';
+import { ClientStatus, IcmsTaxpayerType } from '@prisma/client';
 
 class AddressDto {
   @ApiProperty()
@@ -90,4 +92,81 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({ required: false, description: 'Código externo (chave de integração)' })
+  @IsString()
+  @IsOptional()
+  externalCode?: string;
+
+  @ApiProperty({ required: false, description: 'Responsável no local (falar com)' })
+  @IsString()
+  @IsOptional()
+  onSiteContact?: string;
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  corporatePhones?: string[];
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  corporateEmails?: string[];
+
+  @ApiProperty({ required: false, description: 'Observação interna (não visível ao cliente)' })
+  @IsString()
+  @IsOptional()
+  internalNotes?: string;
+
+  @ApiProperty({ enum: IcmsTaxpayerType, required: false })
+  @IsEnum(IcmsTaxpayerType)
+  @IsOptional()
+  icmsTaxpayerType?: IcmsTaxpayerType;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  stateRegistration?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  municipalRegistration?: string;
+
+  @ApiProperty({ required: false })
+  @IsEmail({}, { message: 'E-mail de cobrança inválido' })
+  @IsOptional()
+  billingEmail?: string;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  longitude?: number;
+
+  @ApiProperty({ required: false, description: 'ID do colaborador (User) responsável' })
+  @IsString()
+  @IsOptional()
+  responsibleUserId?: string;
+
+  @ApiProperty({ required: false, description: 'ID da equipe responsável' })
+  @IsString()
+  @IsOptional()
+  responsibleTeamId?: string;
+
+  @ApiProperty({ required: false, description: 'ID do grupo de clientes (ClientTaxonomy kind=GROUP)' })
+  @IsString()
+  @IsOptional()
+  groupId?: string;
+
+  @ApiProperty({ required: false, description: 'ID do segmento (ClientTaxonomy kind=SEGMENT)' })
+  @IsString()
+  @IsOptional()
+  segmentId?: string;
 }

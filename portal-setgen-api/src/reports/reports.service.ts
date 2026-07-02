@@ -1,12 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import { ReportFiltersDto } from './dto/report-filters.dto';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
-  async getVisitsByMonth(filters: any) {
+  private dateRange(filters: ReportFiltersDto) {
+    if (!filters.startDate && !filters.endDate) return undefined;
+    return {
+      ...(filters.startDate && { gte: new Date(filters.startDate) }),
+      ...(filters.endDate && { lte: new Date(filters.endDate) }),
+    };
+  }
+
+  async getVisitsByMonth(filters: ReportFiltersDto) {
     const visits = await this.prisma.technicalVisit.findMany({
+      where: {
+        ...(filters.clientId && { clientId: filters.clientId }),
+        ...(this.dateRange(filters) && { visitDate: this.dateRange(filters) }),
+      },
       select: {
         visitDate: true,
       },
@@ -30,9 +44,15 @@ export class ReportsService {
     };
   }
 
-  async getOrdersByStatus(filters: any) {
+  async getOrdersByStatus(filters: ReportFiltersDto) {
+    const where: Prisma.ServiceOrderWhereInput = {
+      ...(filters.clientId && { clientId: filters.clientId }),
+      ...(this.dateRange(filters) && { createdAt: this.dateRange(filters) }),
+    };
+
     const orders = await this.prisma.serviceOrder.groupBy({
       by: ['status'],
+      where,
       _count: true,
     });
 
@@ -68,8 +88,14 @@ export class ReportsService {
     };
   }
 
-  async getMonthlyRevenue(filters: any) {
+  async getMonthlyRevenue(filters: ReportFiltersDto) {
     const invoices = await this.prisma.invoice.findMany({
+      where: {
+        ...(filters.clientId && {
+          serviceOrder: { clientId: filters.clientId },
+        }),
+        ...(this.dateRange(filters) && { issueDate: this.dateRange(filters) }),
+      },
       select: {
         issueDate: true,
         value: true,
@@ -94,9 +120,13 @@ export class ReportsService {
     };
   }
 
-  async getTechnicianPerformance(filters: any) {
+  async getTechnicianPerformance(filters: ReportFiltersDto) {
     // Buscar todas as OS que têm responsáveis técnicos
     const orders = await this.prisma.serviceOrder.findMany({
+      where: {
+        ...(filters.clientId && { clientId: filters.clientId }),
+        ...(this.dateRange(filters) && { createdAt: this.dateRange(filters) }),
+      },
       select: {
         responsibleIds: true,
         status: true,

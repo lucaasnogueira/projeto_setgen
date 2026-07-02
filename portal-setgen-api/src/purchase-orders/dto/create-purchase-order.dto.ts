@@ -6,7 +6,6 @@ import {
   IsNumber,
   Min,
   IsDateString,
-  IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

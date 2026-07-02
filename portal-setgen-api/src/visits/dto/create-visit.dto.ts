@@ -16,10 +16,15 @@ export class CreateVisitDto {
   @IsNotEmpty({ message: 'Cliente é obrigatório' })
   clientId: string;
 
-  @ApiProperty({ example: 'technician-uuid-here' })
+  @ApiProperty({ example: 'technician-uuid-here', required: false })
   @IsUUID()
-  @IsNotEmpty({ message: 'Técnico é obrigatório' })
-  technicianId: string;
+  @IsOptional()
+  technicianId?: string;
+
+  @ApiProperty({ example: ['tech-uuid-1', 'tech-uuid-2'], required: false })
+  @IsString({ each: true })
+  @IsOptional()
+  responsibleIds?: string[];
 
   @ApiProperty({ example: '2024-01-30T14:30:00.000Z' })
   @IsDateString()
@@ -41,6 +46,14 @@ export class CreateVisitDto {
   @IsString()
   @IsNotEmpty({ message: 'Descrição é obrigatória' })
   description: string;
+
+  @ApiProperty({
+    example: 'Relato do usuário sobre o problema...',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  userReport?: string;
 
   @ApiProperty({
     example: 'Cliente precisa de upgrade de rede',
@@ -72,4 +85,9 @@ export class CreateVisitDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({ example: ['Legenda 1', 'Legenda 2'], required: false })
+  @IsString({ each: true })
+  @IsOptional()
+  legends?: string[];
 }

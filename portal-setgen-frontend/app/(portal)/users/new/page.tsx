@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi } from '@/lib/api/users';
 import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
-import { UserPlus, Save, X, Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
+import { Save, X, Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 import { PermissionSelector } from '@/components/access-control/permission-selector';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function NewUserPage() {
   const router = useRouter();
@@ -108,25 +109,16 @@ export default function NewUserPage() {
   if (initialLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <UserPlus className="h-10 w-10" />
-          <div>
-            <h1 className="text-3xl font-bold">Novo Usuário</h1>
-            <p className="text-gray-300">Cadastre um novo usuário e defina seus acessos</p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Novo Usuário" subtitle="Cadastre um novo usuário e defina seus acessos" />
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <form onSubmit={handleSubmit} className="bg-white rounded-[14px] border border-border overflow-hidden">
         <Tabs defaultValue="general" className="w-full">
           <div className="border-b border-gray-100 px-6 pt-4">
             <TabsList className="grid w-full grid-cols-2 max-w-[400px]">

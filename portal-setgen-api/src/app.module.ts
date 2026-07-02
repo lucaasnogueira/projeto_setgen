@@ -4,8 +4,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ClientsModule } from './clients/clients.module';
+import { TeamsModule } from './teams/teams.module';
+import { ClientTaxonomiesModule } from './client-taxonomies/client-taxonomies.module';
 import { VisitsModule } from './visits/visits.module';
 import { ServiceOrdersModule } from './service-orders/service-orders.module';
+import { ChecklistTemplatesModule } from './checklist-templates/checklist-templates.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { InvoicesModule } from './invoices/invoices.module';
@@ -17,8 +20,9 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { ExpenseCategoriesModule } from './expense-categories/expense-categories.module';
 import { EmployeesModule } from './employees/employees.module';
 import { AccessControlModule } from './access-control/access-control.module';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { FiscalModule } from './fiscal/fiscal.module';
+import { UploadsModule } from './common/uploads/uploads.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
@@ -29,8 +33,11 @@ import { join } from 'path';
     AuthModule,
     UsersModule,
     ClientsModule,
+    TeamsModule,
+    ClientTaxonomiesModule,
     VisitsModule,
     ServiceOrdersModule,
+    ChecklistTemplatesModule,
     ApprovalsModule,
     PurchaseOrdersModule,
     InvoicesModule,
@@ -42,13 +49,12 @@ import { join } from 'path';
     ExpenseCategoriesModule,
     EmployeesModule,
     AccessControlModule,
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
-      serveStaticOptions: {
-        index: false,
-      },
-    }),
+    FiscalModule,
+    UploadsModule,
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 10,
+    }]),
   ],
 })
 export class AppModule {}

@@ -25,6 +25,7 @@ import { extname } from 'path';
 import { VisitsService } from './visits.service';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
+import { CheckinVisitDto, CheckoutVisitDto } from './dto/checkin-visit.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -78,12 +79,14 @@ export class VisitsController {
   @ApiOperation({ summary: 'Listar todas as visitas técnicas' })
   @ApiQuery({ name: 'clientId', required: false })
   @ApiQuery({ name: 'technicianId', required: false })
+  @ApiQuery({ name: 'teamId', required: false })
   @ApiQuery({ name: 'visitType', required: false })
   @ApiQuery({ name: 'startDate', required: false })
   @ApiQuery({ name: 'endDate', required: false })
   findAll(
     @Query('clientId') clientId?: string,
     @Query('technicianId') technicianId?: string,
+    @Query('teamId') teamId?: string,
     @Query('visitType') visitType?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -91,6 +94,7 @@ export class VisitsController {
     return this.visitsService.findAll({
       clientId,
       technicianId,
+      teamId,
       visitType,
       startDate,
       endDate,
@@ -107,6 +111,19 @@ export class VisitsController {
   @ApiOperation({ summary: 'Buscar visitas de um técnico específico' })
   findByTechnician(@Param('technicianId') technicianId: string) {
     return this.visitsService.findByTechnician(technicianId);
+  }
+
+  @Get('route')
+  @ApiOperation({ summary: 'Otimizar rota do dia (nearest-neighbor, haversine)' })
+  @ApiQuery({ name: 'date', required: true, description: 'YYYY-MM-DD' })
+  @ApiQuery({ name: 'technicianId', required: false })
+  @ApiQuery({ name: 'teamId', required: false })
+  getRoute(
+    @Query('date') date: string,
+    @Query('technicianId') technicianId?: string,
+    @Query('teamId') teamId?: string,
+  ) {
+    return this.visitsService.getOptimizedRoute({ date, technicianId, teamId });
   }
 
   @Get(':id')
@@ -126,6 +143,38 @@ export class VisitsController {
     return this.visitsService.update(
       id,
       updateVisitDto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post(':id/checkin')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Registrar checkin (GPS) na visita técnica' })
+  checkin(
+    @Param('id') id: string,
+    @Body() checkinVisitDto: CheckinVisitDto,
+    @Request() req,
+  ) {
+    return this.visitsService.checkin(
+      id,
+      checkinVisitDto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Post(':id/checkout')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Registrar checkout (GPS) na visita técnica' })
+  checkout(
+    @Param('id') id: string,
+    @Body() checkoutVisitDto: CheckoutVisitDto,
+    @Request() req,
+  ) {
+    return this.visitsService.checkout(
+      id,
+      checkoutVisitDto,
       req.user.id,
       req.user.role,
     );

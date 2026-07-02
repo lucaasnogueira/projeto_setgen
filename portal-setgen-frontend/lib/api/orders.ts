@@ -2,6 +2,15 @@ import api from './client';
 import { ServiceOrder } from '@/types';
 
 export const ordersApi = {
+  async uploadAttachments(id: string, files: File[]): Promise<ServiceOrder> {
+    const formData = new FormData();
+    files.forEach((f) => formData.append('files', f));
+    const { data } = await api.post(`/service-orders/${id}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
   async getAll(): Promise<ServiceOrder[]> {
     try {
       const { data } = await api.get('/service-orders');

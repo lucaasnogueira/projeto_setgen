@@ -10,9 +10,8 @@ export default function HomePage() {
   useEffect(() => {
     // Check localStorage directly to avoid Zustand hydration issues
     const token = localStorage.getItem('token');
-    const authStorage = localStorage.getItem('auth-storage');
     
-    if (token || authStorage) {
+    if (token) {
       router.replace('/dashboard');
     } else {
       router.replace('/auth/login');

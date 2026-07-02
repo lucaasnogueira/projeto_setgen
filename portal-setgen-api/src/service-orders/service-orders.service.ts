@@ -15,23 +15,62 @@ import {
   ServiceOrderType,
 } from '@prisma/client';
 
+// Máquina de estados: transições permitidas a partir de cada status atual.
+// Usada tanto em update() (bloqueio de status livre) quanto em updateStatus().
+const VALID_STATUS_TRANSITIONS: Record<
+  ServiceOrderStatus,
+  ServiceOrderStatus[]
+> = {
+  [ServiceOrderStatus.DRAFT]: [
+    ServiceOrderStatus.PENDING_APPROVAL,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.PENDING_APPROVAL]: [
+    ServiceOrderStatus.APPROVED,
+    ServiceOrderStatus.REJECTED,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.APPROVED]: [
+    ServiceOrderStatus.IN_PROGRESS,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.REJECTED]: [
+    ServiceOrderStatus.PENDING_APPROVAL,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.IN_PROGRESS]: [
+    ServiceOrderStatus.COMPLETED,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.COMPLETED]: [],
+  [ServiceOrderStatus.CANCELLED]: [],
+};
+
 @Injectable()
 export class ServiceOrdersService {
   constructor(private prisma: PrismaService) {}
 
   private async generateOrderNumber(): Promise<string> {
     const year = new Date().getFullYear();
-    const count = await this.prisma.serviceOrder.count({
-      where: {
-        createdAt: {
-          gte: new Date(`${year}-01-01`),
-          lte: new Date(`${year}-12-31`),
-        },
-      },
-    });
+    const sequenceName = `seq_service_order_${year}`;
 
-    const orderNumber = `OS-${year}-${String(count + 1).padStart(5, '0')}`;
-    return orderNumber;
+    try {
+      const result = await this.prisma.$queryRawUnsafe<[{ nextval: bigint }]>(
+        `SELECT nextval('${sequenceName}'::regclass)`,
+      );
+      const orderNumber = `OS-${year}-${String(result[0].nextval).padStart(5, '0')}`;
+      return orderNumber;
+    } catch {
+      // Fallback: se a sequence não existir, cria e retorna 1
+      await this.prisma.$executeRawUnsafe(
+        `CREATE SEQUENCE IF NOT EXISTS ${sequenceName} START 1 INCREMENT 1`,
+      );
+      const result = await this.prisma.$queryRawUnsafe<[{ nextval: bigint }]>(
+        `SELECT nextval('${sequenceName}'::regclass)`,
+      );
+      const orderNumber = `OS-${year}-${String(result[0].nextval).padStart(5, '0')}`;
+      return orderNumber;
+    }
   }
 
   async create(
@@ -68,6 +107,39 @@ export class ServiceOrdersService {
     // Gerar número da OS
     const orderNumber = await this.generateOrderNumber();
 
+    // Se um template de checklist foi informado, copia os campos dele
+    // (snapshot) pro checklist da OS, com resposta em branco.
+    let checklistData: Prisma.InputJsonValue[] =
+      (createServiceOrderDto.checklist as Prisma.InputJsonValue[]) || [];
+
+    if (createServiceOrderDto.checklistTemplateId) {
+      const template = await this.prisma.checklistTemplate.findUnique({
+        where: { id: createServiceOrderDto.checklistTemplateId },
+      });
+
+      if (!template) {
+        throw new NotFoundException('Template de checklist não encontrado');
+      }
+
+      const fields = template.fields as unknown as Array<{
+        id: string;
+        type: string;
+        label: string;
+        required: boolean;
+        options?: string[];
+      }>;
+
+      checklistData = fields.map((f) => ({
+        id: f.id,
+        type: f.type,
+        label: f.label,
+        required: f.required,
+        ...(f.options && { options: f.options }),
+        answer: null,
+        completed: false,
+      })) as Prisma.InputJsonValue[];
+    }
+
     const orderData: Prisma.ServiceOrderCreateInput = {
       orderNumber,
       type: createServiceOrderDto.type,
@@ -86,7 +158,12 @@ export class ServiceOrdersService {
         deadline: new Date(createServiceOrderDto.deadline),
       }),
       responsibleIds: createServiceOrderDto.responsibleIds || [],
-      checklist: createServiceOrderDto.checklist || [],
+      checklist: checklistData,
+      ...(createServiceOrderDto.checklistTemplateId && {
+        checklistTemplate: {
+          connect: { id: createServiceOrderDto.checklistTemplateId },
+        },
+      }),
       createdBy: { connect: { id: createdById } },
       status:
         createServiceOrderDto.type === ServiceOrderType.VISIT_REPORT
@@ -232,6 +309,9 @@ export class ServiceOrdersService {
         purchaseOrders: true,
         invoices: true,
         delivery: true,
+        checklistTemplate: {
+          select: { id: true, name: true },
+        },
         items: {
           include: {
             product: {
@@ -282,6 +362,14 @@ export class ServiceOrdersService {
       throw new ForbiddenException('Não é possível editar OS aprovada');
     }
 
+    // Mudança de status não passa por aqui: só o endpoint dedicado
+    // updateStatus() valida transição de estado e permissão por status.
+    if (updateServiceOrderDto.status) {
+      throw new BadRequestException(
+        'Use o endpoint PATCH /service-orders/:id/status para alterar o status da OS',
+      );
+    }
+
     const updateData: Prisma.ServiceOrderUpdateInput = {
       ...(updateServiceOrderDto.scope && {
         scope: updateServiceOrderDto.scope,
@@ -297,9 +385,6 @@ export class ServiceOrdersService {
       }),
       ...(updateServiceOrderDto.checklist && {
         checklist: updateServiceOrderDto.checklist,
-      }),
-      ...(updateServiceOrderDto.status && {
-        status: updateServiceOrderDto.status,
       }),
       ...(updateServiceOrderDto.progress !== undefined && {
         progress: updateServiceOrderDto.progress,
@@ -317,24 +402,42 @@ export class ServiceOrdersService {
 
     // Se houver itens para atualizar, lidar com a sincronização
     if (updateServiceOrderDto.items) {
-      // Por simplicidade, deletamos os antigos e criamos os novos
-      // Em uma aplicação real, faríamos um diff selectivo
-      await this.prisma.serviceOrderProduct.deleteMany({
-        where: { serviceOrderId: id },
-      });
+      const itemsToCreate = updateServiceOrderDto.items;
+      return this.prisma.$transaction(async (tx) => {
+        // Por simplicidade, deletamos os antigos e criamos os novos
+        await tx.serviceOrderProduct.deleteMany({
+          where: { serviceOrderId: id },
+        });
 
-      await this.prisma.serviceOrder.update({
-        where: { id },
-        data: {
-          items: {
-            create: updateServiceOrderDto.items.map((item) => ({
-              product: { connect: { id: item.productId } },
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              totalPrice: item.quantity * item.unitPrice,
-            })),
+        return tx.serviceOrder.update({
+          where: { id },
+          data: {
+            ...updateData,
+            items: {
+              create: itemsToCreate.map((item) => ({
+                product: { connect: { id: item.productId } },
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.quantity * item.unitPrice,
+              })),
+            },
           },
-        },
+          include: {
+            client: {
+              select: {
+                id: true,
+                companyName: true,
+                tradeName: true,
+              },
+            },
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        });
       });
     }
 
@@ -367,7 +470,16 @@ export class ServiceOrdersService {
   ) {
     const order = await this.findOne(id);
 
-    // Validações de transição de status
+    // Validação de transição de status: só permite mudar para um status
+    // alcançável a partir do status atual (evita ex: DRAFT -> COMPLETED direto)
+    const allowedNextStatuses = VALID_STATUS_TRANSITIONS[order.status];
+    if (!allowedNextStatuses.includes(updateStatusDto.status)) {
+      throw new BadRequestException(
+        `Transição de status inválida: ${order.status} -> ${updateStatusDto.status}`,
+      );
+    }
+
+    // Validações de permissão por status
     if (
       updateStatusDto.status === ServiceOrderStatus.APPROVED &&
       userRole !== UserRole.ADMIN &&

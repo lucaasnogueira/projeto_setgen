@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { deliveriesApi } from '@/lib/api/deliveries';
 import { Delivery } from '@/types';
-import { Truck } from 'lucide-react';
 import { DeliveryForm } from '../../components/DeliveryForm';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function EditDeliveryPage() {
   const params = useParams();
@@ -49,7 +49,7 @@ export default function EditDeliveryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -57,18 +57,10 @@ export default function EditDeliveryPage() {
   if (!delivery) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-6 text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <Truck className="h-10 w-10" />
-          <div>
-            <h1 className="text-3xl font-bold">Editar Entrega</h1>
-            <p className="text-indigo-100">Atualize as informações do registro de entrega</p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Editar Entrega" subtitle="Atualize as informações do registro de entrega" />
 
-      <DeliveryForm 
+      <DeliveryForm
         initialData={delivery}
         onSubmit={handleSubmit}
         onCancel={() => router.back()}

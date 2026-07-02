@@ -32,7 +32,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // RelaÃ§Ãµes 
+  // RelaÃ§Ãµes
   createdVisits          TechnicalVisit[] @relation("CreatedVisits")
   createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
   approvals              Approval[]
@@ -42,14 +42,18 @@ model User {
   auditLogs              AuditLog[]
   stockMovements         StockMovement[]
 
+  // Times e clientes sob responsabilidade
+  teams                 Team[]
+  clientsResponsibleFor Client[] @relation("ClientResponsibleUser")
+
   // RelaÃ§Ãµes MÃ³dulo Financeiro
   expenses           Expense[]           @relation("UserExpenses")
   approvedExpenses   Expense[]           @relation("ApprovedExpenses")
   employee           Employee?
   expenseAttachments ExpenseAttachment[]
-  
+
   // PermissÃµes Granulares
-  permissions        UserPermission[]
+  permissions UserPermission[]
 
   @@map("users")
 }
@@ -61,8 +65,8 @@ model Permission {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  roles       RolePermission[]
-  users       UserPermission[]
+  roles RolePermission[]
+  users UserPermission[]
 
   @@map("permissions")
 }
@@ -110,6 +114,17 @@ enum ClientStatus {
   DEFAULTER
 }
 
+enum IcmsTaxpayerType {
+  CONTRIBUINTE
+  ISENTO
+  NAO_CONTRIBUINTE
+}
+
+enum ClientTaxonomyKind {
+  GROUP
+  SEGMENT
+}
+
 model Client {
   id          String       @id @default(uuid())
   cnpjCpf     String       @unique
@@ -124,6 +139,29 @@ model Client {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  // Paridade Auvo
+  externalCode          String?           @unique
+  onSiteContact         String?
+  corporatePhones       String[]          @default([])
+  corporateEmails       String[]          @default([])
+  internalNotes         String?           @db.Text
+  icmsTaxpayerType      IcmsTaxpayerType?
+  stateRegistration     String?
+  municipalRegistration String?
+  billingEmail          String?
+  latitude              Float?
+  longitude             Float?
+
+  responsibleUserId String?
+  responsibleTeamId String?
+  groupId           String?
+  segmentId         String?
+
+  responsibleUser User?           @relation("ClientResponsibleUser", fields: [responsibleUserId], references: [id])
+  responsibleTeam Team?           @relation(fields: [responsibleTeamId], references: [id])
+  group           ClientTaxonomy? @relation("ClientGroupTaxonomy", fields: [groupId], references: [id])
+  segment         ClientTaxonomy? @relation("ClientSegmentTaxonomy", fields: [segmentId], references: [id])
+
   // RelaÃ§Ãµes Existentes
   technicalVisits TechnicalVisit[]
   serviceOrders   ServiceOrder[]
@@ -133,6 +171,35 @@ model Client {
   expenses Expense[]
 
   @@map("clients")
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members        User[]
+  responsibleFor Client[]
+
+  @@map("teams")
+}
+
+model ClientTaxonomy {
+  id        String             @id @default(uuid())
+  kind      ClientTaxonomyKind
+  name      String
+  color     String?
+  active    Boolean            @default(true)
+  createdAt DateTime           @default(now())
+
+  clientsAsGroup   Client[] @relation("ClientGroupTaxonomy")
+  clientsAsSegment Client[] @relation("ClientSegmentTaxonomy")
+
+  @@unique([kind, name])
+  @@map("client_taxonomies")
 }
 
 // ============================================
@@ -148,23 +215,34 @@ enum VisitType {
 model TechnicalVisit {
   id                String    @id @default(uuid())
   clientId          String
-  technicianId      String
+  technicianId      String?
   visitDate         DateTime
   visitType         VisitType
   location          String
   description       String    @db.Text
+  userReport        String?   @db.Text
   identifiedNeeds   String?   @db.Text
   suggestedScope    String?   @db.Text
   estimatedDeadline String?
   estimatedValue    Decimal?  @db.Decimal(10, 2)
   attachments       String[]
+  attachmentsData   Json?
+  responsibleIds    String[]
   notes             String?   @db.Text
+  checkinAt         DateTime?
+  checkinLat        Float?
+  checkinLng        Float?
+  checkinAccuracy   Float?
+  checkoutAt        DateTime?
+  checkoutLat       Float?
+  checkoutLng       Float?
+  checkoutAccuracy  Float?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   // RelaÃ§Ãµes
   client        Client         @relation(fields: [clientId], references: [id])
-  technician    User           @relation("CreatedVisits", fields: [technicianId], references: [id])
+  technician    User?          @relation("CreatedVisits", fields: [technicianId], references: [id])
   serviceOrders ServiceOrder[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
@@ -192,36 +270,62 @@ enum ServiceOrderStatus {
   CANCELLED
 }
 
+enum ChecklistFieldType {
+  TEXT
+  NUMBER
+  PHOTO
+  SIGNATURE
+  BOOLEAN
+  MULTIPLE_CHOICE
+}
+
+model ChecklistTemplate {
+  id               String            @id @default(uuid())
+  name             String
+  description      String?           @db.Text
+  serviceOrderType ServiceOrderType?
+  active           Boolean           @default(true)
+  fields           Json
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  serviceOrders ServiceOrder[]
+
+  @@map("checklist_templates")
+}
+
 model ServiceOrder {
-  id                String             @id @default(uuid())
-  orderNumber       String             @unique
-  type              ServiceOrderType
-  clientId          String
-  technicalVisitId  String?
-  status            ServiceOrderStatus @default(DRAFT)
-  scope             String             @db.Text
-  reportedDefects   String?            @db.Text
-  requestedServices String?            @db.Text
-  notes             String?            @db.Text
-  requiredResources Json?
-  deadline          DateTime?
-  responsibleIds    String[]
-  checklist         Json[]
-  progress          Int                @default(0)
-  attachments       String[]
-  createdById       String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                  String             @id @default(uuid())
+  orderNumber         String             @unique
+  type                ServiceOrderType
+  clientId            String
+  technicalVisitId    String?
+  status              ServiceOrderStatus @default(DRAFT)
+  scope               String             @db.Text
+  reportedDefects     String?            @db.Text
+  requestedServices   String?            @db.Text
+  notes               String?            @db.Text
+  requiredResources   Json?
+  deadline            DateTime?
+  responsibleIds      String[]
+  checklist           Json[]
+  checklistTemplateId String?
+  progress            Int                @default(0)
+  attachments         String[]
+  createdById         String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   // RelaÃ§Ãµes
-  client         Client                @relation(fields: [clientId], references: [id])
-  technicalVisit TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
-  createdBy      User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
-  approvals      Approval[]
-  purchaseOrders PurchaseOrder[]
-  invoices       Invoice[]
-  delivery       Delivery?
-  items          ServiceOrderProduct[]
+  client            Client                @relation(fields: [clientId], references: [id])
+  technicalVisit    TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
+  createdBy         User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
+  checklistTemplate ChecklistTemplate?    @relation(fields: [checklistTemplateId], references: [id])
+  approvals         Approval[]
+  purchaseOrders    PurchaseOrder[]
+  invoices          Invoice[]
+  delivery          Delivery?
+  items             ServiceOrderProduct[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
   expenses Expense[]
@@ -906,4 +1010,152 @@ model EmployeeDocument {
   updatedAt  DateTime @updatedAt
 
   @@map("employee_documents")
+}
+
+// ============================================
+// MÓDULO FISCAL – NF-e / NFS-e (2026)
+// ============================================
+
+enum TipoNota {
+  NFE // Nota Fiscal Eletrônica (Modelo 55 – mercadoria/mista)
+  NFSE // Nota Fiscal de Serviços Eletrônica
+}
+
+enum ModalidadeNota {
+  SERVICO
+  MERCADORIA
+  MISTA
+}
+
+enum StatusNota {
+  PENDENTE
+  PROCESSANDO
+  AUTORIZADA
+  REJEITADA
+  CANCELADA
+  DENEGADA
+}
+
+enum AmbienteNota {
+  PRODUCAO
+  HOMOLOGACAO
+}
+
+enum EventoSefazTipo {
+  AUTORIZACAO
+  CANCELAMENTO
+  INUTILIZACAO
+  CARTA_CORRECAO
+  REJEICAO
+}
+
+enum WebhookEventoTipo {
+  NOTA_AUTORIZADA
+  NOTA_REJEITADA
+  NOTA_CANCELADA
+}
+
+// Tabela principal da NF-e / NFS-e
+model NotaFiscal {
+  id                 String         @id @default(uuid())
+  numero             String         @unique
+  serie              String
+  tipo               TipoNota
+  modalidade         ModalidadeNota
+  chaveAcesso        String?        @unique
+  protocolo          String?
+  serviceOrderId     String
+  clientId           String
+  emitenteCnpj       String
+  destinatarioCnpj   String
+  valorBruto         Decimal        @db.Decimal(14, 2)
+  valorLiquido       Decimal        @db.Decimal(14, 2)
+  xmlAssinado        String?        @db.Text
+  xmlAutorizado      String?        @db.Text
+  pdfDanfeUrl        String?
+  status             StatusNota     @default(PENDENTE)
+  ambiente           AmbienteNota   @default(HOMOLOGACAO)
+  // Split Payment: { valorRetido, aliquotaTotal, banco, chavePix }
+  splitPayment       Json?
+  motivoCancelamento String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  impostos ImpostoRetido[]
+  eventos  EventoSefaz[]
+  webhooks WebhookDispatch[]
+
+  @@index([serviceOrderId])
+  @@index([status])
+  @@map("notas_fiscais")
+}
+
+// Impostos calculados, dual-regime 2026
+model ImpostoRetido {
+  id     String     @id @default(uuid())
+  notaId String
+  nota   NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+
+  // ─── Regime Legado ───────────────────────────────────────
+  aliquotaIss    Decimal? @db.Decimal(6, 4)
+  valorIss       Decimal? @db.Decimal(14, 4)
+  aliquotaIcms   Decimal? @db.Decimal(6, 4)
+  valorIcms      Decimal? @db.Decimal(14, 4)
+  aliquotaPis    Decimal? @db.Decimal(6, 4)
+  valorPis       Decimal? @db.Decimal(14, 4)
+  aliquotaCofins Decimal? @db.Decimal(6, 4)
+  valorCofins    Decimal? @db.Decimal(14, 4)
+
+  // ─── Reforma Tributária 2026 ─────────────────────────────
+  aliquotaCbs Decimal @db.Decimal(6, 4) // 0.9000 (%)
+  valorCbs    Decimal @db.Decimal(14, 4)
+  aliquotaIbs Decimal @db.Decimal(6, 4) // 0.1000 (%)
+  valorIbs    Decimal @db.Decimal(14, 4)
+
+  // ─── ZFM ─────────────────────────────────────────────────
+  creditoPresumidoZfm Decimal? @db.Decimal(14, 4)
+  beneficioZfmAtivo   Boolean  @default(false)
+
+  // ─── Totais ──────────────────────────────────────────────
+  totalImpostoLegado Decimal @db.Decimal(14, 4)
+  totalImposto2026   Decimal @db.Decimal(14, 4)
+  calculoPorFora     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@map("impostos_retidos")
+}
+
+// Eventos de ciclo de vida enviados / recebidos da SEFAZ
+model EventoSefaz {
+  id         String          @id @default(uuid())
+  notaId     String
+  nota       NotaFiscal      @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  tipo       EventoSefazTipo
+  codigo     String // Código de retorno SEFAZ (ex: "100", "301")
+  descricao  String
+  protocolo  String?
+  xmlEvento  String?         @db.Text
+  xmlRetorno String?         @db.Text
+  createdAt  DateTime        @default(now())
+
+  @@map("eventos_sefaz")
+}
+
+// Despachos de webhook para o portal principal
+model WebhookDispatch {
+  id            String            @id @default(uuid())
+  notaId        String
+  nota          NotaFiscal        @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  evento        WebhookEventoTipo
+  url           String
+  payload       Json
+  statusCode    Int?
+  tentativas    Int               @default(0)
+  sucesso       Boolean           @default(false)
+  proxTentativa DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@map("webhook_dispatches")
 }

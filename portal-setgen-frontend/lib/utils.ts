@@ -42,6 +42,28 @@ export function formatPhone(phone: string): string {
   return phone
 }
 
+const AVATAR_PALETTE = [
+  { bg: 'bg-amber-100', fg: 'text-amber-700' },
+  { bg: 'bg-blue-100', fg: 'text-blue-700' },
+  { bg: 'bg-violet-100', fg: 'text-violet-700' },
+  { bg: 'bg-rose-100', fg: 'text-rose-700' },
+  { bg: 'bg-teal-100', fg: 'text-teal-700' },
+  { bg: 'bg-slate-200', fg: 'text-slate-700' },
+]
+
+export function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
+  return (first + last).toUpperCase()
+}
+
+export function getAvatarColor(name: string): { bg: string; fg: string } {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
+}
+
 export function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
     ADMIN: 'Administrador',
@@ -56,30 +78,30 @@ export function getRoleLabel(role: string): string {
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     // Client
-    ACTIVE: 'bg-green-100 text-green-800',
-    INACTIVE: 'bg-gray-100 text-gray-800',
-    DEFAULTER: 'bg-red-100 text-red-800',
+    ACTIVE: 'bg-status-green-bg text-status-green-fg',
+    INACTIVE: 'bg-status-gray-bg text-status-gray-fg',
+    DEFAULTER: 'bg-status-red-bg text-status-red-fg',
     // Employee
-    AWAY: 'bg-amber-100 text-amber-800',
-    VACATION: 'bg-blue-100 text-blue-800',
-    TERMINATED: 'bg-red-100 text-red-800',
+    AWAY: 'bg-status-amber-bg text-status-amber-fg',
+    VACATION: 'bg-status-blue-bg text-status-blue-fg',
+    TERMINATED: 'bg-status-red-bg text-status-red-fg',
     // Service Order
-    DRAFT: 'bg-gray-100 text-gray-800',
-    PENDING_APPROVAL: 'bg-yellow-100 text-yellow-800',
-    APPROVED: 'bg-green-100 text-green-800',
-    REJECTED: 'bg-red-100 text-red-800',
-    IN_PROGRESS: 'bg-blue-100 text-blue-800',
-    COMPLETED: 'bg-green-100 text-green-800',
-    CANCELLED: 'bg-red-100 text-red-800',
+    DRAFT: 'bg-status-gray-bg text-status-gray-fg',
+    PENDING_APPROVAL: 'bg-status-amber-bg text-status-amber-fg',
+    APPROVED: 'bg-status-green-bg text-status-green-fg',
+    REJECTED: 'bg-status-red-bg text-status-red-fg',
+    IN_PROGRESS: 'bg-status-blue-bg text-status-blue-fg',
+    COMPLETED: 'bg-status-green-bg text-status-green-fg',
+    CANCELLED: 'bg-status-red-bg text-status-red-fg',
     // Invoice
-    ISSUED: 'bg-blue-100 text-blue-800',
-    PAID: 'bg-green-100 text-green-800',
-    OVERDUE: 'bg-red-100 text-red-800',
+    ISSUED: 'bg-status-blue-bg text-status-blue-fg',
+    PAID: 'bg-status-green-bg text-status-green-fg',
+    OVERDUE: 'bg-status-red-bg text-status-red-fg',
     // Purchase Order
-    PENDING: 'bg-yellow-100 text-yellow-800',
-    EXPIRED: 'bg-red-100 text-red-800',
+    PENDING: 'bg-status-amber-bg text-status-amber-fg',
+    EXPIRED: 'bg-status-red-bg text-status-red-fg',
   }
-  return colors[status] || 'bg-gray-100 text-gray-800'
+  return colors[status] || 'bg-status-gray-bg text-status-gray-fg'
 }
 
 export function getStatusLabel(status: string): string {
@@ -104,7 +126,6 @@ export function getStatusLabel(status: string): string {
     ISSUED: 'Emitida',
     PAID: 'Paga',
     OVERDUE: 'Vencida',
-    CANCELLED: 'Cancelada',
     // Purchase Order
     PENDING: 'Pendente',
     EXPIRED: 'Expirada',

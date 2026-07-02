@@ -1,6 +1,9 @@
 // Barrel export for all API services
 export { authApi } from './auth';
 export { clientsApi } from './clients';
+export { teamsApi } from './teams';
+export { clientTaxonomiesApi } from './client-taxonomies';
+export { checklistTemplatesApi } from './checklist-templates';
 export { visitsApi } from './visits';
 export { serviceOrdersApi } from './service-orders';
 export { approvalsApi } from './approvals';

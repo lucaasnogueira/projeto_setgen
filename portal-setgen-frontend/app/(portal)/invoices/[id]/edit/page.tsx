@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { invoicesApi } from '@/lib/api/invoices';
 import { Invoice } from '@/types';
-import { DollarSign } from 'lucide-react';
 import { InvoiceForm } from '../../components/InvoiceForm';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function EditInvoicePage() {
   const params = useParams();
@@ -49,7 +49,7 @@ export default function EditInvoicePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -57,24 +57,10 @@ export default function EditInvoicePage() {
   if (!invoice) return null;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Header com Gradiente Esmeralda */}
-      <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
-        <div className="relative z-10 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm border border-white/30">
-              <DollarSign className="h-10 w-10 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Editar Nota Fiscal</h1>
-              <p className="text-emerald-100 mt-1 opacity-90">Atualize os dados da NFe emitida</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+      <PageHeader title="Editar Nota Fiscal" subtitle="Atualize os dados da NFe emitida" />
 
-      <InvoiceForm 
+      <InvoiceForm
         initialData={invoice}
         onSubmit={handleSubmit}
         onCancel={() => router.back()}
