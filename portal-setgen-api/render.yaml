@@ -5,7 +5,8 @@ services:
     plan: free
     rootDir: portal-setgen-api
     # --include=dev: NODE_ENV=production senão pula devDeps e nest CLI some (exit 127)
-    buildCommand: npm install --include=dev && npx prisma migrate deploy && npm run build
+    # db seed é idempotente (upsert) — cria admin/gerente/tecnico sem duplicar
+    buildCommand: npm install --include=dev && npx prisma migrate deploy && npx prisma db seed && npm run build
     startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
