@@ -16,7 +16,8 @@ async function main() {
   // Criar usuário ADMIN
   const admin = await prisma.user.upsert({
     where: { email: 'admin@setgen.com' },
-    update: {},
+    // reseta senha/estado do admin a cada seed (demo) — garante admin123
+    update: { password: hashedPassword, active: true },
     create: {
       name: 'Administrador',
       email: 'admin@setgen.com',
