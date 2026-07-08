@@ -2,8 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { ordersApi } from '@/lib/api/orders';
-import { Truck, Save, X } from 'lucide-react';
+import { Truck } from 'lucide-react';
 import { Delivery } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { StepFooter, type WizardStep } from '@/components/ui/step-wizard';
+
+const stepDefs: WizardStep[] = [{ key: 'dados', label: 'Dados da Baixa' }];
 
 interface DeliveryFormProps {
   initialData?: Partial<Delivery>;
@@ -53,86 +59,77 @@ export function DeliveryForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-lg p-8">
-      <div className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            OS Concluída <span className="text-red-500">*</span>
-          </label>
-          <select
-            required
-            value={formData.serviceOrderId}
-            onChange={(e) => setFormData({ ...formData, serviceOrderId: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
-            <option value="">Selecione uma OS</option>
-            {serviceOrders.map(order => (
-              <option key={order.id} value={order.id}>
-                {order.orderNumber} - {order.client?.companyName || order.client?.name}
-              </option>
-            ))}
-          </select>
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Truck className="h-5 w-5 text-blue-600" />
+            Dados da Baixa
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-8 space-y-6">
+          <div className="space-y-2">
+            <Label className="font-bold text-sm">OS Concluída *</Label>
+            <select
+              required
+              value={formData.serviceOrderId}
+              onChange={(e) => setFormData({ ...formData, serviceOrderId: e.target.value })}
+              className="w-full h-12 px-4 rounded-2xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="">Selecione uma OS</option>
+              {serviceOrders.map(order => (
+                <option key={order.id} value={order.id}>
+                  {order.orderNumber} - {order.client?.companyName || order.client?.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Data da Entrega <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            required
-            value={formData.deliveryDate}
-            onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Data da Entrega *</Label>
+              <Input
+                type="date"
+                required
+                value={formData.deliveryDate}
+                onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
+                className="h-12 rounded-2xl"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Recebido por <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={formData.receivedBy}
-            onChange={(e) => setFormData({ ...formData, receivedBy: e.target.value })}
-            placeholder="Nome de quem recebeu"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Recebido por *</Label>
+              <Input
+                required
+                value={formData.receivedBy}
+                onChange={(e) => setFormData({ ...formData, receivedBy: e.target.value })}
+                placeholder="Nome de quem recebeu"
+                className="h-12 rounded-2xl"
+              />
+            </div>
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Observações
-          </label>
-          <textarea
-            value={formData.notes}
-            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            rows={4}
-            placeholder="Observações sobre a entrega..."
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
-      </div>
+          <div className="space-y-2">
+            <Label className="font-bold text-sm">Observações</Label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={4}
+              placeholder="Observações sobre a entrega..."
+              className="w-full rounded-2xl border border-input bg-background p-4 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex gap-4 mt-8">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 font-medium"
-        >
-          <X className="h-5 w-5" />
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          disabled={loading}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-lg hover:from-indigo-600 hover:to-indigo-700 flex items-center justify-center gap-2 font-medium shadow-lg disabled:opacity-50"
-        >
-          <Save className="h-5 w-5" />
-          {loading ? 'Salvando...' : submitLabel}
-        </button>
-      </div>
+      <StepFooter
+        steps={stepDefs}
+        activeKey="dados"
+        onNext={() => {}}
+        onCancel={onCancel}
+        loading={loading}
+        submitLabel={submitLabel}
+      />
     </form>
   );
 }

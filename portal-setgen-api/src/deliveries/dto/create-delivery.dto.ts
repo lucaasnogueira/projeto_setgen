@@ -6,6 +6,7 @@ import {
   IsDateString,
   IsOptional,
   IsArray,
+  IsBoolean,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -16,6 +17,7 @@ class ChecklistItemDto {
   item: string;
 
   @ApiProperty({ example: true })
+  @IsBoolean()
   checked: boolean;
 }
 

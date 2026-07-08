@@ -9,7 +9,6 @@ interface WebhookPayload {
   evento:      WebhookEventoTipo;
   notaId:      string;
   numero:      string;
-  tipo:        string;
   status:      string;
   protocolo?:  string;
   chaveAcesso?: string;

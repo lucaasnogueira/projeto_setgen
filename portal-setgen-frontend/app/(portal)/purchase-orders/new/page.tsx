@@ -87,15 +87,15 @@ export default function NewPurchaseOrderPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Vínculo com OS */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-            <CardTitle className="flex items-center gap-2 text-gray-800">
+          <CardHeader className="bg-muted/50 border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5 text-green-600" />
               Vínculo com Ordem de Serviço
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
               <select
                 required
                 value={formData.serviceOrderId}
@@ -115,8 +115,8 @@ export default function NewPurchaseOrderPage() {
 
         {/* Detalhes da OC */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-            <CardTitle className="flex items-center gap-2 text-gray-800">
+          <CardHeader className="bg-muted/50 border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-foreground">
               <Info className="h-5 w-5 text-green-600" />
               Dados da Ordem de Compra
             </CardTitle>
@@ -124,7 +124,7 @@ export default function NewPurchaseOrderPage() {
           <CardContent className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Número da OC <span className="text-red-500">*</span></Label>
+                <Label className="text-foreground font-semibold">Número da OC <span className="text-red-500">*</span></Label>
                 <Input
                   required
                   value={formData.orderNumber}
@@ -135,9 +135,9 @@ export default function NewPurchaseOrderPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Valor (R$) <span className="text-red-500">*</span></Label>
+                <Label className="text-foreground font-semibold">Valor (R$) <span className="text-red-500">*</span></Label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  <DollarSign className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="number"
                     required
@@ -154,9 +154,9 @@ export default function NewPurchaseOrderPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Data de Emissão <span className="text-red-500">*</span></Label>
+                <Label className="text-foreground font-semibold">Data de Emissão <span className="text-red-500">*</span></Label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  <Calendar className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="date"
                     required
@@ -168,9 +168,9 @@ export default function NewPurchaseOrderPage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Validade <span className="text-red-500">*</span></Label>
+                <Label className="text-foreground font-semibold">Validade <span className="text-red-500">*</span></Label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                  <Calendar className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="date"
                     required
@@ -184,10 +184,10 @@ export default function NewPurchaseOrderPage() {
 
             {/* Upload de Arquivo */}
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Arquivo da OC (PDF ou Imagem) <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Arquivo da OC (PDF ou Imagem) <span className="text-red-500">*</span></Label>
               <div 
                 className={`relative border-2 border-dashed rounded-2xl p-8 transition-all flex flex-col items-center justify-center gap-3 group cursor-pointer ${
-                  file ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-green-300 hover:bg-gray-50'
+                  file ? 'border-green-500 bg-green-50' : 'border-border hover:border-green-300 hover:bg-muted'
                 }`}
                 onClick={() => document.getElementById('file-upload')?.click()}
               >
@@ -199,20 +199,20 @@ export default function NewPurchaseOrderPage() {
                   className="hidden"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
-                <div className={`p-4 rounded-full transition-colors ${file ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400 group-hover:bg-green-100 group-hover:text-green-600'}`}>
+                <div className={`p-4 rounded-full transition-colors ${file ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground group-hover:bg-green-100 group-hover:text-green-600'}`}>
                   <Upload className="h-8 w-8" />
                 </div>
                 <div className="text-center">
-                  <p className={`font-bold ${file ? 'text-green-700' : 'text-gray-600'}`}>
+                  <p className={`font-bold ${file ? 'text-green-700' : 'text-muted-foreground'}`}>
                     {file ? file.name : 'Clique para selecionar o arquivo'}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">PDF, JPG ou PNG (Máx. 10MB)</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, JPG ou PNG (Máx. 10MB)</p>
                 </div>
                 {file && (
                   <button 
                     type="button" 
                     onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                    className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    className="absolute top-2 right-2 p-2 text-muted-foreground hover:text-red-500 transition-colors"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -228,7 +228,7 @@ export default function NewPurchaseOrderPage() {
             type="button"
             variant="outline"
             onClick={() => router.back()}
-            className="flex-1 h-12 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
+            className="flex-1 h-12 rounded-2xl border-2 hover:bg-muted flex items-center justify-center gap-2 font-bold text-muted-foreground transition-all active:scale-95"
           >
             <X className="h-5 w-5" />
             Cancelar

@@ -1,8 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { create } from 'xmlbuilder2';
-import { OsDataDto } from '../dto/os-data.dto';
 import { ResultadoCalculo } from '../engines/tax-engine.service';
 import { NfeChaveService } from './nfe-chave.service';
+
+export interface ClienteDestinatario {
+  cnpjCpf: string;
+  companyName: string;
+  tradeName?: string | null;
+  address: {
+    cep?: string;
+    street?: string;
+    number?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  };
+}
+
+export interface DadosEmissaoNfe {
+  emitenteCnpj: string;
+  cliente: ClienteDestinatario;
+  ambiente: 'PRODUCAO' | 'HOMOLOGACAO';
+}
 
 @Injectable()
 export class XmlGeneratorService {
@@ -11,17 +30,14 @@ export class XmlGeneratorService {
   constructor(private readonly nfeChave: NfeChaveService) {}
 
   /**
-   * Gera o XML da NF-e (Modelo 55) para itens de peças/mercadorias.
+   * Gera o XML da NF-e (Modelo 55) para itens de mercadoria.
    * Suporta preenchimento simultâneo dos grupos de impostos legados e 2026
    * conforme layout de transição (NT 2026.001 – versão schema 4.10+).
-   */
-  /**
-   * Gera o XML da NF-e (Modelo 55) para itens de peças/mercadorias.
    * Retorna { xml, chaveAcesso } para que o FiscalService possa
    * persistir a chave antes da assinatura.
    */
   gerarNfe(
-    osData: OsDataDto,
+    dados: DadosEmissaoNfe,
     calculo: ResultadoCalculo,
     numero: string,
     serie = '001',
@@ -36,7 +52,7 @@ export class XmlGeneratorService {
     const dataManaus = new Date(dataEmissao.getTime() + (tzOffset * 60 * 60 * 1000));
     // Formato AAAA-MM-DDThh:mm:ss-04:00 prescrito pelo manual
     const agora = dataManaus.toISOString().slice(0, 19) + '-04:00';
-    const cnpjEmit   = osData.emitenteCnpj.replace(/\D/g, '');
+    const cnpjEmit   = dados.emitenteCnpj.replace(/\D/g, '');
 
     // ── Chave de Acesso (44 dígitos + cDV Módulo 11) ─────────────────────────
     const chaveAcesso = this.nfeChave.gerar('AM', cnpjEmit, serie, numero, '1', dataEmissao);
@@ -65,7 +81,7 @@ export class XmlGeneratorService {
     ide.ele('tpImp').txt('1');  // DANFE normal retrato
     ide.ele('tpEmis').txt('1'); // Emissão normal
     ide.ele('cDV').txt(cDV);   // ← dígito verificador correto (Módulo 11)
-    ide.ele('tpAmb').txt(osData.ambiente === 'PRODUCAO' ? '1' : '2');
+    ide.ele('tpAmb').txt(dados.ambiente === 'PRODUCAO' ? '1' : '2');
     ide.ele('finNFe').txt('1'); // NF-e normal
     ide.ele('indFinal').txt('1'); // 1 = Consumidor Final (Obrigatório se indIEDest = 9)
     ide.ele('indPres').txt('1'); // Operação presencial
@@ -89,39 +105,38 @@ export class XmlGeneratorService {
     endEmit.ele('cPais').txt('1058');
     endEmit.ele('xPais').txt('Brasil');
     endEmit.ele('fone').txt('9230000000');
-    emit.ele('IE').txt('042125530'); 
+    emit.ele('IE').txt('042125530');
     emit.ele('CRT').txt('1');
 
     // ── dest ─────────────────────────────────────────────────────────────────
     const dest = infNFe.ele('dest');
-    const cnpjDest = osData.clientCnpj.replace(/\D/g, '');
+    const cnpjDest = dados.cliente.cnpjCpf.replace(/\D/g, '');
     if (cnpjDest.length === 11) {
       dest.ele('CPF').txt(cnpjDest);
     } else {
       dest.ele('CNPJ').txt(cnpjDest);
     }
-    dest.ele('xNome').txt('CLIENTE DESTINATARIO');
-    
+    dest.ele('xNome').txt((dados.cliente.tradeName || dados.cliente.companyName).slice(0, 60));
+
     // Endereço do Destinatário (Adicionado para evitar Rejeição 726)
     const endDest = dest.ele('enderDest');
-    endDest.ele('xLgr').txt('Rua do Cliente');
-    endDest.ele('nro').txt('123');
-    endDest.ele('xBairro').txt('Centro');
+    endDest.ele('xLgr').txt(dados.cliente.address?.street || 'Não informado');
+    endDest.ele('nro').txt(dados.cliente.address?.number || 'S/N');
+    endDest.ele('xBairro').txt(dados.cliente.address?.neighborhood || 'Centro');
     endDest.ele('cMun').txt('1302603');
-    endDest.ele('xMun').txt('Manaus');
-    endDest.ele('UF').txt('AM');
-    endDest.ele('CEP').txt('69000000');
+    endDest.ele('xMun').txt(dados.cliente.address?.city || 'Manaus');
+    endDest.ele('UF').txt(dados.cliente.address?.state || 'AM');
+    endDest.ele('CEP').txt((dados.cliente.address?.cep || '69000000').replace(/\D/g, ''));
     endDest.ele('cPais').txt('1058');
     endDest.ele('xPais').txt('Brasil');
     endDest.ele('fone').txt('09200000000');
 
     dest.ele('indIEDest').txt('9'); // 9=Não Contribuinte, que pode ou não possuir IE
 
-    // ── Produtos e Serviços / detalhamentos ──────────────────────────────────
+    // ── Produtos e impostos ────────────────────────────────────────────────
     let nItem = 1;
 
-    // 1. Peças/Mercadorias
-    calculo.itensPecas.forEach((peca) => {
+    calculo.itens.forEach((peca) => {
       const det = infNFe.ele('det', { nItem: String(nItem++) });
       const prod = det.ele('prod');
 
@@ -182,20 +197,20 @@ export class XmlGeneratorService {
       const cClassTrib = '000001';
       ibscbs.ele('CST').txt(cstIbscbs);
       ibscbs.ele('cClassTrib').txt(cClassTrib);
-      
+
       const gIbscbs = ibscbs.ele('gIBSCBS');
       gIbscbs.ele('vBC').txt(peca.valorTotal.toFixed(2));
-      
+
       const gIbsUf = gIbscbs.ele('gIBSUF');
       gIbsUf.ele('pIBSUF').txt(calculo.aliquotaIbs.toFixed(2));
       gIbsUf.ele('vIBSUF').txt(peca.valorIbs.toFixed(2));
-      
+
       const gIbsMun = gIbscbs.ele('gIBSMun');
       gIbsMun.ele('pIBSMun').txt('0.00');
       gIbsMun.ele('vIBSMun').txt('0.00');
-      
+
       gIbscbs.ele('vIBS').txt(peca.valorIbs.toFixed(2));
-      
+
       const gCbs = gIbscbs.ele('gCBS');
       gCbs.ele('pCBS').txt(calculo.aliquotaCbs.toFixed(2));
       gCbs.ele('vCBS').txt(peca.valorCbs.toFixed(2));
@@ -211,106 +226,16 @@ export class XmlGeneratorService {
         gTribRegular.ele('pAliqEfetRegCBS').txt(calculo.aliquotaCbs.toFixed(2));
         gTribRegular.ele('vTribRegCBS').txt(peca.valorCbs.toFixed(2));
       }
-      
+
       if (peca.fabricadoNaZfm && peca.creditoPresumidoZfm > 0) {
         ibscbs.ele('gCredPresIBSZFM').ele('vCredPresumidoIBSZFM').txt(peca.creditoPresumidoZfm.toFixed(4));
-      }
-    });
-
-    // 2. Serviços (Nota Conjugada)
-    calculo.itensServico.forEach((serv, idx) => {
-      const det = infNFe.ele('det', { nItem: String(nItem++) });
-      const prod = det.ele('prod');
-
-      prod.ele('cProd').txt(`SERV${String(idx + 1).padStart(4, '0')}`);
-      prod.ele('cEAN').txt('SEM GTIN');
-      prod.ele('xProd').txt(serv.descricao.slice(0, 120));
-      prod.ele('NCM').txt('00'); // NCM 00 para serviços em NF-e conjugada
-      prod.ele('CFOP').txt('5933'); // Prestação de serviço tributado pelo ISSQN
-      prod.ele('uCom').txt('UN');
-      prod.ele('qCom').txt(String(serv.quantidade));
-      prod.ele('vUnCom').txt(serv.valorUnitario.toFixed(10));
-      prod.ele('vProd').txt(serv.valorTotal.toFixed(2));
-      prod.ele('cEANTrib').txt('SEM GTIN');
-      prod.ele('uTrib').txt('UN');
-      prod.ele('qTrib').txt(String(serv.quantidade));
-      prod.ele('vUnTrib').txt(serv.valorUnitario.toFixed(10));
-      prod.ele('indTot').txt('1');
-
-      const imp = det.ele('imposto');
-      
-      // ISSQN
-      const issqn = imp.ele('ISSQN');
-      issqn.ele('vBC').txt(serv.valorTotal.toFixed(2));
-      issqn.ele('vAliq').txt(serv.issAliquota.toFixed(2));
-      issqn.ele('vISSQN').txt(serv.valorIss.toFixed(2));
-      issqn.ele('cMunFG').txt('1302603');
-      let codigoServico = osData.itensServico[idx]?.codigoServico || '14.01';
-      if (!codigoServico.includes('.')) {
-        codigoServico = `${codigoServico.slice(0, 2)}.${codigoServico.slice(2)}`;
-      }
-      issqn.ele('cListServ').txt(codigoServico);
-      // vDeducao, vOutro, vDescIncond, vDescCond, vISSRet são TDec_1302Opc (não permitem 0.00)
-      issqn.ele('indISS').txt('1'); // 1=Exigível
-      issqn.ele('indIncentivo').txt('2'); // 2=Não
-      
-      // PIS (Operação sem incidência para serviço em nota conjugada se houver retenção específica)
-      const pisGrp = imp.ele('PIS');
-      const pisAliq = pisGrp.ele('PISAliq');
-      pisAliq.ele('CST').txt('01');
-      pisAliq.ele('vBC').txt(serv.valorTotal.toFixed(2));
-      pisAliq.ele('pPIS').txt('0.65');
-      pisAliq.ele('vPIS').txt((serv.valorTotal * 0.0065).toFixed(2));
-
-      // COFINS
-      const cofinsGrp = imp.ele('COFINS');
-      const cofinsAliq = cofinsGrp.ele('COFINSAliq');
-      cofinsAliq.ele('CST').txt('01');
-      cofinsAliq.ele('vBC').txt(serv.valorTotal.toFixed(2));
-      cofinsAliq.ele('pCOFINS').txt('3.00');
-      cofinsAliq.ele('vCOFINS').txt((serv.valorTotal * 0.03).toFixed(2));
-
-      // IBS / CBS (Reforma Tributária - NT 2025.002)
-      const ibscbs = imp.ele('IBSCBS');
-      const cstIbscbs = '000';
-      const cClassTrib = '000001';
-      ibscbs.ele('CST').txt(cstIbscbs);
-      ibscbs.ele('cClassTrib').txt(cClassTrib);
-
-      const gIbscbs = ibscbs.ele('gIBSCBS');
-      gIbscbs.ele('vBC').txt(serv.valorTotal.toFixed(2));
-
-      const gIbsUf = gIbscbs.ele('gIBSUF');
-      gIbsUf.ele('pIBSUF').txt(calculo.aliquotaIbs.toFixed(2));
-      gIbsUf.ele('vIBSUF').txt(serv.valorIbs.toFixed(2));
-
-      const gIbsMun = gIbscbs.ele('gIBSMun');
-      gIbsMun.ele('pIBSMun').txt('0.00');
-      gIbsMun.ele('vIBSMun').txt('0.00');
-
-      gIbscbs.ele('vIBS').txt(serv.valorIbs.toFixed(2));
-
-      const gCbs = gIbscbs.ele('gCBS');
-      gCbs.ele('pCBS').txt(calculo.aliquotaCbs.toFixed(2));
-      gCbs.ele('vCBS').txt(serv.valorCbs.toFixed(2));
-
-      if (cstIbscbs !== '000') {
-        const gTribRegular = gIbscbs.ele('gTribRegular');
-        gTribRegular.ele('CSTReg').txt('000');
-        gTribRegular.ele('cClassTribReg').txt('000001');
-        gTribRegular.ele('pAliqEfetRegIBSUF').txt(calculo.aliquotaIbs.toFixed(2));
-        gTribRegular.ele('vTribRegIBSUF').txt(serv.valorIbs.toFixed(2));
-        gTribRegular.ele('pAliqEfetRegIBSMun').txt('0.00');
-        gTribRegular.ele('vTribRegIBSMun').txt('0.00');
-        gTribRegular.ele('pAliqEfetRegCBS').txt(calculo.aliquotaCbs.toFixed(2));
-        gTribRegular.ele('vTribRegCBS').txt(serv.valorCbs.toFixed(2));
       }
     });
 
     // ── total ─────────────────────────────────────────────────────────────────
     const total = infNFe.ele('total');
     const icmsTot = total.ele('ICMSTot');
-    icmsTot.ele('vBC').txt(calculo.totalPecas.toFixed(2));
+    icmsTot.ele('vBC').txt(calculo.valorBruto.toFixed(2));
     icmsTot.ele('vICMS').txt(calculo.totalIcms.toFixed(2));
     icmsTot.ele('vICMSDeson').txt('0.00');
     icmsTot.ele('vFCP').txt('0.00');
@@ -318,7 +243,7 @@ export class XmlGeneratorService {
     icmsTot.ele('vST').txt('0.00');
     icmsTot.ele('vFCPST').txt('0.00');
     icmsTot.ele('vFCPSTRet').txt('0.00');
-    icmsTot.ele('vProd').txt(calculo.totalPecas.toFixed(2));
+    icmsTot.ele('vProd').txt(calculo.valorBruto.toFixed(2));
     icmsTot.ele('vFrete').txt('0.00');
     icmsTot.ele('vSeg').txt('0.00');
     icmsTot.ele('vDesc').txt('0.00');
@@ -330,28 +255,18 @@ export class XmlGeneratorService {
     icmsTot.ele('vOutro').txt('0.00');
     icmsTot.ele('vNF').txt(calculo.valorBruto.toFixed(2));
 
-    // Totais de ISSQN (Conjugada)
-    if (calculo.totalServicos > 0) {
-      const issTot = total.ele('ISSQNtot');
-      issTot.ele('vServ').txt(calculo.totalServicos.toFixed(2));
-      issTot.ele('vBC').txt(calculo.totalServicos.toFixed(2));
-      issTot.ele('vISS').txt(calculo.totalIss.toFixed(2));
-      issTot.ele('dCompet').txt(new Date().toISOString().slice(0, 10));
-      issTot.ele('cRegTrib').txt('1'); // 1=Microempresa Municipal
-    }
-
     // IBS/CBS totais (Reforma Tributária)
     const ibsCbsTot = total.ele('IBSCBSTot');
     ibsCbsTot.ele('vBCIBSCBS').txt(calculo.valorBruto.toFixed(2));
-    
+
     // IBS Total Group
     const gIbs = ibsCbsTot.ele('gIBS');
-    
+
     const gIbsUf = gIbs.ele('gIBSUF');
     gIbsUf.ele('vDif').txt('0.00');
     gIbsUf.ele('vDevTrib').txt('0.00');
     gIbsUf.ele('vIBSUF').txt(calculo.totalIbs.toFixed(2));
-    
+
     const gIbsMun = gIbs.ele('gIBSMun');
     gIbsMun.ele('vDif').txt('0.00');
     gIbsMun.ele('vDevTrib').txt('0.00');
@@ -360,7 +275,7 @@ export class XmlGeneratorService {
     gIbs.ele('vIBS').txt(calculo.totalIbs.toFixed(2));
     gIbs.ele('vCredPres').txt('0.00');
     gIbs.ele('vCredPresCondSus').txt('0.00');
-    
+
     // CBS Total Group
     const gCbs = ibsCbsTot.ele('gCBS');
     gCbs.ele('vDif').txt('0.00');
@@ -401,81 +316,5 @@ export class XmlGeneratorService {
 
     this.logger.log('XML NF-e gerado com sucesso');
     return { xml: root.end({ prettyPrint: false }), chaveAcesso };
-  }
-
-  /**
-   * Gera o XML da NFS-e Nacional (padrão ABRASF / ADN da RFB) para serviços.
-   * Baseado no schema NFSE Nacional versão 1.0 (Resolução CGSN 777/2021).
-   */
-  gerarNfse(osData: OsDataDto, calculo: ResultadoCalculo, numero: string): string {
-    this.logger.log(`Gerando XML NFS-e nº ${numero}`);
-
-    const agora = new Date().toISOString();
-
-    const root = create({ version: '1.0', encoding: 'UTF-8' })
-      .ele('CompNfse', {
-        xmlns: 'http://www.sped.fazenda.gov.br/nfse',
-        versao: '1.00',
-      });
-
-    const nfse = root.ele('Nfse');
-    const infNfse = nfse.ele('infNfse', { Id: `NFSE${numero}` });
-
-    infNfse.ele('nNFSe').txt(numero.padStart(15, '0'));
-    infNfse.ele('cLocEmi').txt('1302603'); // Manaus-AM
-    infNfse.ele('tpAmb').txt(osData.ambiente === 'PRODUCAO' ? '1' : '2');
-    infNfse.ele('dhEmi').txt(agora);
-    infNfse.ele('verAplic').txt('SETGEN-v1.0');
-
-    // Valores do serviço
-    const vls = infNfse.ele('Valores');
-    vls.ele('vServico').txt(calculo.totalServicos.toFixed(2));
-    vls.ele('vDescCondicionado').txt('0.00');
-    vls.ele('vDescIncondicionado').txt('0.00');
-    // ISS legado
-    vls.ele('vISS').txt(calculo.totalIss.toFixed(2));
-    // IBS/CBS 2026 por fora
-    vls.ele('vCBS').txt(calculo.totalCbs.toFixed(2));
-    vls.ele('vIBS').txt(calculo.totalIbs.toFixed(2));
-    vls.ele('vLiq').txt(calculo.totalServicos.toFixed(2));
-
-    // Prestador
-    const prest = infNfse.ele('Prestador');
-    prest.ele('CNPJ').txt(osData.emitenteCnpj.replace(/\D/g, ''));
-    prest.ele('cMun').txt('1302603');
-
-    // Tomador
-    const tom = infNfse.ele('Tomador');
-    const idTom = tom.ele('IdentifTomador');
-    const cpfCnpjTom = idTom.ele('CpfCnpj');
-    cpfCnpjTom.ele('CNPJ').txt(osData.clientCnpj.replace(/\D/g, ''));
-
-    // Serviços — estrutura correta: cada campo é filho direto de `serv`
-    const listServ = infNfse.ele('ListaServicos');
-    osData.itensServico.forEach((item, idx) => {
-      const serv    = listServ.ele('Servicos');
-      const servico = serv.ele('Servico');
-      servico.ele('cServTOM').txt(item.codigoServico ?? '14.01');
-      servico.ele('xDescServ').txt(item.descricao.slice(0, 2000));
-      serv.ele('Qtde').txt(String(item.quantidade));
-      serv.ele('vUnitServ').txt(item.valorUnitario.toFixed(2));
-      serv.ele('vDesc').txt('0.00');
-      serv.ele('vServ').txt(calculo.itensServico[idx].valorTotal.toFixed(2));
-      // IBS/CBS 2026 por item de serviço
-      const trib    = serv.ele('trib');
-      const tribNac = trib.ele('tribNac');
-      tribNac.ele('pCBS').txt(calculo.aliquotaCbs.toFixed(2));
-      tribNac.ele('vCBS').txt(calculo.itensServico[idx].valorCbs.toFixed(2));
-      tribNac.ele('pIBS').txt(calculo.aliquotaIbs.toFixed(2));
-      tribNac.ele('vIBS').txt(calculo.itensServico[idx].valorIbs.toFixed(2));
-      // ISS legado
-      const tribMun = trib.ele('tribMun');
-      tribMun.ele('tribISSQN').txt('1'); // 1=exigível
-      tribMun.ele('pAliqAplic').txt(calculo.itensServico[idx].issAliquota.toFixed(2));
-      tribMun.ele('vISSQN').txt(calculo.itensServico[idx].valorIss.toFixed(2));
-    });
-
-    this.logger.log('XML NFS-e gerado com sucesso');
-    return root.end({ prettyPrint: false });
   }
 }

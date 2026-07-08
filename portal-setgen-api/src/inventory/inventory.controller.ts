@@ -9,17 +9,25 @@ import {
   UseGuards,
   Request,
   Query,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiBearerAuth,
   ApiQuery,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { InventoryService } from './inventory.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateStockMovementDto } from './dto/stock-movement.dto';
+import { BatchMovementDto } from './dto/batch-movement.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -71,6 +79,12 @@ export class InventoryController {
     return this.inventoryService.getProductsNeedingRestock(thresholdNum);
   }
 
+  @Get('products/barcode/:barcode')
+  @ApiOperation({ summary: 'Buscar produto por código de barras (usado no scanner)' })
+  findProductByBarcode(@Param('barcode') barcode: string) {
+    return this.inventoryService.findProductByBarcode(barcode);
+  }
+
   @Get('products/:id')
   @ApiOperation({ summary: 'Buscar produto por ID' })
   findOneProduct(@Param('id') id: string) {
@@ -85,6 +99,38 @@ export class InventoryController {
     @Body() updateProductDto: UpdateProductDto,
   ) {
     return this.inventoryService.updateProduct(id, updateProductDto);
+  }
+
+  @Post('products/:id/photo')
+  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @ApiOperation({ summary: 'Enviar foto do produto' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads/products',
+        filename: (req, file, callback) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `product-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, callback) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|webp)$/i)) {
+          return callback(new BadRequestException('Apenas imagens são permitidas'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  uploadProductPhoto(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Arquivo de imagem é obrigatório');
+    }
+    return this.inventoryService.updateProductPhoto(id, file.path);
   }
 
   @Delete('products/:id')
@@ -104,6 +150,13 @@ export class InventoryController {
     @Request() req,
   ) {
     return this.inventoryService.createMovement(createMovementDto, req.user.id);
+  }
+
+  @Post('movements/batch')
+  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @ApiOperation({ summary: 'Registrar movimentação em lote (bipagem de vários itens de uma vez)' })
+  createBatchMovement(@Body() dto: BatchMovementDto, @Request() req) {
+    return this.inventoryService.createBatchMovement(dto, req.user.id);
   }
 
   @Get('movements')

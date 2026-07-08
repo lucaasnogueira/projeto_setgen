@@ -1,6 +1,10 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { seedExpenseCategories } from './seeds/expense-categories.seed';
+import { seedRolesAndPermissions } from './seeds/roles-permissions.seed';
+import { seedVisitTaskTypes } from './seeds/visit-task-types.seed';
+import { seedFailureCategories } from './seeds/failure-categories.seed';
+import { seedCompanySettings } from './seeds/company-settings.seed';
 
 const prisma = new PrismaClient();
 
@@ -71,6 +75,16 @@ async function main() {
 
   // Seed de Categorias Financeiras
   await seedExpenseCategories();
+
+  // Seed de Cargos e Permissões operacionais (matriz do diagnóstico BPM)
+  await seedRolesAndPermissions();
+
+  // Seed de lookups de visita (paridade Auvo)
+  await seedVisitTaskTypes();
+  await seedFailureCategories();
+
+  // Seed de dados da empresa (letterhead do orçamento público)
+  await seedCompanySettings();
 
   console.log('\n🎉 Seed concluído com sucesso!');
   console.log('\n📝 Credenciais de acesso:');

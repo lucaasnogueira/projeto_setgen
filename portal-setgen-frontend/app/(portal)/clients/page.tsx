@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { clientsApi } from "@/lib/api/clients";
-import { Client } from "@/types";
+import { Client, UserRole } from "@/types";
+import { useAuthStore } from "@/store/auth";
 import { getInitials, getAvatarColor, formatDate } from "@/lib/utils";
-import { Plus, Search, MoreHorizontal } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
+import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
 import {
   Table,
   TableHeader,
@@ -24,6 +27,13 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
+  const { user } = useAuthStore();
+  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER || user?.role === UserRole.ADMINISTRATIVE;
+  const canDelete = user?.role === UserRole.ADMIN;
+  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => clientsApi.delete(id),
+    (id) => setClients((prev) => prev.filter((c) => c.id !== id))
+  );
 
   useEffect(() => {
     loadClients();
@@ -94,7 +104,7 @@ export default function ClientsPage() {
               <TableHead>Cidade/UF</TableHead>
               <TableHead>Grupo/Segmento</TableHead>
               <TableHead>Cadastro</TableHead>
-              <TableHead className="w-11" />
+              <TableHead className="w-[96px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -148,8 +158,16 @@ export default function ClientsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-[12.5px] text-text-secondary">{formatDate(client.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <MoreHorizontal className="h-4 w-4 text-border ml-auto" />
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <InlineDeleteAction
+                        confirming={confirmId === client.id}
+                        deleting={deleting}
+                        onView={() => router.push(`/clients/${client.id}`)}
+                        onEdit={canEdit ? () => router.push(`/clients/${client.id}/edit`) : undefined}
+                        onRequestDelete={canDelete ? () => requestDelete(client.id) : undefined}
+                        onConfirmDelete={() => confirmDelete(client.id)}
+                        onCancelDelete={cancelDelete}
+                      />
                     </TableCell>
                   </TableRow>
                 );

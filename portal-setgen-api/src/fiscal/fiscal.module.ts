@@ -10,7 +10,6 @@ import { XmlGeneratorService } from './xml/xml-generator.service';
 import { SignService } from './xml/sign.service';
 import { NfeChaveService } from './xml/nfe-chave.service';
 import { SefazAmService } from './sefaz/sefaz-am.service';
-import { NfseNacionalService } from './sefaz/nfse-nacional.service';
 import { WebhookService } from './webhooks/webhook.service';
 
 @Module({
@@ -30,7 +29,6 @@ import { WebhookService } from './webhooks/webhook.service';
     NfeChaveService,
     SignService,
     SefazAmService,
-    NfseNacionalService,
     WebhookService,
   ],
   exports: [FiscalService],

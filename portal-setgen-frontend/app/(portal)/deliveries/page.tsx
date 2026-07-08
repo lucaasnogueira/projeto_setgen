@@ -3,16 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { deliveriesApi } from '@/lib/api/deliveries';
-import { Truck, Plus, CheckCircle, Calendar, FileText } from 'lucide-react';
+import { Truck, Plus } from 'lucide-react';
 import { Delivery } from '@/types';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
+import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+} from '@/components/ui/table';
 
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => deliveriesApi.delete(id),
+    (id) => setDeliveries((prev) => prev.filter((d) => d.id !== id))
+  );
 
   useEffect(() => {
     deliveriesApi.getAll()
@@ -36,50 +51,60 @@ export default function DeliveriesPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {deliveries.length === 0 ? (
-          <Card className="col-span-2 p-16 text-center">
-            <Truck className="h-12 w-12 text-border mx-auto mb-3" />
-            <p className="text-text-secondary font-medium text-sm">Nenhuma baixa de serviço registrada</p>
-          </Card>
-        ) : (
-          deliveries.map(delivery => (
-            <Card
-              key={delivery.id}
-              className="p-5 hover:border-primary/40 transition-colors cursor-pointer"
-              onClick={() => router.push(`/deliveries/${delivery.id}`)}
-            >
-              <div className="flex items-start justify-between mb-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-[10px] bg-status-blue-bg flex items-center justify-center shrink-0">
-                    <Truck className="h-5 w-5 text-status-blue-fg" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[15px] text-foreground">Baixa #{delivery.id.slice(0, 8)}</h3>
-                    <p className="text-[12.5px] text-text-muted">OS: {delivery.serviceOrder?.orderNumber}</p>
-                  </div>
-                </div>
-                <CheckCircle className="h-5 w-5 text-status-green-fg" />
-              </div>
-              <div className="space-y-1.5 mb-3.5">
-                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                  <FileText className="h-3.5 w-3.5 text-text-muted" />
-                  {delivery.serviceOrder?.client?.companyName}
-                </div>
-                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                  <Calendar className="h-3.5 w-3.5 text-text-muted" />
-                  {new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')}
-                </div>
-              </div>
-              {delivery.notes && (
-                <p className="text-[12.5px] text-text-secondary bg-muted/30 p-3 rounded-[10px]">
-                  {delivery.notes}
-                </p>
-              )}
-            </Card>
-          ))
-        )}
-      </div>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-t-0 hover:bg-transparent">
+              <TableHead>Baixa</TableHead>
+              <TableHead>OS</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Observações</TableHead>
+              <TableHead className="w-[96px] text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {deliveries.length === 0 ? (
+              <TableEmpty colSpan={6} icon={Truck} message="Nenhuma baixa de serviço registrada" />
+            ) : (
+              deliveries.map((delivery) => (
+                <TableRow
+                  key={delivery.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/deliveries/${delivery.id}`)}
+                >
+                  <TableCell className="text-[13px] font-bold text-foreground">
+                    Baixa #{delivery.id.slice(0, 8)}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary">
+                    {delivery.serviceOrder?.orderNumber || '—'}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary">
+                    {delivery.serviceOrder?.client?.companyName || '—'}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary">
+                    {new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary max-w-[240px] truncate">
+                    {delivery.notes || '—'}
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <InlineDeleteAction
+                      confirming={confirmId === delivery.id}
+                      deleting={deleting}
+                      onView={() => router.push(`/deliveries/${delivery.id}`)}
+                      onEdit={() => router.push(`/deliveries/${delivery.id}/edit`)}
+                      onRequestDelete={() => requestDelete(delivery.id)}
+                      onConfirmDelete={() => confirmDelete(delivery.id)}
+                      onCancelDelete={cancelDelete}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

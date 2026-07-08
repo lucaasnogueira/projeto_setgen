@@ -40,12 +40,12 @@ export function FiscalDetailsModal({
           </p>
         </DialogHeader>
 
-        <div className="p-6 space-y-6 bg-gray-50/50">
+        <div className="p-6 space-y-6 bg-muted/50">
           {/* Resumo */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Valor Bruto</p>
-              <p className="text-2xl font-bold text-gray-900">
+            <div className="bg-card p-4 rounded-2xl shadow-sm border border-border">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">Valor Bruto</p>
+              <p className="text-2xl font-bold text-foreground">
                 R$ {valorBruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </p>
             </div>
@@ -60,26 +60,26 @@ export function FiscalDetailsModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Novo Regime 2026 */}
             <div className="space-y-4">
-              <h3 className="flex items-center gap-2 font-bold text-gray-800 text-sm uppercase tracking-wide">
+              <h3 className="flex items-center gap-2 font-bold text-foreground text-sm uppercase tracking-wide">
                 <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
                 Reforma 2026 (IBS/CBS)
               </h3>
               
               <div className="space-y-3">
-                <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100">
+                <div className="flex justify-between items-center bg-card p-3 rounded-xl border border-border">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">CBS</Badge>
-                    <span className="text-sm text-gray-600">Alíquota {taxData.aliquotaCbs}%</span>
+                    <span className="text-sm text-muted-foreground">Alíquota {taxData.aliquotaCbs}%</span>
                   </div>
-                  <span className="font-semibold text-gray-900">R$ {taxData.valorCbs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold text-foreground">R$ {taxData.valorCbs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
 
-                <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-gray-100">
+                <div className="flex justify-between items-center bg-card p-3 rounded-xl border border-border">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">IBS</Badge>
-                    <span className="text-sm text-gray-600">Alíquota {taxData.aliquotaIbs}%</span>
+                    <span className="text-sm text-muted-foreground">Alíquota {taxData.aliquotaIbs}%</span>
                   </div>
-                  <span className="font-semibold text-gray-900">R$ {taxData.valorIbs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold text-foreground">R$ {taxData.valorIbs.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
 
                 {taxData.beneficioZfmAtivo && (
@@ -93,27 +93,27 @@ export function FiscalDetailsModal({
 
             {/* Regime Legado */}
             <div className="space-y-4">
-              <h3 className="flex items-center gap-2 font-bold text-gray-800 text-sm uppercase tracking-wide">
+              <h3 className="flex items-center gap-2 font-bold text-foreground text-sm uppercase tracking-wide">
                 <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
                 Impostos Legados
               </h3>
 
               <div className="space-y-2">
                 {taxData.valorIss !== null && taxData.valorIss !== undefined && (
-                  <div className="flex justify-between text-sm py-1 border-b border-gray-100">
-                    <span className="text-gray-500">ISS</span>
+                  <div className="flex justify-between text-sm py-1 border-b border-border">
+                    <span className="text-muted-foreground">ISS</span>
                     <span className="font-medium">R$ {taxData.valorIss.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {taxData.valorIcms !== null && taxData.valorIcms !== undefined && (
-                  <div className="flex justify-between text-sm py-1 border-b border-gray-100">
-                    <span className="text-gray-500">ICMS</span>
+                  <div className="flex justify-between text-sm py-1 border-b border-border">
+                    <span className="text-muted-foreground">ICMS</span>
                     <span className="font-medium">R$ {taxData.valorIcms.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm py-1 border-b border-gray-100">
-                  <span className="text-gray-500">PIS/COFINS</span>
-                  <span className="font-medium text-gray-400 italic text-xs">Isentos na Retenção</span>
+                <div className="flex justify-between text-sm py-1 border-b border-border">
+                  <span className="text-muted-foreground">PIS/COFINS</span>
+                  <span className="font-medium text-muted-foreground italic text-xs">Isentos na Retenção</span>
                 </div>
               </div>
             </div>
@@ -131,7 +131,7 @@ export function FiscalDetailsModal({
           </div>
         </div>
 
-        <div className="p-4 bg-white border-t flex justify-end">
+        <div className="p-4 bg-card border-t flex justify-end">
           <button
             onClick={onClose}
             className="px-6 py-2 bg-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-all active:scale-95"

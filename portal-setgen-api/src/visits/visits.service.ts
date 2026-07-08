@@ -3,19 +3,117 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
+import { UpdateVisitStatusDto } from './dto/update-visit-status.dto';
 import { CheckinVisitDto, CheckoutVisitDto } from './dto/checkin-visit.dto';
-import { Prisma, UserRole } from '@prisma/client';
-import { RoutePoint, nearestNeighborRoute } from './route.util';
+import { Prisma, UserRole, VisitStatus, AuditAction } from '@prisma/client';
+import { RoutePoint, nearestNeighborRoute, haversineDistanceKm } from './route.util';
+import { snapshotChecklistFields } from '../common/checklist/snapshot-checklist-fields.util';
+
+// Acima disso (metros), o GPS do check-in/checkout é considerado impreciso —
+// mesma ideia do aviso "Alta precisão do GPS" do Auvo, derivada do accuracy
+// já gravado, sem precisar de coluna nova.
+const GPS_IMPRECISE_THRESHOLD_METERS = 100;
+
+// Janela (em dias) usada para sugerir cobrança de 2ª visita no mesmo
+// equipamento + mesma categoria de falha.
+const RECURRING_VISIT_WINDOW_DAYS = 90;
+
+// Máquina de estados: transições permitidas a partir de cada status atual.
+const VALID_STATUS_TRANSITIONS: Record<VisitStatus, VisitStatus[]> = {
+  [VisitStatus.SCHEDULED]: [
+    VisitStatus.CONFIRMED,
+    VisitStatus.RESCHEDULED,
+    VisitStatus.CANCELLED,
+  ],
+  [VisitStatus.CONFIRMED]: [
+    VisitStatus.EN_ROUTE,
+    VisitStatus.RESCHEDULED,
+    VisitStatus.CANCELLED,
+  ],
+  [VisitStatus.EN_ROUTE]: [VisitStatus.IN_PROGRESS, VisitStatus.CANCELLED],
+  [VisitStatus.IN_PROGRESS]: [VisitStatus.COMPLETED, VisitStatus.CANCELLED],
+  [VisitStatus.COMPLETED]: [],
+  [VisitStatus.CANCELLED]: [],
+  [VisitStatus.RESCHEDULED]: [
+    VisitStatus.SCHEDULED,
+    VisitStatus.CONFIRMED,
+    VisitStatus.CANCELLED,
+  ],
+};
 
 @Injectable()
 export class VisitsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
-  async create(createVisitDto: CreateVisitDto, attachments: string[] = []) {
+  // Impede que o mesmo técnico fique com duas visitas agendadas em horários
+  // sobrepostos. Só se aplica quando a visita tem início/fim definidos.
+  private async checkTechnicianConflict(
+    technicianId: string,
+    scheduledStart: Date,
+    scheduledEnd: Date,
+    excludeVisitId?: string,
+  ) {
+    const conflict = await this.prisma.technicalVisit.findFirst({
+      where: {
+        technicianId,
+        status: { notIn: [VisitStatus.CANCELLED, VisitStatus.RESCHEDULED] },
+        scheduledStart: { not: null },
+        scheduledEnd: { not: null },
+        ...(excludeVisitId && { id: { not: excludeVisitId } }),
+        AND: [
+          { scheduledStart: { lt: scheduledEnd } },
+          { scheduledEnd: { gt: scheduledStart } },
+        ],
+      },
+    });
+
+    if (conflict) {
+      throw new ConflictException(
+        'Técnico já possui uma visita agendada nesse horário',
+      );
+    }
+  }
+
+  // Se já existe uma visita concluída no mesmo equipamento + mesma categoria
+  // de falha dentro da janela definida, sugere cobrança da taxa de 2ª visita
+  // (não bloqueia a criação, só sinaliza para o atendimento decidir).
+  private async suggestChargeable(
+    equipmentId?: string,
+    failureCategoryId?: string,
+  ): Promise<boolean> {
+    if (!equipmentId || !failureCategoryId) {
+      return false;
+    }
+
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - RECURRING_VISIT_WINDOW_DAYS);
+
+    const previousVisit = await this.prisma.technicalVisit.findFirst({
+      where: {
+        equipmentId,
+        failureCategoryId,
+        status: VisitStatus.COMPLETED,
+        visitDate: { gte: windowStart },
+      },
+    });
+
+    return !!previousVisit;
+  }
+
+  async create(
+    createVisitDto: CreateVisitDto,
+    attachments: string[] = [],
+    createdById?: string,
+  ) {
     // Verificar se cliente existe
     const client = await this.prisma.client.findUnique({
       where: { id: createVisitDto.clientId },
@@ -36,6 +134,64 @@ export class VisitsService {
       }
     }
 
+    // Todos os equipamentos informados precisam existir (evita FK quebrada
+    // na tabela de vínculo VisitEquipment).
+    const equipmentIds = createVisitDto.equipmentIds ?? [];
+    if (equipmentIds.length > 0) {
+      const foundCount = await this.prisma.equipment.count({
+        where: { id: { in: equipmentIds } },
+      });
+      if (foundCount !== equipmentIds.length) {
+        throw new NotFoundException('Um ou mais equipamentos não encontrados');
+      }
+    }
+
+    const scheduledStart = createVisitDto.scheduledStart
+      ? new Date(createVisitDto.scheduledStart)
+      : undefined;
+    const scheduledEnd = createVisitDto.scheduledEnd
+      ? new Date(createVisitDto.scheduledEnd)
+      : undefined;
+
+    if (createVisitDto.technicianId && scheduledStart && scheduledEnd) {
+      await this.checkTechnicianConflict(
+        createVisitDto.technicianId,
+        scheduledStart,
+        scheduledEnd,
+      );
+    }
+
+    // Regra de 2ª visita continua olhando só o equipamento "principal"
+    // (primeiro selecionado) — mesma lógica de antes, sem mudança.
+    const primaryEquipmentId = equipmentIds[0];
+    const chargeable = await this.suggestChargeable(
+      primaryEquipmentId,
+      createVisitDto.failureCategoryId,
+    );
+
+    // Se um tipo de tarefa foi informado e a visita não trouxe um
+    // questionário próprio, herda o questionário padrão do tipo.
+    let checklistTemplateId = createVisitDto.checklistTemplateId;
+    if (!checklistTemplateId && createVisitDto.taskTypeId) {
+      const taskType = await this.prisma.visitTaskType.findUnique({
+        where: { id: createVisitDto.taskTypeId },
+      });
+      checklistTemplateId = taskType?.defaultChecklistTemplateId ?? undefined;
+    }
+
+    let checklistData: Prisma.InputJsonValue[] = [];
+    if (checklistTemplateId) {
+      const template = await this.prisma.checklistTemplate.findUnique({
+        where: { id: checklistTemplateId },
+      });
+
+      if (!template) {
+        throw new NotFoundException('Template de checklist não encontrado');
+      }
+
+      checklistData = snapshotChecklistFields(template.fields);
+    }
+
     // Combinar anexos com legendas
     const attachmentsData = attachments.map((path, index) => ({
       url: path,
@@ -50,6 +206,35 @@ export class VisitsService {
       ...(createVisitDto.technicianId && {
         technician: { connect: { id: createVisitDto.technicianId } },
       }),
+      ...(createdById && {
+        createdBy: { connect: { id: createdById } },
+      }),
+      ...(primaryEquipmentId && {
+        equipment: { connect: { id: primaryEquipmentId } },
+      }),
+      ...(equipmentIds.length > 0 && {
+        equipments: {
+          create: equipmentIds.map((equipmentId) => ({
+            equipment: { connect: { id: equipmentId } },
+          })),
+        },
+      }),
+      ...(createVisitDto.failureCategoryId && {
+        failureCategory: { connect: { id: createVisitDto.failureCategoryId } },
+      }),
+      ...(createVisitDto.taskTypeId && {
+        taskType: { connect: { id: createVisitDto.taskTypeId } },
+      }),
+      ...(checklistTemplateId && {
+        checklistTemplate: { connect: { id: checklistTemplateId } },
+      }),
+      checklist: checklistData,
+      priority: createVisitDto.priority,
+      externalCode: createVisitDto.externalCode,
+      actualValue: createVisitDto.actualValue,
+      scheduledStart,
+      scheduledEnd,
+      chargeable,
       visitDate: new Date(createVisitDto.visitDate),
       visitType: createVisitDto.visitType,
       location: createVisitDto.location,
@@ -84,6 +269,12 @@ export class VisitsService {
             role: true,
           },
         },
+        createdBy: { select: { id: true, name: true } },
+        equipment: true,
+        equipments: { include: { equipment: true } },
+        failureCategory: true,
+        taskType: true,
+        checklistTemplate: { select: { id: true, name: true } },
       },
     });
   }
@@ -215,6 +406,8 @@ export class VisitsService {
             phone: true,
             email: true,
             address: true,
+            latitude: true,
+            longitude: true,
           },
         },
         technician: {
@@ -225,6 +418,11 @@ export class VisitsService {
             role: true,
           },
         },
+        createdBy: { select: { id: true, name: true } },
+        equipments: { include: { equipment: true } },
+        failureCategory: true,
+        taskType: true,
+        checklistTemplate: { select: { id: true, name: true } },
         serviceOrders: {
           select: {
             id: true,
@@ -241,7 +439,32 @@ export class VisitsService {
       throw new NotFoundException('Visita técnica não encontrada');
     }
 
-    return visit;
+    // Distância (m) entre onde o check-in/checkout aconteceu e o endereço
+    // cadastrado do cliente — mesma ideia do "693m de distância" do Auvo.
+    // Calculado na leitura, não persistido (evita duplicar dado que já dá
+    // pra derivar de client.latitude/longitude + visit.checkin/checkoutLat/Lng).
+    const clientLat = visit.client?.latitude;
+    const clientLng = visit.client?.longitude;
+
+    const checkinDistanceMeters =
+      clientLat != null && clientLng != null && visit.checkinLat != null && visit.checkinLng != null
+        ? Math.round(haversineDistanceKm(visit.checkinLat, visit.checkinLng, clientLat, clientLng) * 1000)
+        : null;
+
+    const checkoutDistanceMeters =
+      clientLat != null && clientLng != null && visit.checkoutLat != null && visit.checkoutLng != null
+        ? Math.round(haversineDistanceKm(visit.checkoutLat, visit.checkoutLng, clientLat, clientLng) * 1000)
+        : null;
+
+    return {
+      ...visit,
+      checkinDistanceMeters,
+      checkoutDistanceMeters,
+      checkinImprecise:
+        visit.checkinAccuracy != null && visit.checkinAccuracy > GPS_IMPRECISE_THRESHOLD_METERS,
+      checkoutImprecise:
+        visit.checkoutAccuracy != null && visit.checkoutAccuracy > GPS_IMPRECISE_THRESHOLD_METERS,
+    };
   }
 
   async findByClient(clientId: string) {
@@ -356,6 +579,51 @@ export class VisitsService {
         },
       },
     });
+  }
+
+  async updateStatus(
+    id: string,
+    dto: UpdateVisitStatusDto,
+    userId: string,
+    userRole: UserRole,
+  ) {
+    const visit = await this.findOne(id);
+
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      visit.technicianId !== userId
+    ) {
+      throw new ForbiddenException(
+        'Você não tem permissão para alterar o status desta visita',
+      );
+    }
+
+    const allowedNextStatuses = VALID_STATUS_TRANSITIONS[visit.status];
+    if (!allowedNextStatuses.includes(dto.status)) {
+      throw new BadRequestException(
+        `Transição de status inválida: ${visit.status} -> ${dto.status}`,
+      );
+    }
+
+    const updated = await this.prisma.technicalVisit.update({
+      where: { id },
+      data: { status: dto.status },
+      include: {
+        client: { select: { id: true, companyName: true } },
+        technician: { select: { id: true, name: true } },
+      },
+    });
+
+    await this.auditService.record(
+      userId,
+      AuditAction.UPDATE,
+      'TechnicalVisit',
+      id,
+      { from: visit.status, to: dto.status, reason: dto.reason },
+    );
+
+    return updated;
   }
 
   async checkin(

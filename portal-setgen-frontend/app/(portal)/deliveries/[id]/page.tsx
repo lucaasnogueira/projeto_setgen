@@ -5,21 +5,22 @@ import { useRouter, useParams } from 'next/navigation';
 import { deliveriesApi } from '@/lib/api/deliveries';
 import { Delivery, UserRole } from '@/types';
 import { useAuthStore } from '@/store/auth';
-import { 
-  Truck, 
-  Calendar, 
-  User, 
-  FileText, 
-  ArrowLeft, 
-  Edit, 
-  Trash2, 
+import {
+  Truck,
+  Calendar,
+  User,
+  FileText,
+  Edit,
+  Trash2,
   Info,
   CheckCircle,
-  Package
+  Package,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DetailHeader } from "@/components/layout/DetailHeader";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
+import { FieldBlock } from "@/components/ui/field-block";
 import Link from 'next/link';
 
 export default function DeliveryDetailsPage() {
@@ -73,14 +74,14 @@ export default function DeliveryDetailsPage() {
   if (!delivery) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-12">
-      <DetailHeader
+    <div className="max-w-5xl mx-auto space-y-4 pb-12">
+      <CompactDetailHeader
         icon={Truck}
         tone="blue"
         title={`Baixa da OS #${delivery.serviceOrder?.orderNumber}`}
-        subtitle={<><User className="h-3.5 w-3.5" />{delivery.serviceOrder?.client?.companyName}</>}
-        onBack={() => router.back()}
+        meta={<><User className="h-3.5 w-3.5" />{delivery.serviceOrder?.client?.companyName}</>}
         backLabel="Voltar para lista"
+        onBack={() => router.back()}
         actions={
           <>
             <Link href={`/deliveries/${delivery.id}/edit`}>
@@ -103,88 +104,66 @@ export default function DeliveryDetailsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Coluna Principal */}
-        <div className="md:col-span-2 space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800">
-                <Info className="h-5 w-5 text-indigo-600" />
-                Informações da Conclusão
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 space-y-8">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Recebido por</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <User className="h-4 w-4 text-indigo-500" />
-                    <span className="font-bold">{delivery.receivedBy}</span>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data de Conclusão</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Calendar className="h-4 w-4 text-indigo-500" />
-                    <span className="font-medium">{new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                </div>
-              </div>
+      <Tabs defaultValue="detalhes">
+        <TabsList>
+          <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+          <TabsTrigger value="vinculo">Vínculo & Status</TabsTrigger>
+        </TabsList>
 
-              <div>
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Comentários / Observações</h4>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  <p className="text-gray-700 leading-relaxed italic">
-                    {delivery.notes ? `"${delivery.notes}"` : 'Nenhuma observação registrada.'}
-                  </p>
-                </div>
+        <TabsContent value="detalhes" className="mt-4">
+          <Card className="p-6">
+            <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+              <Info className="h-4 w-4 text-status-blue-fg" />
+              Informações da Conclusão
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
+              <FieldBlock label="Recebido por" value={delivery.receivedBy} />
+              <FieldBlock label="Data de Conclusão" value={new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')} />
+            </div>
+            <div>
+              <div className="text-[10.5px] font-bold tracking-wider text-text-muted uppercase mb-2">Comentários / Observações</div>
+              <div className="bg-muted/40 p-4 rounded-xl border border-border">
+                <p className="text-[13px] text-text-secondary leading-relaxed italic">
+                  {delivery.notes ? `"${delivery.notes}"` : 'Nenhuma observação registrada.'}
+                </p>
               </div>
-            </CardContent>
+            </div>
           </Card>
-        </div>
+        </TabsContent>
 
-        {/* Coluna Lateral */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
-                <FileText className="h-5 w-5 text-indigo-600" />
+        <TabsContent value="vinculo" className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-status-blue-fg" />
                 Vínculo com OS
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Ordem de Serviço</p>
-                <p className="text-gray-700 font-bold text-lg mb-2">#{delivery.serviceOrder?.orderNumber}</p>
-                <Link href={`/orders/${delivery.serviceOrderId}`}>
-                  <Button variant="outline" className="w-full justify-start gap-2 border-indigo-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl">
-                    <Package className="h-4 w-4" />
-                    Ver Detalhes da OS
-                  </Button>
-                </Link>
               </div>
-            </CardContent>
-          </Card>
+              <div className="text-[10.5px] font-bold tracking-wider text-text-muted uppercase mb-1">Ordem de Serviço</div>
+              <div className="text-[16px] font-bold text-foreground mb-3">#{delivery.serviceOrder?.orderNumber}</div>
+              <Link href={`/orders/${delivery.serviceOrderId}`}>
+                <Button variant="outline" className="w-full justify-start gap-2 rounded-xl">
+                  <Package className="h-4 w-4" />
+                  Ver Detalhes da OS
+                </Button>
+              </Link>
+            </Card>
 
-           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-             <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
-                <CheckCircle className="h-5 w-5 text-indigo-600" />
+            <Card className="p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-status-blue-fg" />
                 Status do Sistema
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-green-50 text-green-700 border border-green-100">
-                <CheckCircle className="h-5 w-5" />
-                <span className="text-sm font-bold">Serviço Concluído</span>
               </div>
-              <p className="text-xs text-gray-400 mt-4 text-center">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-status-green-bg text-status-green-fg border border-status-green-fg/20">
+                <CheckCircle className="h-5 w-5" />
+                <span className="text-[13px] font-bold">Serviço Concluído</span>
+              </div>
+              <p className="text-[11.5px] text-text-muted mt-4 text-center">
                 Registrado em {new Date(delivery.createdAt).toLocaleString('pt-BR')}
               </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

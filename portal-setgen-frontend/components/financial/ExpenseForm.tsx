@@ -262,7 +262,7 @@ export function ExpenseForm({
                 <input
                   type="checkbox"
                   id="isFixed"
-                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary transition-all cursor-pointer"
+                  className="w-5 h-5 rounded border-border text-primary focus:ring-primary transition-all cursor-pointer"
                   {...register('isFixed')}
                 />
                 <Label htmlFor="isFixed" className="text-sm font-semibold cursor-pointer select-none">Despesa Fixa?</Label>
@@ -297,7 +297,7 @@ export function ExpenseForm({
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <SelectTrigger className="h-11 rounded-xl bg-white">
+                      <SelectTrigger className="h-11 rounded-xl bg-card">
                         <SelectValue placeholder="Selecione o cliente" />
                       </SelectTrigger>
                       <SelectContent>
@@ -319,7 +319,7 @@ export function ExpenseForm({
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <SelectTrigger className="h-11 rounded-xl bg-white">
+                      <SelectTrigger className="h-11 rounded-xl bg-card">
                         <SelectValue placeholder="Selecione a visita" />
                       </SelectTrigger>
                       <SelectContent>

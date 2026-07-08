@@ -145,10 +145,10 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
   };
 
   return (
-    <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-      <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row items-center justify-between">
-        <CardTitle className="text-gray-800 flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-gray-400" />
+    <Card className="overflow-hidden">
+      <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ShieldCheck className="h-5 w-5 text-muted-foreground" />
           Histórico de ASO
         </CardTitle>
         <Button onClick={() => setIsModalOpen(true)} className="bg-gray-700 hover:bg-gray-800">
@@ -159,7 +159,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50/50 text-xs uppercase text-gray-500 font-bold tracking-wider">
+            <thead className="bg-muted/50 text-xs uppercase text-muted-foreground font-bold tracking-wider">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold">Tipo</th>
                 <th className="px-6 py-4 text-left font-semibold">Data Exame</th>
@@ -172,7 +172,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
             <tbody className="divide-y divide-gray-100">
               {asos.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 italic">
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
                     Nenhum registro de ASO encontrado
                   </td>
                 </tr>
@@ -181,12 +181,12 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                   const status = getAsoStatus(aso);
                   const StatusIcon = status.icon;
                   return (
-                    <tr key={aso.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-6 py-4 font-medium text-gray-700">{aso.type}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                    <tr key={aso.id} className="hover:bg-muted/50 transition-colors group">
+                      <td className="px-6 py-4 font-medium text-foreground">{aso.type}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
                         {format(new Date(aso.examDate), 'dd/MM/yyyy')}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-semibold">
+                      <td className="px-6 py-4 text-sm text-muted-foreground font-semibold">
                         {format(new Date(aso.expiryDate), 'dd/MM/yyyy')}
                       </td>
                       <td className="px-6 py-4">
@@ -207,7 +207,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                               variant="ghost" 
                               size="sm" 
                               onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL}/${aso.fileUrl}`, '_blank')}
-                              className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                              className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
                               <Download className="h-4 w-4" />
                             </Button>
@@ -216,7 +216,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleDelete(aso.id)} 
-                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -230,7 +230,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
           </table>
         </div>
         {meta && meta.totalPages > 1 && (
-          <div className="border-t border-gray-100 bg-white">
+          <div className="border-t border-border bg-card">
             <Pagination
               currentPage={currentPage}
               totalPages={meta.totalPages}
@@ -295,7 +295,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                   type="date" 
                   value={formData.expiryDate}
                   readOnly
-                  className="bg-gray-50 cursor-not-allowed"
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
             </div>

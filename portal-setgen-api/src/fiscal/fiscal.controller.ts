@@ -8,6 +8,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,10 +21,10 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
 import { FiscalService } from './fiscal.service';
-import { OsDataDto } from './dto/os-data.dto';
+import { EmitirNotaMercadoriaDto } from './dto/emitir-nota.dto';
 import { FiscalFilterDto } from './dto/fiscal-filter.dto';
 
-@ApiTags('Fiscal (NF-e / NFS-e)')
+@ApiTags('Fiscal (NF-e Mercadoria)')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('fiscal')
@@ -31,23 +32,22 @@ export class FiscalController {
   constructor(private readonly fiscalService: FiscalService) {}
 
   /**
-   * Recebe os dados de uma OS fechada e realiza a emissão DUAL:
-   *  - NF-e Modelo 55 para itens de peças/mercadorias
-   *  - NFS-e Nacional para itens de serviços
-   * Aplica motor 2026 (IBS/CBS por fora) + impostos legados (ISS/ICMS/PIS/COFINS) + ZFM.
+   * Emite uma NF-e (Modelo 55) de mercadoria a partir de um cliente e uma
+   * lista de produtos do estoque, opcionalmente vinculada a uma OS.
+   * Aplica motor 2026 (IBS/CBS por fora) + impostos legados (ICMS/PIS/COFINS) + ZFM.
    */
   @Post('emitir')
   @Roles(UserRole.ADMIN, UserRole.ADMINISTRATIVE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Emitir NF-e + NFS-e (dual 2026)',
+    summary: 'Emitir NF-e de mercadoria',
     description:
-      'Recebe OS fechada. Calcula IBS/CBS 2026 + impostos legados, gera XMLs, assina, transmite à SEFAZ-AM / ADN NFS-e e retorna splitPayment.',
+      'Recebe cliente + itens do estoque. Calcula IBS/CBS 2026 + impostos legados, gera XML, assina, transmite à SEFAZ-AM, baixa estoque e retorna splitPayment.',
   })
-  @ApiResponse({ status: 201, description: 'Notas emitidas / em processamento' })
-  @ApiResponse({ status: 400, description: 'Payload inválido' })
-  emitir(@Body() osData: OsDataDto) {
-    return this.fiscalService.emitirNotaDual(osData);
+  @ApiResponse({ status: 201, description: 'Nota emitida / em processamento' })
+  @ApiResponse({ status: 400, description: 'Payload inválido ou estoque insuficiente' })
+  emitir(@Body() dto: EmitirNotaMercadoriaDto, @Request() req) {
+    return this.fiscalService.emitirNotaMercadoria(dto, req.user.id);
   }
 
   /**

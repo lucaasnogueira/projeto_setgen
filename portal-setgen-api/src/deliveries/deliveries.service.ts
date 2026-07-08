@@ -27,8 +27,12 @@ export class DeliveriesService {
   ) {
     const serviceOrder = await this.prisma.serviceOrder.findUnique({
       where: { id: createDeliveryDto.serviceOrderId },
-      include: { delivery: true },
+      include: {
+        delivery: true,
+        technicalVisit: { select: { equipmentId: true } },
+      },
     });
+    const warrantyMonths = serviceOrder?.warrantyMonths ?? 12;
 
     if (!serviceOrder) throw new NotFoundException('OS não encontrada');
     if (serviceOrder.delivery)
@@ -81,6 +85,25 @@ export class DeliveriesService {
     await this.prisma.serviceOrder.update({
       where: { id: createDeliveryDto.serviceOrderId },
       data: { status: ServiceOrderStatus.COMPLETED, progress: 100 },
+    });
+
+    // Gera garantia automaticamente a partir da entrega. Vincula ao
+    // equipamento quando a OS veio de uma visita técnica com equipamento
+    // identificado; caso contrário a garantia fica sem equipamento associado.
+    const startDate = new Date(createDeliveryDto.deliveryDate);
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + warrantyMonths);
+
+    await this.prisma.warranty.create({
+      data: {
+        delivery: { connect: { id: delivery.id } },
+        ...(serviceOrder.technicalVisit?.equipmentId && {
+          equipment: { connect: { id: serviceOrder.technicalVisit.equipmentId } },
+        }),
+        coverageMonths: warrantyMonths,
+        startDate,
+        endDate,
+      },
     });
 
     return delivery;
@@ -185,6 +208,7 @@ export class DeliveriesService {
         deliveredBy: {
           select: { id: true, name: true, email: true, role: true },
         },
+        warranty: true,
       },
     });
 

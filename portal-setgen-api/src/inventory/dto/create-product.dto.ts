@@ -50,4 +50,14 @@ export class CreateProductDto {
   @Min(0)
   @IsOptional()
   unitCost?: number;
+
+  @ApiProperty({ example: '7891234567890', required: false })
+  @IsString()
+  @IsOptional()
+  barcode?: string;
+
+  @ApiProperty({ example: 'location-uuid-here', required: false })
+  @IsString()
+  @IsOptional()
+  locationId?: string;
 }

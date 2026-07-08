@@ -89,23 +89,22 @@ export class ReportsService {
   }
 
   async getMonthlyRevenue(filters: ReportFiltersDto) {
-    const invoices = await this.prisma.invoice.findMany({
+    const notas = await this.prisma.notaFiscal.findMany({
       where: {
-        ...(filters.clientId && {
-          serviceOrder: { clientId: filters.clientId },
-        }),
-        ...(this.dateRange(filters) && { issueDate: this.dateRange(filters) }),
+        ...(filters.clientId && { clientId: filters.clientId }),
+        status: 'AUTORIZADA',
+        ...(this.dateRange(filters) && { createdAt: this.dateRange(filters) }),
       },
       select: {
-        issueDate: true,
-        value: true,
+        createdAt: true,
+        valorBruto: true,
       },
       orderBy: {
-        issueDate: 'asc',
+        createdAt: 'asc',
       },
     });
 
-    const monthlyData = this.groupRevenueByMonth(invoices);
+    const monthlyData = this.groupRevenueByMonth(notas);
 
     return {
       labels: monthlyData.map((d) => d.month),
@@ -183,15 +182,15 @@ export class ReportsService {
     }));
   }
 
-  private groupRevenueByMonth(invoices: any[]) {
+  private groupRevenueByMonth(notas: any[]) {
     const months = {};
-    invoices.forEach((invoice) => {
-      const date = new Date(invoice.issueDate);
+    notas.forEach((nota) => {
+      const date = new Date(nota.createdAt);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       if (!months[monthKey]) {
         months[monthKey] = 0;
       }
-      months[monthKey] += Number(invoice.value);
+      months[monthKey] += Number(nota.valorBruto);
     });
 
     return Object.entries(months).map(([month, total]) => ({

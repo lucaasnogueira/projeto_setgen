@@ -123,10 +123,10 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
   };
 
   return (
-    <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-      <CardHeader className="bg-gray-50/50 border-b border-gray-100 flex flex-row items-center justify-between">
-        <CardTitle className="text-gray-800 flex items-center gap-2">
-          <FileBox className="h-5 w-5 text-gray-400" />
+    <Card className="overflow-hidden">
+      <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <FileBox className="h-5 w-5 text-muted-foreground" />
           Documentação do Funcionário
         </CardTitle>
         <Button onClick={() => setIsModalOpen(true)} className="bg-gray-700 hover:bg-gray-800">
@@ -137,22 +137,22 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {documents.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-gray-400 italic">
+            <div className="col-span-full py-12 text-center text-muted-foreground italic">
               Nenhum documento cadastrado
             </div>
           ) : (
             documents.map((doc) => (
               <div 
                 key={doc.id}
-                className="group p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between hover:bg-white hover:shadow-md transition-all"
+                className="group p-4 bg-muted rounded-xl border border-border flex items-center justify-between hover:bg-card hover:shadow-md transition-all"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
                     <FileCheck className="h-5 w-5" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-gray-800 truncate max-w-[150px]">{doc.name}</h4>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-tighter">{doc.type || 'Documento'}</p>
+                    <h4 className="font-bold text-foreground truncate max-w-[150px]">{doc.name}</h4>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-tighter">{doc.type || 'Documento'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -179,7 +179,7 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
         </div>
 
         {meta && meta.totalPages > 1 && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="mt-4 pt-4 border-t border-border">
             <Pagination
               currentPage={currentPage}
               totalPages={meta.totalPages}
@@ -218,7 +218,7 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
                 }}
                 required
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger className="bg-card">
                   <SelectValue placeholder="Selecione o documento" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">

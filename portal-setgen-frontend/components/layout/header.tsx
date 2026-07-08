@@ -20,7 +20,7 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
+    <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg">
@@ -28,7 +28,7 @@ export default function Header() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-blue-600">Portal Setgen</h1>
-            <p className="text-xs text-gray-500">Gestão de Serviços</p>
+            <p className="text-xs text-muted-foreground">Gestão de Serviços</p>
           </div>
         </div>
 
@@ -44,11 +44,11 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                className="flex items-center gap-3 hover:bg-muted rounded-lg p-2 transition-colors"
               >
                 <div className="text-right hidden md:block">
                   <p className="text-sm font-medium">{user.name}</p>
-                  <p className="text-xs text-gray-500">{getRoleLabel(user.role)}</p>
+                  <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
                 </div>
                 <div className="flex items-center justify-center w-9 h-9 bg-blue-600 rounded-full">
                   <span className="text-sm font-semibold text-white">
@@ -59,13 +59,13 @@ export default function Header() {
 
               {/* Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border py-1 z-50">
+                <div className="absolute right-0 mt-2 w-48 bg-card rounded-lg shadow-lg border py-1 z-50">
                   <button
                     onClick={() => {
                       router.push('/profile');
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
                   >
                     <User className="h-4 w-4" />
                     Meu Perfil
@@ -74,7 +74,7 @@ export default function Header() {
                     onClick={() => {
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
                   >
                     <Settings className="h-4 w-4" />
                     Configurações

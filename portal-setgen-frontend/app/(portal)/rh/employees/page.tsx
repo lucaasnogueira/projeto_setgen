@@ -24,6 +24,8 @@ import { ptBR } from 'date-fns/locale';
 import { Pagination } from '@/components/ui/pagination';
 import { PaginatedResponse } from '@/types';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
+import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -33,6 +35,10 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'ALL'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [meta, setMeta] = useState<PaginatedResponse<Employee>['meta'] | null>(null);
+  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => employeeApi.delete(id),
+    (id) => setEmployees((prev) => prev.filter((e) => e.id !== id))
+  );
 
   useEffect(() => {
     loadEmployees();
@@ -107,16 +113,16 @@ export default function EmployeesPage() {
       />
 
       {/* Filtros */}
-      <div className="bg-white rounded-[14px] border border-border p-5">
+      <div className="bg-card rounded-[14px] border border-border p-5">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Buscar por nome, CPF ou cargo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none transition-all"
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -139,23 +145,23 @@ export default function EmployeesPage() {
       </div>
 
       {/* Lista de Funcionários */}
-      <div className="bg-white rounded-[14px] border border-border overflow-hidden">
+      <div className="bg-card rounded-[14px] border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50/50 border-b border-gray-100">
+            <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-4 text-xs uppercase text-gray-500 font-bold tracking-wider">Funcionário</th>
-                <th className="px-6 py-4 text-xs uppercase text-gray-500 font-bold tracking-wider">CPF</th>
-                <th className="px-6 py-4 text-xs uppercase text-gray-500 font-bold tracking-wider">Cargo / Depto</th>
-                <th className="px-6 py-4 text-xs uppercase text-gray-500 font-bold tracking-wider text-center">Status</th>
-                <th className="px-6 py-4 text-xs uppercase text-gray-500 font-bold tracking-wider">Status ASO</th>
-                <th className="px-6 py-4 text-right text-xs uppercase text-gray-500 font-bold tracking-wider">Ações</th>
+                <th className="px-6 py-4 text-xs uppercase text-muted-foreground font-bold tracking-wider">Funcionário</th>
+                <th className="px-6 py-4 text-xs uppercase text-muted-foreground font-bold tracking-wider">CPF</th>
+                <th className="px-6 py-4 text-xs uppercase text-muted-foreground font-bold tracking-wider">Cargo / Depto</th>
+                <th className="px-6 py-4 text-xs uppercase text-muted-foreground font-bold tracking-wider text-center">Status</th>
+                <th className="px-6 py-4 text-xs uppercase text-muted-foreground font-bold tracking-wider">Status ASO</th>
+                <th className="px-6 py-4 text-right text-xs uppercase text-muted-foreground font-bold tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center gap-2 opacity-30">
                       <Users className="h-12 w-12" />
                       <p className="font-medium">Nenhum funcionário encontrado</p>
@@ -176,12 +182,12 @@ export default function EmployeesPage() {
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-700 font-bold group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                          <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-foreground font-bold group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
                             {employee.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-bold text-gray-900 group-hover:text-orange-600 transition-colors">{employee.name}</div>
-                            <div className="text-[10px] text-gray-500 uppercase tracking-tighter">
+                            <div className="font-bold text-foreground group-hover:text-orange-600 transition-colors">{employee.name}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-tighter">
                               Admissão: {employee.admissionDate 
                                 ? format(new Date(employee.admissionDate), 'dd/MM/yyyy', { locale: ptBR })
                                 : 'Pendente'}
@@ -189,10 +195,10 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-medium">{employee.cpf}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground font-medium">{employee.cpf}</td>
                       <td className="px-6 py-4">
-                        <div className="text-sm font-semibold text-gray-800">{employee.position || '—'}</div>
-                        <div className="text-xs text-gray-500">{employee.department || 'Setor não informado'}</div>
+                        <div className="text-sm font-semibold text-foreground">{employee.position || '—'}</div>
+                        <div className="text-xs text-muted-foreground">{employee.department || 'Setor não informado'}</div>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <Badge 
@@ -219,10 +225,37 @@ export default function EmployeesPage() {
                           {asoStatus.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <Button variant="ghost" size="sm" className="group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
+                      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        {confirmId === employee.id ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => confirmDelete(employee.id)}
+                              disabled={deleting}
+                              className="text-[11px] font-bold text-white bg-destructive rounded-md px-2 py-1.5 disabled:opacity-60"
+                            >
+                              Excluir
+                            </button>
+                            <button
+                              onClick={cancelDelete}
+                              disabled={deleting}
+                              className="text-[11px] font-bold text-foreground bg-card border border-border rounded-md px-2 py-1.5"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => router.push(`/rh/employees/${employee.id}`)} className="group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <InlineDeleteAction
+                              confirming={false}
+                              onRequestDelete={() => requestDelete(employee.id)}
+                              onConfirmDelete={() => confirmDelete(employee.id)}
+                              onCancelDelete={cancelDelete}
+                            />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -235,7 +268,7 @@ export default function EmployeesPage() {
 
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
-        <div className="bg-white rounded-[14px] border border-border p-4 flex justify-center">
+        <div className="bg-card rounded-[14px] border border-border p-4 flex justify-center">
           <Pagination
             currentPage={currentPage}
             totalPages={meta.totalPages}

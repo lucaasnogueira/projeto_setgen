@@ -4,13 +4,17 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MaterialRequestsService } from '../material-requests/material-requests.service';
 import { CreateApprovalDto } from './dto/create-approval.dto';
 import { ApproveDto, RejectDto } from './dto/approve-reject.dto';
 import { ApprovalStatus, ServiceOrderStatus } from '@prisma/client';
 
 @Injectable()
 export class ApprovalsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private materialRequestsService: MaterialRequestsService,
+  ) {}
 
   async create(createApprovalDto: CreateApprovalDto, approverId: string) {
     // Verificar se a OS existe
@@ -79,6 +83,12 @@ export class ApprovalsService {
       data: { status: newStatus },
     });
 
+    if (newStatus === ServiceOrderStatus.APPROVED) {
+      await this.materialRequestsService.createFromServiceOrder(
+        createApprovalDto.serviceOrderId,
+      );
+    }
+
     return approval;
   }
 
@@ -139,6 +149,10 @@ export class ApprovalsService {
       where: { id: serviceOrderId },
       data: { status: ServiceOrderStatus.APPROVED },
     });
+
+    // Gera automaticamente a solicitação de separação de material (mesa do
+    // almoxarife) a partir dos itens da OS, se houver.
+    await this.materialRequestsService.createFromServiceOrder(serviceOrderId);
 
     // TODO: Enviar notificação para o criador da OS
     // TODO: Enviar notificação para técnicos responsáveis

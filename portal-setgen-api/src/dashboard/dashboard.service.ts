@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ServiceOrderStatus,
-  InvoiceStatus,
+  StatusNota,
   PurchaseOrderStatus,
+  MaterialRequestStatus,
+  ProcurementOrderStatus,
   UserRole,
 } from '@prisma/client';
 
@@ -42,18 +44,18 @@ export class DashboardService {
         by: ['status'],
         _count: true,
       }),
-      this.prisma.invoice.groupBy({
+      this.prisma.notaFiscal.groupBy({
         by: ['status'],
         _count: true,
       }),
-      this.prisma.invoice.aggregate({ _sum: { value: true } }),
-      this.prisma.invoice.aggregate({
-        _sum: { value: true },
-        where: { status: InvoiceStatus.PAID },
+      this.prisma.notaFiscal.aggregate({ _sum: { valorBruto: true } }),
+      this.prisma.notaFiscal.aggregate({
+        _sum: { valorBruto: true },
+        where: { status: StatusNota.AUTORIZADA },
       }),
-      this.prisma.invoice.aggregate({
-        _sum: { value: true },
-        where: { status: InvoiceStatus.OVERDUE },
+      this.prisma.notaFiscal.aggregate({
+        _sum: { valorBruto: true },
+        where: { status: StatusNota.REJEITADA },
       }),
       this.prisma.serviceOrder.count({
         where: {
@@ -63,9 +65,9 @@ export class DashboardService {
       }),
     ]);
 
-    const totalInvoicedValue = Number(totalInvoiced._sum.value ?? 0);
-    const paidValue = Number(paidInvoices._sum.value ?? 0);
-    const overdueValue = Number(overdueInvoices._sum.value ?? 0);
+    const totalInvoicedValue = Number(totalInvoiced._sum.valorBruto ?? 0);
+    const paidValue = Number(paidInvoices._sum.valorBruto ?? 0);
+    const overdueValue = Number(overdueInvoices._sum.valorBruto ?? 0);
 
     return {
       clients: { total: totalClients },
@@ -145,20 +147,20 @@ export class DashboardService {
     const startDate = new Date(currentYear, currentMonth - 1, 1);
     const endDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
 
-    const invoices = await this.prisma.invoice.findMany({
-      where: { issueDate: { gte: startDate, lte: endDate } },
-      select: { value: true, status: true },
+    const notas = await this.prisma.notaFiscal.findMany({
+      where: { createdAt: { gte: startDate, lte: endDate } },
+      select: { valorBruto: true, status: true },
     });
 
-    const totalIssued = invoices.reduce((sum, i) => sum + Number(i.value), 0);
-    const totalPaid = invoices
-      .filter((i) => i.status === InvoiceStatus.PAID)
-      .reduce((sum, i) => sum + Number(i.value), 0);
+    const totalIssued = notas.reduce((sum, i) => sum + Number(i.valorBruto), 0);
+    const totalPaid = notas
+      .filter((i) => i.status === StatusNota.AUTORIZADA)
+      .reduce((sum, i) => sum + Number(i.valorBruto), 0);
 
     return {
       period: { year: currentYear, month: currentMonth },
       invoices: {
-        count: invoices.length,
+        count: notas.length,
         totalIssued,
         totalPaid,
         pending: totalIssued - totalPaid,
@@ -220,19 +222,21 @@ export class DashboardService {
       },
     });
 
-    // Uma única consulta para todas as faturas em vez de uma por cliente
-    // (evita N+1 — antes disparava 1 query de invoice por cliente ativo).
-    const invoices = await this.prisma.invoice.findMany({
-      where: { serviceOrder: { clientId: { in: clients.map((c) => c.id) } } },
-      select: { value: true, serviceOrder: { select: { clientId: true } } },
+    // Uma única consulta para todas as notas em vez de uma por cliente
+    // (evita N+1 — antes disparava 1 query por cliente ativo).
+    const notas = await this.prisma.notaFiscal.findMany({
+      where: {
+        clientId: { in: clients.map((c) => c.id) },
+        status: StatusNota.AUTORIZADA,
+      },
+      select: { valorBruto: true, clientId: true },
     });
 
     const revenueByClient = new Map<string, number>();
-    for (const invoice of invoices) {
-      const clientId = invoice.serviceOrder.clientId;
+    for (const nota of notas) {
       revenueByClient.set(
-        clientId,
-        (revenueByClient.get(clientId) ?? 0) + Number(invoice.value),
+        nota.clientId,
+        (revenueByClient.get(nota.clientId) ?? 0) + Number(nota.valorBruto),
       );
     }
 
@@ -284,27 +288,19 @@ export class DashboardService {
      ALERTS
   ========================== */
   async getAlerts() {
-    const now = new Date();
-    const next7Days = new Date(now);
-    next7Days.setDate(now.getDate() + 7);
-
     const [
       pendingApprovals,
       overdueInvoices,
-      invoicesDueSoon,
       expiredPurchaseOrders,
     ] = await Promise.all([
       this.prisma.serviceOrder.count({
         where: { status: ServiceOrderStatus.PENDING_APPROVAL },
       }),
-      this.prisma.invoice.count({
-        where: { status: InvoiceStatus.OVERDUE },
-      }),
-      this.prisma.invoice.count({
-        where: {
-          status: InvoiceStatus.ISSUED,
-          dueDate: { gte: now, lte: next7Days },
-        },
+      // "overdueInvoices" passou a significar notas fiscais rejeitadas pela
+      // SEFAZ (precisam de correção/reemissão) — não existe mais conceito
+      // de "vencimento" numa nota fiscal.
+      this.prisma.notaFiscal.count({
+        where: { status: StatusNota.REJEITADA },
       }),
       this.prisma.purchaseOrder.count({
         where: { status: PurchaseOrderStatus.EXPIRED },
@@ -314,7 +310,6 @@ export class DashboardService {
     return {
       pendingApprovals,
       overdueInvoices,
-      invoicesDueSoon,
       expiredPurchaseOrders,
     };
   }
@@ -360,15 +355,15 @@ export class DashboardService {
       const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
 
-      const invoices = await this.prisma.invoice.findMany({
-        where: { issueDate: { gte: start, lt: end } },
-        select: { value: true, status: true },
+      const notas = await this.prisma.notaFiscal.findMany({
+        where: { createdAt: { gte: start, lt: end } },
+        select: { valorBruto: true, status: true },
       });
 
-      const total = invoices.reduce((s, i) => s + Number(i.value), 0);
-      const paid = invoices
-        .filter((i) => i.status === InvoiceStatus.PAID)
-        .reduce((s, i) => s + Number(i.value), 0);
+      const total = notas.reduce((s, i) => s + Number(i.valorBruto), 0);
+      const paid = notas
+        .filter((i) => i.status === StatusNota.AUTORIZADA)
+        .reduce((s, i) => s + Number(i.valorBruto), 0);
 
       trends.push({
         month: start.toLocaleDateString('pt-BR', {
@@ -419,9 +414,9 @@ export class DashboardService {
           updatedAt: { gte: firstDayOfMonth },
         },
       }),
-      this.prisma.invoice.aggregate({
-        _sum: { value: true },
-        where: { status: InvoiceStatus.PAID },
+      this.prisma.notaFiscal.aggregate({
+        _sum: { valorBruto: true },
+        where: { status: StatusNota.AUTORIZADA },
       }),
       // Buscamos todos os produtos e filtramos via JS pois o Prisma não compara campos no `where`
       this.prisma.product
@@ -430,8 +425,9 @@ export class DashboardService {
           (products) =>
             products.filter((p) => p.currentStock <= p.minStock).length,
         ),
-      this.prisma.invoice.count({
-        where: { status: InvoiceStatus.OVERDUE },
+      // "overdueInvoices" = notas fiscais rejeitadas (precisam de correção)
+      this.prisma.notaFiscal.count({
+        where: { status: StatusNota.REJEITADA },
       }),
       this.prisma.serviceOrder.groupBy({
         by: ['status'],
@@ -446,8 +442,12 @@ export class DashboardService {
       DRAFT: 'Rascunho',
       PENDING_APPROVAL: 'Aguardando Aprovação',
       APPROVED: 'Aprovada',
+      SENT_TO_CLIENT: 'Enviado ao Cliente',
+      AWAITING_RESPONSE: 'Aguardando Resposta',
+      EXPIRED: 'Expirado',
       REJECTED: 'Rejeitada',
       IN_PROGRESS: 'Em Andamento',
+      AWAITING_MATERIALS: 'Aguardando Materiais',
       COMPLETED: 'Concluída',
       CANCELLED: 'Cancelada',
     };
@@ -456,7 +456,7 @@ export class DashboardService {
       pendingApprovals,
       activeOrders,
       completedThisMonth,
-      totalRevenue: Number(totalRevenue._sum.value ?? 0),
+      totalRevenue: Number(totalRevenue._sum.valorBruto ?? 0),
       lowStockItems,
       overdueInvoices,
       recentActivities,
@@ -472,6 +472,207 @@ export class DashboardService {
         month: v.month,
         value: v.count,
       })),
+    };
+  }
+
+  /* =========================
+     KPIs OPERACIONAIS (diagnóstico BPM — fase 4)
+  ========================== */
+  async getOperationalKpis() {
+    const [
+      materialSla,
+      quoteApproval,
+      supplierLeadTime,
+      reworkRate,
+    ] = await Promise.all([
+      this.getMaterialSeparationSla(),
+      this.getQuoteApprovalRate(),
+      this.getSupplierLeadTime(),
+      this.getReworkRate(),
+    ]);
+
+    return {
+      materialSeparationSla: materialSla,
+      quoteApprovalRate: quoteApproval,
+      supplierLeadTime,
+      reworkRate,
+    };
+  }
+
+  // Tempo médio entre a criação da solicitação de material e a separação
+  // completa. Aproximação: usa updatedAt de solicitações que estão hoje em
+  // SEPARATED (uma solicitação já liberada/RELEASED não entra, pois seu
+  // updatedAt passaria a refletir a liberação, não a separação).
+  private async getMaterialSeparationSla() {
+    const separated = await this.prisma.materialRequest.findMany({
+      where: { status: MaterialRequestStatus.SEPARATED },
+      select: { createdAt: true, updatedAt: true },
+    });
+
+    if (separated.length === 0) {
+      return { averageHours: 0, sampleSize: 0 };
+    }
+
+    const totalHours = separated.reduce((sum, mr) => {
+      const hours = (mr.updatedAt.getTime() - mr.createdAt.getTime()) / 36e5;
+      return sum + hours;
+    }, 0);
+
+    return {
+      averageHours: Number((totalHours / separated.length).toFixed(1)),
+      sampleSize: separated.length,
+    };
+  }
+
+  // Orçamentos aprovados / orçamentos enviados ao cliente (excluindo os
+  // que expiraram sem resposta, que não representam decisão do cliente).
+  private async getQuoteApprovalRate() {
+    const sentNotExpired = await this.prisma.serviceOrder.count({
+      where: {
+        status: {
+          in: [
+            ServiceOrderStatus.SENT_TO_CLIENT,
+            ServiceOrderStatus.AWAITING_RESPONSE,
+            ServiceOrderStatus.IN_PROGRESS,
+            ServiceOrderStatus.AWAITING_MATERIALS,
+            ServiceOrderStatus.COMPLETED,
+            ServiceOrderStatus.REJECTED,
+          ],
+        },
+      },
+    });
+
+    const approved = await this.prisma.serviceOrder.count({
+      where: {
+        status: {
+          in: [
+            ServiceOrderStatus.IN_PROGRESS,
+            ServiceOrderStatus.AWAITING_MATERIALS,
+            ServiceOrderStatus.COMPLETED,
+          ],
+        },
+      },
+    });
+
+    return {
+      rate: sentNotExpired > 0 ? Number(((approved / sentNotExpired) * 100).toFixed(1)) : 0,
+      approved,
+      sentNotExpired,
+    };
+  }
+
+  // Lead time médio de fornecedor: da criação do pedido de compra até o
+  // recebimento, por fornecedor. Aproximação: usa createdAt/updatedAt do
+  // pedido (não há timestamp próprio de "data de emissão").
+  private async getSupplierLeadTime() {
+    const received = await this.prisma.procurementOrder.findMany({
+      where: { status: ProcurementOrderStatus.RECEIVED, supplierId: { not: null } },
+      select: {
+        createdAt: true,
+        updatedAt: true,
+        supplier: { select: { id: true, name: true } },
+      },
+    });
+
+    const bySupplier = new Map<string, { name: string; totalDays: number; count: number }>();
+    for (const order of received) {
+      if (!order.supplier) continue;
+      const days = (order.updatedAt.getTime() - order.createdAt.getTime()) / 86400000;
+      const entry = bySupplier.get(order.supplier.id) ?? { name: order.supplier.name, totalDays: 0, count: 0 };
+      entry.totalDays += days;
+      entry.count += 1;
+      bySupplier.set(order.supplier.id, entry);
+    }
+
+    return Array.from(bySupplier.entries()).map(([supplierId, v]) => ({
+      supplierId,
+      supplierName: v.name,
+      averageDays: Number((v.totalDays / v.count).toFixed(1)),
+      sampleSize: v.count,
+    }));
+  }
+
+  // Taxa de retrabalho: visitas cobráveis (2ª visita no mesmo equipamento
+  // pelo mesmo motivo, ver VisitsService.suggestChargeable) sobre o total
+  // de visitas concluídas.
+  private async getReworkRate() {
+    const [chargeable, total] = await Promise.all([
+      this.prisma.technicalVisit.count({
+        where: { chargeable: true, status: 'COMPLETED' },
+      }),
+      this.prisma.technicalVisit.count({ where: { status: 'COMPLETED' } }),
+    ]);
+
+    return {
+      rate: total > 0 ? Number(((chargeable / total) * 100).toFixed(1)) : 0,
+      chargeable,
+      total,
+    };
+  }
+
+  /* =========================
+     RECEBÍVEIS (controle interno)
+     Previsão de recebimento por mês, calculada a partir de OS concluídas
+     (completedAt + paymentTermDays), independente de nota fiscal emitida.
+  ========================== */
+  async getReceivables(year?: number, month?: number) {
+    const now = new Date();
+    const targetYear = year ?? now.getFullYear();
+    const targetMonth = month ?? now.getMonth() + 1;
+    const periodStart = new Date(targetYear, targetMonth - 1, 1);
+    const periodEnd = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
+
+    const orders = await this.prisma.serviceOrder.findMany({
+      where: {
+        status: ServiceOrderStatus.COMPLETED,
+        completedAt: { not: null },
+        paymentTermDays: { not: null },
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        completedAt: true,
+        paymentTermDays: true,
+        paymentStatus: true,
+        client: { select: { id: true, companyName: true, tradeName: true } },
+        quoteLines: { select: { totalValue: true } },
+      },
+    });
+
+    const dueThisMonth = orders
+      .map((order) => {
+        const dueDate = new Date(order.completedAt!);
+        dueDate.setDate(dueDate.getDate() + order.paymentTermDays!);
+        const totalValue = order.quoteLines.reduce(
+          (sum, line) => sum + Number(line.totalValue),
+          0,
+        );
+        return { order, dueDate, totalValue };
+      })
+      .filter(({ dueDate }) => dueDate >= periodStart && dueDate <= periodEnd);
+
+    const pending = dueThisMonth.filter(
+      ({ order }) => order.paymentStatus === 'PENDING',
+    );
+    const received = dueThisMonth.filter(
+      ({ order }) => order.paymentStatus === 'RECEIVED',
+    );
+
+    return {
+      period: { year: targetYear, month: targetMonth },
+      totalExpected: dueThisMonth.reduce((sum, i) => sum + i.totalValue, 0),
+      totalPending: pending.reduce((sum, i) => sum + i.totalValue, 0),
+      totalReceived: received.reduce((sum, i) => sum + i.totalValue, 0),
+      items: dueThisMonth
+        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+        .map(({ order, dueDate, totalValue }) => ({
+          serviceOrderId: order.id,
+          orderNumber: order.orderNumber,
+          client: order.client.tradeName || order.client.companyName,
+          dueDate: dueDate.toISOString(),
+          totalValue,
+          paymentStatus: order.paymentStatus,
+        })),
     };
   }
 

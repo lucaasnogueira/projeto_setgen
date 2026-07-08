@@ -42,9 +42,39 @@ export const PERMISSIONS = {
   INVENTORY_VIEW: 'inventory:view',
   INVENTORY_MANAGE: 'inventory:manage',
 
+  // Equipamentos
+  EQUIPMENT_VIEW: 'equipment:view',
+  EQUIPMENT_MANAGE: 'equipment:manage',
+
+  // ART (Anotação de Responsabilidade Técnica)
+  ART_VIEW: 'art:view',
+  ART_MANAGE: 'art:manage',
+
+  // Solicitação de Material (mesa do almoxarife)
+  MATERIAL_REQUESTS_VIEW: 'material-requests:view',
+  MATERIAL_REQUESTS_MANAGE: 'material-requests:manage',
+
+  // Compras a fornecedor
+  PROCUREMENT_VIEW: 'procurement:view',
+  PROCUREMENT_MANAGE: 'procurement:manage',
+
+  // Fornecedores
+  SUPPLIERS_VIEW: 'suppliers:view',
+  SUPPLIERS_MANAGE: 'suppliers:manage',
+
+  // Garantia
+  WARRANTY_VIEW: 'warranty:view',
+  WARRANTY_MANAGE: 'warranty:manage',
+
   // RH
   RH_VIEW: 'rh:view',
   RH_MANAGE: 'rh:manage',
+
+  // Frota
+  FLEET_VIEW: 'fleet:view',
+  FLEET_MANAGE: 'fleet:manage',
+  FLEET_FUEL_REQUEST: 'fleet:fuel-request',
+  FLEET_FUEL_APPROVE: 'fleet:fuel-approve',
 } as const;
 
 export type PermissionType = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -90,6 +120,15 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    name: 'Visitas Técnicas',
+    permissions: [
+      { id: PERMISSIONS.VISITS_VIEW, label: 'Visualizar Visitas', description: 'Permite ver as visitas técnicas agendadas' },
+      { id: PERMISSIONS.VISITS_CREATE, label: 'Criar Visitas', description: 'Permite agendar novas visitas técnicas' },
+      { id: PERMISSIONS.VISITS_EDIT, label: 'Editar Visitas', description: 'Permite alterar visitas técnicas' },
+      { id: PERMISSIONS.VISITS_DELETE, label: 'Excluir Visitas', description: 'Permite remover visitas técnicas' },
+    ],
+  },
+  {
     name: 'Ordens de Serviço',
     permissions: [
       { id: PERMISSIONS.ORDERS_VIEW, label: 'Visualizar OS', description: 'Permite ver as ordens de serviço' },
@@ -117,10 +156,56 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     ],
   },
   {
+    name: 'Equipamentos',
+    permissions: [
+      { id: PERMISSIONS.EQUIPMENT_VIEW, label: 'Visualizar Equipamentos', description: 'Permite ver os equipamentos cadastrados por cliente' },
+      { id: PERMISSIONS.EQUIPMENT_MANAGE, label: 'Gerenciar Equipamentos', description: 'Permite cadastrar e editar equipamentos' },
+    ],
+  },
+  {
+    name: 'ART',
+    permissions: [
+      { id: PERMISSIONS.ART_VIEW, label: 'Visualizar ART', description: 'Permite ver as ARTs emitidas' },
+      { id: PERMISSIONS.ART_MANAGE, label: 'Emitir ART', description: 'Permite emitir e vincular ART a uma Ordem de Serviço' },
+    ],
+  },
+  {
+    name: 'Solicitação de Material',
+    permissions: [
+      { id: PERMISSIONS.MATERIAL_REQUESTS_VIEW, label: 'Visualizar Solicitações', description: 'Permite ver a mesa de separação de materiais' },
+      { id: PERMISSIONS.MATERIAL_REQUESTS_MANAGE, label: 'Gerenciar Solicitações', description: 'Permite separar materiais e acionar compras' },
+    ],
+  },
+  {
+    name: 'Compras',
+    permissions: [
+      { id: PERMISSIONS.PROCUREMENT_VIEW, label: 'Visualizar Compras', description: 'Permite ver os pedidos de compra a fornecedores' },
+      { id: PERMISSIONS.PROCUREMENT_MANAGE, label: 'Gerenciar Compras', description: 'Permite cotar, emitir e receber pedidos de compra' },
+      { id: PERMISSIONS.SUPPLIERS_VIEW, label: 'Visualizar Fornecedores', description: 'Permite ver o cadastro de fornecedores' },
+      { id: PERMISSIONS.SUPPLIERS_MANAGE, label: 'Gerenciar Fornecedores', description: 'Permite cadastrar e editar fornecedores' },
+    ],
+  },
+  {
+    name: 'Garantia',
+    permissions: [
+      { id: PERMISSIONS.WARRANTY_VIEW, label: 'Visualizar Garantias', description: 'Permite ver as garantias emitidas e seus vencimentos' },
+      { id: PERMISSIONS.WARRANTY_MANAGE, label: 'Gerenciar Garantias', description: 'Permite editar termos e prazos de garantia' },
+    ],
+  },
+  {
     name: 'RH',
     permissions: [
       { id: PERMISSIONS.RH_VIEW, label: 'Visualizar RH', description: 'Permite ver a lista de funcionários' },
       { id: PERMISSIONS.RH_MANAGE, label: 'Gerenciar RH', description: 'Permite gerir documentos e ASOs' },
+    ],
+  },
+  {
+    name: 'Frota',
+    permissions: [
+      { id: PERMISSIONS.FLEET_VIEW, label: 'Visualizar Frota', description: 'Permite ver veículos, saídas e histórico' },
+      { id: PERMISSIONS.FLEET_MANAGE, label: 'Gerenciar Frota', description: 'Permite cadastrar veículos, registrar troca de óleo e saídas/retornos' },
+      { id: PERMISSIONS.FLEET_FUEL_REQUEST, label: 'Solicitar Abastecimento', description: 'Permite criar requisições de abastecimento' },
+      { id: PERMISSIONS.FLEET_FUEL_APPROVE, label: 'Aprovar Abastecimento', description: 'Permite aprovar ou rejeitar requisições de abastecimento' },
     ],
   },
 ];

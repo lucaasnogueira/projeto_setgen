@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { ordersApi } from '@/lib/api/orders';
-import { ShoppingCart, Save, X, FileText, DollarSign, Calendar, Info } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PurchaseOrder } from '@/types';
+import { cn } from '@/lib/utils';
+import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 interface PurchaseOrderFormProps {
   initialData?: Partial<PurchaseOrder>;
@@ -59,8 +60,28 @@ export function PurchaseOrderForm({
     }));
   };
 
+  type StepKey = "vinculo" | "dados";
+  const [activeStep, setActiveStep] = useState<StepKey>("vinculo");
+  const stepDefs: WizardStep[] = [
+    { key: "vinculo", label: "Vínculo com OS" },
+    { key: "dados", label: "Dados da OC" },
+  ];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Etapas ocultas por CSS quebram o `required` nativo do browser fora da etapa ativa.
+    if (!formData.serviceOrderId) {
+      setActiveStep("vinculo");
+      alert("Selecione uma OS aprovada");
+      return;
+    }
+    if (!formData.orderNumber || !formData.value || !formData.issueDate || !formData.expiryDate) {
+      setActiveStep("dados");
+      alert("Preencha número, valor, emissão e validade da OC");
+      return;
+    }
+
     const payload = {
       serviceOrderId: formData.serviceOrderId,
       clientId: formData.clientId,
@@ -74,17 +95,19 @@ export function PurchaseOrderForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
+
       {/* Vínculo com OS */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
+      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "vinculo" && "hidden")}>
+        <CardHeader className="bg-muted/50 border-b border-border">
+          <CardTitle className="flex items-center gap-2 text-foreground">
             <FileText className="h-5 w-5 text-green-600" />
             Vínculo com Ordem de Serviço
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
           <div className="space-y-2">
-            <Label className="text-gray-700 font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
+            <Label className="text-foreground font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
             <select
               required
               value={formData.serviceOrderId}
@@ -103,9 +126,9 @@ export function PurchaseOrderForm({
       </Card>
 
       {/* Detalhes da OC */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
+      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "dados" && "hidden")}>
+        <CardHeader className="bg-muted/50 border-b border-border">
+          <CardTitle className="flex items-center gap-2 text-foreground">
             <Info className="h-5 w-5 text-green-600" />
             Dados da Ordem de Compra
           </CardTitle>
@@ -113,7 +136,7 @@ export function PurchaseOrderForm({
         <CardContent className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Número da OC <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Número da OC <span className="text-red-500">*</span></Label>
               <Input
                 required
                 value={formData.orderNumber}
@@ -124,9 +147,9 @@ export function PurchaseOrderForm({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Valor (R$) <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Valor (R$) <span className="text-red-500">*</span></Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <DollarSign className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   type="number"
                   required
@@ -143,9 +166,9 @@ export function PurchaseOrderForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Data de Emissão <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Data de Emissão <span className="text-red-500">*</span></Label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Calendar className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   type="date"
                   required
@@ -157,9 +180,9 @@ export function PurchaseOrderForm({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">Validade <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Validade <span className="text-red-500">*</span></Label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <Calendar className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
                   type="date"
                   required
@@ -173,26 +196,14 @@ export function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      {/* Ações */}
-      <div className="flex gap-4 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          className="flex-1 h-12 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
-        >
-          <X className="h-5 w-5" />
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="flex-1 h-12 bg-gradient-to-r from-green-600 to-teal-700 hover:from-green-700 hover:to-teal-800 text-white rounded-2xl shadow-lg shadow-green-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
-        >
-          <Save className="h-5 w-5" />
-          {loading ? 'Salvando...' : submitLabel}
-        </Button>
-      </div>
+      <StepFooter
+        steps={stepDefs}
+        activeKey={activeStep}
+        onNext={(k) => setActiveStep(k as StepKey)}
+        onCancel={onCancel}
+        loading={loading}
+        submitLabel={submitLabel}
+      />
     </form>
   );
 }

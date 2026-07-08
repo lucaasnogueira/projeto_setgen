@@ -4,10 +4,17 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi } from '@/lib/api/users';
 import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
-import { Save, X, Eye, EyeOff, Loader2, Shield, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 import { PermissionSelector } from '@/components/access-control/permission-selector';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { cn } from '@/lib/utils';
+import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
+
+type StepKey = 'general' | 'permissions';
+const stepDefs: WizardStep[] = [
+  { key: 'general', label: 'Dados Gerais' },
+  { key: 'permissions', label: 'Permissões Extras' },
+];
 
 interface EditUserPageProps {
   params: Promise<{ id: string }>;
@@ -19,7 +26,8 @@ export default function EditUserPage({ params }: EditUserPageProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+  const [activeStep, setActiveStep] = useState<StepKey>('general');
+
   // Data for Selects
   const [roles, setRoles] = useState<Role[]>([]);
   const [availablePermissions, setAvailablePermissions] = useState<PermissionGroup[]>([]);
@@ -150,21 +158,15 @@ export default function EditUserPage({ params }: EditUserPageProps) {
     <div className="space-y-5">
       <PageHeader title="Editar Usuário" subtitle="Atualize as informações e permissões do usuário" />
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-[14px] border border-border overflow-hidden">
-        <Tabs defaultValue="general" className="w-full">
-          <div className="border-b border-gray-100 px-6 pt-4">
-            <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-              <TabsTrigger value="general">Dados Gerais</TabsTrigger>
-              <TabsTrigger value="permissions">Permissões Extras</TabsTrigger>
-            </TabsList>
-          </div>
+      <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
-          <div className="p-8">
-            <TabsContent value="general" className="mt-0 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-card rounded-[14px] border border-border overflow-hidden">
+        <div className="p-8">
+            <div className={cn('space-y-6', activeStep !== 'general' && 'hidden')}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Nome */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Nome Completo <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -173,13 +175,13 @@ export default function EditUserPage({ params }: EditUserPageProps) {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: João da Silva"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                   />
                 </div>
 
                 {/* Email */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     E-mail <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -188,23 +190,23 @@ export default function EditUserPage({ params }: EditUserPageProps) {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="Ex: joao@empresa.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                   />
                 </div>
               </div>
 
               {/* Cargo */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Cargo / Função <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
-                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <select
                     required
                     value={formData.roleId}
                     onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all appearance-none"
+                    className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all appearance-none"
                   >
                     <option value="">Selecione um cargo...</option>
                     {roles.map((role) => (
@@ -214,17 +216,17 @@ export default function EditUserPage({ params }: EditUserPageProps) {
                     ))}
                   </select>
                 </div>
-                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   O cargo define as permissões base do usuário.
                 </p>
               </div>
 
-              <div className="border-t border-gray-100 my-6 pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Alterar Senha (Opcional)</h3>
+              <div className="border-t border-border my-6 pt-6">
+                <h3 className="text-lg font-medium text-foreground mb-4">Alterar Senha (Opcional)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Nova Senha
                     </label>
                     <div className="relative">
@@ -233,25 +235,25 @@ export default function EditUserPage({ params }: EditUserPageProps) {
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                         placeholder="Deixe em branco para manter a atual"
-                        className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
+                        className="w-full px-4 py-2 pr-12 border border-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                       >
                         {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Mínimo de 6 caracteres se for alterar.
                     </p>
                   </div>
                 </div>
               </div>
-            </TabsContent>
+            </div>
 
-            <TabsContent value="permissions" className="mt-0 space-y-4">
+            <div className={cn('space-y-4', activeStep !== 'permissions' && 'hidden')}>
               <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
                 <div className="flex gap-3">
                   <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
@@ -270,30 +272,19 @@ export default function EditUserPage({ params }: EditUserPageProps) {
                 selectedPermissions={formData.permissionIds}
                 onChange={(ids) => setFormData({ ...formData, permissionIds: ids })}
               />
-            </TabsContent>
-          </div>
+            </div>
+        </div>
 
-          {/* Footer Actions */}
-          <div className="bg-gray-50 px-8 py-5 border-t border-gray-100 flex gap-4">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              disabled={saving}
-              className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 font-medium transition-colors shadow-sm"
-            >
-              <X className="h-4 w-4" />
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 px-6 py-2.5 bg-gradient-to-r from-orange-600 to-orange-700 text-white rounded-lg hover:from-orange-700 hover:to-orange-800 flex items-center justify-center gap-2 font-medium shadow-lg disabled:opacity-70 transition-all active:scale-[0.99]"
-            >
-              <Save className="h-4 w-4" />
-              {saving ? 'Salvando Alterações...' : 'Salvar Alterações'}
-            </button>
-          </div>
-        </Tabs>
+        <div className="px-8 pb-8">
+          <StepFooter
+            steps={stepDefs}
+            activeKey={activeStep}
+            onNext={(k) => setActiveStep(k as StepKey)}
+            onCancel={() => router.back()}
+            loading={saving}
+            submitLabel={saving ? 'Salvando Alterações...' : 'Salvar Alterações'}
+          />
+        </div>
       </form>
     </div>
   );

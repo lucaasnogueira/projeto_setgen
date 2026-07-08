@@ -1,14 +1,18 @@
 "use client"
 
 import { ServiceOrderStatus } from '@/types';
-import { 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  PlayCircle, 
+import {
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
+  PlayCircle,
   Flag,
-  Ban
+  Ban,
+  Send,
+  Hourglass,
+  CalendarX,
+  PackageX
 } from 'lucide-react';
 
 interface StatusTimelineProps {
@@ -34,6 +38,24 @@ const statusConfig = {
     color: 'green',
     order: 2
   },
+  [ServiceOrderStatus.SENT_TO_CLIENT]: {
+    label: 'Enviado ao Cliente',
+    icon: Send,
+    color: 'blue',
+    order: 3
+  },
+  [ServiceOrderStatus.AWAITING_RESPONSE]: {
+    label: 'Aguardando Resposta',
+    icon: Hourglass,
+    color: 'yellow',
+    order: 4
+  },
+  [ServiceOrderStatus.EXPIRED]: {
+    label: 'Expirado',
+    icon: CalendarX,
+    color: 'red',
+    order: -1
+  },
   [ServiceOrderStatus.REJECTED]: {
     label: 'Rejeitada',
     icon: XCircle,
@@ -44,13 +66,19 @@ const statusConfig = {
     label: 'Em Andamento',
     icon: PlayCircle,
     color: 'blue',
-    order: 3
+    order: 5
+  },
+  [ServiceOrderStatus.AWAITING_MATERIALS]: {
+    label: 'Aguardando Materiais',
+    icon: PackageX,
+    color: 'yellow',
+    order: 6
   },
   [ServiceOrderStatus.COMPLETED]: {
     label: 'Concluída',
     icon: Flag,
     color: 'emerald',
-    order: 4
+    order: 7
   },
   [ServiceOrderStatus.CANCELLED]: {
     label: 'Cancelada',
@@ -70,7 +98,9 @@ const mainFlow: ServiceOrderStatus[] = [
 
 export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
   const currentOrder = statusConfig[currentStatus].order;
-  const isRejectedOrCancelled = currentStatus === 'REJECTED' || currentStatus === 'CANCELLED';
+  // Status que não fazem parte da linha principal (comercial/exceção): exibidos
+  // como um marcador à parte, para não sumir da timeline sem indicação de "atual".
+  const isOffMainFlow = !mainFlow.includes(currentStatus);
 
   return (
     <div className="space-y-6">
@@ -113,7 +143,7 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
                       ? `bg-${config.color}-500 ring-4 ring-${config.color}-100 shadow-lg`
                       : isPast
                       ? `bg-${config.color}-500`
-                      : 'bg-gray-100'
+                      : 'bg-muted'
                   }`}
                   style={{
                     backgroundColor: isCurrent || isPast ?
@@ -133,18 +163,18 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
                 >
                   <Icon 
                     className={`h-6 w-6 ${
-                      isActive ? 'text-white' : 'text-gray-400'
+                      isActive ? 'text-white' : 'text-muted-foreground'
                     }`} 
                   />
                 </div>
                 <div>
                   <p className={`font-bold ${
-                    isCurrent ? 'text-gray-900' : isPast ? 'text-gray-700' : 'text-gray-400'
+                    isCurrent ? 'text-foreground' : isPast ? 'text-foreground' : 'text-muted-foreground'
                   }`}>
                     {config.label}
                   </p>
                   {isCurrent && (
-                    <p className="text-sm text-gray-500 mt-1">Status atual</p>
+                    <p className="text-sm text-muted-foreground mt-1">Status atual</p>
                   )}
                 </div>
               </div>
@@ -153,28 +183,30 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
         })}
       </div>
 
-      {/* Rejected/Cancelled Status */}
-      {isRejectedOrCancelled && (
-        <div className="border-t border-gray-200 pt-6">
-          <div className="flex items-center gap-4">
-            <div 
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-red-500 ring-4 ring-red-100 shadow-lg"
-            >
-              {currentStatus === 'REJECTED' ? (
-                <XCircle className="h-6 w-6 text-white" />
-              ) : (
-                <Ban className="h-6 w-6 text-white" />
-              )}
-            </div>
-            <div>
-              <p className="font-bold text-gray-900">
-                {statusConfig[currentStatus].label}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">Status atual</p>
+      {/* Status fora da linha principal (comercial ou exceção) */}
+      {isOffMainFlow && (() => {
+        const config = statusConfig[currentStatus];
+        const Icon = config.icon;
+        const bg = config.color === 'yellow' ? '#eab308'
+          : config.color === 'blue' ? '#3b82f6'
+          : '#ef4444';
+        return (
+          <div className="border-t border-border pt-6">
+            <div className="flex items-center gap-4">
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+                style={{ backgroundColor: bg }}
+              >
+                <Icon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <p className="font-bold text-foreground">{config.label}</p>
+                <p className="text-sm text-muted-foreground mt-1">Status atual</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateStockMovementDto } from './dto/stock-movement.dto';
+import { BatchMovementDto } from './dto/batch-movement.dto';
 import { Prisma, MovementType } from '@prisma/client';
 
 @Injectable()
@@ -34,6 +35,10 @@ export class InventoryService {
       minStock: createProductDto.minStock,
       currentStock: createProductDto.currentStock || 0,
       unitCost: createProductDto.unitCost,
+      barcode: createProductDto.barcode,
+      ...(createProductDto.locationId && {
+        location: { connect: { id: createProductDto.locationId } },
+      }),
     };
 
     return this.prisma.product.create({
@@ -49,6 +54,7 @@ export class InventoryService {
     const products = await this.prisma.product.findMany({
       where,
       include: {
+        location: true,
         _count: {
           select: {
             movements: true,
@@ -72,6 +78,7 @@ export class InventoryService {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
+        location: true,
         movements: {
           take: 20,
           orderBy: {
@@ -94,6 +101,24 @@ export class InventoryService {
     }
 
     return product;
+  }
+
+  async findProductByBarcode(barcode: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { barcode },
+      include: { location: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Nenhum produto encontrado com este código de barras');
+    }
+
+    return product;
+  }
+
+  async updateProductPhoto(id: string, photoUrl: string) {
+    await this.findOneProduct(id);
+    return this.prisma.product.update({ where: { id }, data: { photoUrl } });
   }
 
   async updateProduct(id: string, updateProductDto: UpdateProductDto) {
@@ -142,6 +167,16 @@ export class InventoryService {
     createMovementDto: CreateStockMovementDto,
     createdById: string,
   ) {
+    if (createMovementDto.type === MovementType.TRANSFER) {
+      throw new BadRequestException(
+        'Transferência entre depósitos ainda não é suportada (estoque de depósito único)',
+      );
+    }
+
+    const isInbound =
+      createMovementDto.type === MovementType.ENTRY ||
+      createMovementDto.type === MovementType.ADJUSTMENT_IN;
+
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: createMovementDto.productId },
@@ -153,11 +188,7 @@ export class InventoryService {
 
       // Validar quantidade para saída (checagem otimista; a validação
       // definitiva contra estoque negativo ocorre após o update atômico abaixo)
-      if (
-        (createMovementDto.type === MovementType.EXIT ||
-          createMovementDto.type === MovementType.ADJUSTMENT) &&
-        product.currentStock < createMovementDto.quantity
-      ) {
+      if (!isInbound && product.currentStock < createMovementDto.quantity) {
         throw new BadRequestException(
           `Estoque insuficiente. Disponível: ${product.currentStock} ${product.unit}`,
         );
@@ -202,7 +233,6 @@ export class InventoryService {
       // Atualizar estoque do produto de forma atômica (increment/decrement
       // no banco, não a partir do valor lido acima) para evitar corrida
       // entre movimentações concorrentes no mesmo produto.
-      const isInbound = createMovementDto.type === MovementType.ENTRY;
       const updatedProduct = await tx.product.update({
         where: { id: createMovementDto.productId },
         data: {
@@ -226,6 +256,74 @@ export class InventoryService {
         previousStock: product.currentStock,
         newStock: updatedProduct.currentStock,
       };
+    });
+  }
+
+  // Igual createMovement, mas cria N movimentações do mesmo tipo numa única
+  // transação (tudo ou nada) — usado pelo fluxo de bipagem em lote.
+  async createBatchMovement(dto: BatchMovementDto, createdById: string) {
+    if (dto.type === MovementType.TRANSFER) {
+      throw new BadRequestException(
+        'Transferência entre depósitos ainda não é suportada (estoque de depósito único)',
+      );
+    }
+
+    const isInbound =
+      dto.type === MovementType.ENTRY || dto.type === MovementType.ADJUSTMENT_IN;
+
+    return this.prisma.$transaction(async (tx) => {
+      const movements: Prisma.StockMovementGetPayload<{
+        include: { product: { select: { code: true; name: true; unit: true } } };
+      }>[] = [];
+
+      for (const item of dto.items) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
+
+        if (!product) {
+          throw new NotFoundException(`Produto ${item.productId} não encontrado`);
+        }
+
+        if (!isInbound && product.currentStock < item.quantity) {
+          throw new BadRequestException(
+            `Estoque insuficiente para ${product.name}. Disponível: ${product.currentStock} ${product.unit}`,
+          );
+        }
+
+        const movement = await tx.stockMovement.create({
+          data: {
+            product: { connect: { id: item.productId } },
+            type: dto.type,
+            quantity: item.quantity,
+            reason: dto.reason,
+            referenceId: dto.referenceId,
+            createdBy: { connect: { id: createdById } },
+          },
+          include: {
+            product: { select: { code: true, name: true, unit: true } },
+          },
+        });
+
+        const updatedProduct = await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            currentStock: isInbound
+              ? { increment: item.quantity }
+              : { decrement: item.quantity },
+          },
+        });
+
+        if (updatedProduct.currentStock < 0) {
+          throw new BadRequestException(
+            `Estoque insuficiente para ${product.name}. Disponível: ${product.currentStock} ${product.unit}`,
+          );
+        }
+
+        movements.push(movement);
+      }
+
+      return movements;
     });
   }
 

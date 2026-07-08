@@ -8,7 +8,7 @@ export { visitsApi } from './visits';
 export { serviceOrdersApi } from './service-orders';
 export { approvalsApi } from './approvals';
 export { purchaseOrdersApi } from './purchase-orders';
-export { invoicesApi } from './invoices';
+export { fiscalApi } from './fiscal';
 export { deliveriesApi } from './deliveries';
 export { inventoryApi } from './inventory';
 export { dashboardApi } from './dashboard';

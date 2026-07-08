@@ -1,5 +1,5 @@
 import api from './client';
-import { ServiceOrder } from '@/types';
+import { ServiceOrder, QuoteLine, ServiceOrderAuditLogEntry } from '@/types';
 
 export const ordersApi = {
   async uploadAttachments(id: string, files: File[]): Promise<ServiceOrder> {
@@ -54,6 +54,38 @@ export const ordersApi = {
       return data;
     } catch (error) {
       console.error('Erro ao buscar histórico de status:', error);
+      return [];
+    }
+  },
+
+  async addQuoteLine(id: string, line: Partial<QuoteLine>): Promise<QuoteLine> {
+    const { data } = await api.post(`/service-orders/${id}/lines`, line);
+    return data;
+  },
+
+  async updateQuoteLine(id: string, lineId: string, line: Partial<QuoteLine>): Promise<QuoteLine> {
+    const { data } = await api.patch(`/service-orders/${id}/lines/${lineId}`, line);
+    return data;
+  },
+
+  async removeQuoteLine(id: string, lineId: string): Promise<void> {
+    await api.delete(`/service-orders/${id}/lines/${lineId}`);
+  },
+
+  async linkVisit(id: string, visitId: string): Promise<void> {
+    await api.post(`/service-orders/${id}/visits/${visitId}`);
+  },
+
+  async unlinkVisit(id: string, visitId: string): Promise<void> {
+    await api.delete(`/service-orders/${id}/visits/${visitId}`);
+  },
+
+  async getAuditLog(id: string): Promise<ServiceOrderAuditLogEntry[]> {
+    try {
+      const { data } = await api.get(`/service-orders/${id}/audit-log`);
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar histórico da OS:', error);
       return [];
     }
   },

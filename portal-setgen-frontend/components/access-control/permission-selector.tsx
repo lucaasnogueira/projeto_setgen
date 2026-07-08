@@ -60,16 +60,16 @@ export function PermissionSelector({
         const isExpanded = expandedGroups[group.name];
 
         return (
-          <div key={group.name} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+          <div key={group.name} className="border border-border rounded-lg overflow-hidden bg-card">
             <div 
-              className="flex items-center justify-between p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+              className="flex items-center justify-between p-3 bg-muted cursor-pointer hover:bg-muted transition-colors"
               onClick={() => toggleGroup(group.name)}
             >
               <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-transparent">
                   {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </Button>
-                <span className="font-semibold text-gray-700">{group.name}</span>
+                <span className="font-semibold text-foreground">{group.name}</span>
                 {selectedCount > 0 && (
                   <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-none">
                     {selectedCount} / {groupPermissionIds.length}
@@ -82,7 +82,7 @@ export function PermissionSelector({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-xs text-gray-500 hover:text-orange-600 h-7"
+                  className="text-xs text-muted-foreground hover:text-orange-600 h-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleAllInGroup(group);
@@ -95,7 +95,7 @@ export function PermissionSelector({
             </div>
 
             {isExpanded && (
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-gray-100">
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-border">
                 {group.permissions.map((perm) => {
                   const isSelected = selectedPermissions.includes(perm.id);
                   return (
@@ -104,7 +104,7 @@ export function PermissionSelector({
                       className={`flex items-start gap-3 p-3 rounded-md cursor-pointer border transition-all ${
                         isSelected
                           ? "bg-orange-50 border-orange-200"
-                          : "bg-white border-gray-200 hover:border-gray-300"
+                          : "bg-card border-border hover:border-border"
                       } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
                       onClick={() => togglePermission(perm.id)}
                     >
@@ -112,16 +112,16 @@ export function PermissionSelector({
                         className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                           isSelected
                             ? "bg-orange-600 border-orange-600 text-white"
-                            : "bg-white border-gray-300"
+                            : "bg-card border-border"
                         }`}
                       >
                         {isSelected && <Check className="h-3 w-3" />}
                       </div>
                       <div>
-                        <p className={`text-sm font-medium ${isSelected ? "text-orange-900" : "text-gray-700"}`}>
+                        <p className={`text-sm font-medium ${isSelected ? "text-orange-900" : "text-foreground"}`}>
                           {perm.label}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{perm.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{perm.description}</p>
                       </div>
                     </div>
                   );

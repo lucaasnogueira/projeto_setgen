@@ -248,6 +248,16 @@ export class CreateEmployeeDto {
   @IsOptional()
   status?: EmployeeStatus;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  terminationReason?: string;
+
+  @ApiPropertyOptional({ example: '2024-01-15' })
+  @IsDateString({}, { message: 'Data de desligamento inválida' })
+  @IsOptional()
+  terminationDate?: string;
+
   // 📌 7. Dados de Acesso ao Sistema
   @ApiPropertyOptional()
   @IsString()
