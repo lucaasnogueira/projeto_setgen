@@ -7,6 +7,7 @@ import {
   IsEnum,
   IsArray,
   IsOptional,
+  IsBoolean,
 } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
@@ -39,4 +40,9 @@ export class CreateUserDto {
   @IsArray()
   @IsOptional()
   permissionIds?: string[];
+
+  @ApiProperty({ description: 'Usuário ativo', required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  active?: boolean;
 }

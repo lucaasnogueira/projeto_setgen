@@ -31,6 +31,7 @@ export class UsersService {
         password: hashedPassword,
         role: createUserDto.role,
         roleId: createUserDto.roleId,
+        active: createUserDto.active ?? true,
         permissions: {
           create: createUserDto.permissionIds?.map((pId) => ({
             permission: {
