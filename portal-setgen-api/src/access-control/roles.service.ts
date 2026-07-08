@@ -31,7 +31,7 @@ export class RolesService {
         permissions: {
           create: permissionIds?.map((id) => ({
             permission: {
-              connect: { name: id },
+              connect: { id },
             },
           })),
         },
@@ -110,7 +110,7 @@ export class RolesService {
             deleteMany: {}, // Remove todas as permissões atuais do cargo
             create: permissionIds.map((pId) => ({
               permission: {
-                connect: { name: pId },
+                connect: { id: pId },
               },
             })),
           },
