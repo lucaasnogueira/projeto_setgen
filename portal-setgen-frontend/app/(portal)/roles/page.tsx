@@ -165,44 +165,44 @@ export default function RolesPage() {
       {/* Listagem de Cargos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredRoles.map((role) => (
-          <Card key={role.id} className="hover:shadow-xl transition-all border-none bg-white shadow-md overflow-hidden flex flex-col">
-            <CardHeader className="bg-gray-50/50 pb-4">
+          <Card key={role.id} className="hover:shadow-xl transition-all border-none bg-card shadow-md overflow-hidden flex flex-col">
+            <CardHeader className="bg-muted/50 pb-4">
               <div className="flex justify-between items-start">
                 <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                   <ShieldCheck className="h-5 w-5 text-orange-600" />
                 </div>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="icon" onClick={() => handleOpenModal("edit", role)}>
-                    <Edit className="h-4 w-4 text-gray-400 hover:text-blue-600" />
+                    <Edit className="h-4 w-4 text-muted-foreground hover:text-blue-600" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => setDeleteModal({ open: true, role })}>
-                    <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-600" />
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-600" />
                   </Button>
                 </div>
               </div>
               <CardTitle className="mt-3 text-xl">{role.name}</CardTitle>
-              <CardDescription className="line-clamp-2 min-h-[40px] text-gray-500">
+              <CardDescription className="line-clamp-2 min-h-[40px] text-muted-foreground">
                 {role.description || "Nenhuma descrição informada."}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-4 flex-grow flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Permissões:</span>
+                  <span className="text-muted-foreground">Permissões:</span>
                   <Badge variant="secondary" className="bg-blue-50 text-blue-700 font-bold border-none">
                     {role._count?.permissions || 0}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Usuários vinculados:</span>
-                  <Badge variant="secondary" className="bg-gray-100 text-gray-700 font-bold border-none">
+                  <span className="text-muted-foreground">Usuários vinculados:</span>
+                  <Badge variant="secondary" className="bg-muted text-foreground font-bold border-none">
                     {role._count?.users || 0}
                   </Badge>
                 </div>
               </div>
               <Button 
                 variant="outline" 
-                className="w-full mt-6 group bg-gray-50 border-none hover:bg-orange-50 hover:text-orange-600 font-semibold"
+                className="w-full mt-6 group bg-muted border-none hover:bg-orange-50 hover:text-orange-600 font-semibold"
                 onClick={() => handleOpenModal("edit", role)}
               >
                 Configurar Acessos
@@ -216,7 +216,7 @@ export default function RolesPage() {
       {/* Modal de Criação / Edição */}
       <Dialog open={roleModal.open} onOpenChange={(open) => !actionLoading && setRoleModal({ ...roleModal, open })}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl">
-          <div className="sticky top-0 bg-white z-10 px-8 py-6 border-b border-gray-100">
+          <div className="sticky top-0 bg-card z-10 px-8 py-6 border-b border-border">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold flex items-center gap-2">
                 <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -230,33 +230,33 @@ export default function RolesPage() {
             </DialogHeader>
           </div>
 
-          <div className="px-8 py-6 space-y-8 bg-gray-50/30">
+          <div className="px-8 py-6 space-y-8 bg-muted/30">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="role-name" className="text-sm font-bold text-gray-700">Nome do Cargo</Label>
+                <Label htmlFor="role-name" className="text-sm font-bold text-foreground">Nome do Cargo</Label>
                 <Input
                   id="role-name"
                   placeholder="Ex: Gerente Técnico"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="bg-white border-gray-200 focus:ring-orange-500"
+                  className="bg-card border-border focus:ring-orange-500"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role-desc" className="text-sm font-bold text-gray-700">Descrição (Opcional)</Label>
+                <Label htmlFor="role-desc" className="text-sm font-bold text-foreground">Descrição (Opcional)</Label>
                 <Input
                   id="role-desc"
                   placeholder="Descreva as responsabilidades..."
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="bg-white border-gray-200 focus:ring-orange-500"
+                  className="bg-card border-border focus:ring-orange-500"
                 />
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="text-lg font-bold text-gray-800">Permissões de Acesso</h3>
+                <h3 className="text-lg font-bold text-foreground">Permissões de Acesso</h3>
                 <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full uppercase tracking-wider">
                   {formData.permissionIds.length} selecionadas
                 </span>
@@ -264,8 +264,8 @@ export default function RolesPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 {availablePermissions.map((group) => (
-                  <div key={group.name} className="space-y-3 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                    <h4 className="font-bold text-gray-700 flex items-center gap-2 text-sm border-b pb-2">
+                  <div key={group.name} className="space-y-3 p-4 bg-card rounded-xl shadow-sm border border-border">
+                    <h4 className="font-bold text-foreground flex items-center gap-2 text-sm border-b pb-2">
                       <div className="w-2 h-2 rounded-full bg-orange-400" />
                       {group.name}
                     </h4>
@@ -273,7 +273,7 @@ export default function RolesPage() {
                       {group.permissions.map((perm) => (
                         <div
                           key={perm.id}
-                          className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all hover:bg-gray-50 border-2 ${
+                          className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all hover:bg-muted border-2 ${
                             formData.permissionIds.includes(perm.id)
                               ? "border-orange-200 bg-orange-50/30"
                               : "border-transparent"
@@ -283,17 +283,17 @@ export default function RolesPage() {
                           <div className={`mt-0.5 w-5 h-5 rounded-md flex items-center justify-center transition-all ${
                             formData.permissionIds.includes(perm.id)
                               ? "bg-orange-600 text-white"
-                              : "bg-gray-100 text-transparent border border-gray-200"
+                              : "bg-muted text-transparent border border-border"
                           }`}>
                             <Check className="h-3 w-3" />
                           </div>
                           <div>
                             <p className={`text-sm font-semibold transition-colors ${
-                              formData.permissionIds.includes(perm.id) ? "text-orange-900" : "text-gray-700"
+                              formData.permissionIds.includes(perm.id) ? "text-orange-900" : "text-foreground"
                             }`}>
                               {perm.label}
                             </p>
-                            <p className="text-xs text-gray-500 leading-tight">
+                            <p className="text-xs text-muted-foreground leading-tight">
                               {perm.description}
                             </p>
                           </div>
@@ -306,12 +306,12 @@ export default function RolesPage() {
             </div>
           </div>
 
-          <div className="sticky bottom-0 bg-white px-8 py-5 border-t border-gray-100 flex justify-end gap-3 z-10">
+          <div className="sticky bottom-0 bg-card px-8 py-5 border-t border-border flex justify-end gap-3 z-10">
             <Button
               variant="outline"
               onClick={() => setRoleModal({ ...roleModal, open: false })}
               disabled={actionLoading}
-              className="border-gray-200"
+              className="border-border"
             >
               Cancelar
             </Button>

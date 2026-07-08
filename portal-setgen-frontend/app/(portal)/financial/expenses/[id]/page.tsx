@@ -110,17 +110,17 @@ export default function EditExpensePage() {
       <div className="flex items-center gap-4">
         <Link 
           href="/financial/expenses" 
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          className="p-2 hover:bg-muted rounded-full transition-colors"
         >
-          <ArrowLeft className="h-6 w-6 text-gray-500" />
+          <ArrowLeft className="h-6 w-6 text-muted-foreground" />
         </Link>
         <div>
           <h1 className="text-3xl font-bold">Editar Despesa</h1>
-          <p className="text-gray-500">Alterar informações da despesa</p>
+          <p className="text-muted-foreground">Alterar informações da despesa</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-card rounded-xl shadow-lg p-6">
         <ExpenseForm
           categories={data.categories}
           clients={data.clients}

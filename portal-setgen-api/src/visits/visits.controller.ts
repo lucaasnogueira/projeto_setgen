@@ -26,6 +26,7 @@ import { VisitsService } from './visits.service';
 import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateVisitDto } from './dto/update-visit.dto';
 import { CheckinVisitDto, CheckoutVisitDto } from './dto/checkin-visit.dto';
+import { UpdateVisitStatusDto } from './dto/update-visit-status.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -70,9 +71,10 @@ export class VisitsController {
   create(
     @Body() createVisitDto: CreateVisitDto,
     @UploadedFiles() files: Express.Multer.File[],
+    @Request() req,
   ) {
     const attachments = files ? files.map((file) => file.path) : [];
-    return this.visitsService.create(createVisitDto, attachments);
+    return this.visitsService.create(createVisitDto, attachments, req.user.id);
   }
 
   @Get()
@@ -143,6 +145,22 @@ export class VisitsController {
     return this.visitsService.update(
       id,
       updateVisitDto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Patch(':id/status')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Atualizar status da agenda da visita' })
+  updateStatus(
+    @Param('id') id: string,
+    @Body() updateVisitStatusDto: UpdateVisitStatusDto,
+    @Request() req,
+  ) {
+    return this.visitsService.updateStatus(
+      id,
+      updateVisitStatusDto,
       req.user.id,
       req.user.role,
     );

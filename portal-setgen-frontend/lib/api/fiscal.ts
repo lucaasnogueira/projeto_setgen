@@ -1,22 +1,13 @@
 import api from './client';
-import { Invoice, FiscalStatus } from '@/types';
+import { Invoice } from '@/types';
 
-export interface EmitirNotaDualDto {
-  serviceOrderId: string;
-  clientCnpj: string;
-  emitenteCnpj: string;
-  itensServico: {
-    descricao: string;
+export interface EmitirNotaMercadoriaDto {
+  clientId: string;
+  serviceOrderId?: string;
+  itens: {
+    productId: string;
     quantidade: number;
-    valorUnitario: number;
-    issAliquota?: number;
-    codigoServico?: string;
-  }[];
-  itensPecas: {
-    ncm: string;
-    descricao: string;
-    quantidade: number;
-    valorUnitario: number;
+    valorUnitario?: number;
     fabricadoNaZfm?: boolean;
     cfop?: string;
   }[];
@@ -24,14 +15,13 @@ export interface EmitirNotaDualDto {
 }
 
 export const fiscalApi = {
-  emitirDual: async (payload: EmitirNotaDualDto): Promise<any> => {
+  emitirMercadoria: async (payload: EmitirNotaMercadoriaDto): Promise<any> => {
     const { data } = await api.post('/fiscal/emitir', payload);
     return data;
   },
 
   getAll: async (filters?: {
     status?: string;
-    tipo?: string;
     clientId?: string;
     startDate?: string;
     endDate?: string;

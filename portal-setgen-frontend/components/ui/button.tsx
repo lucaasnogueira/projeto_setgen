@@ -8,9 +8,9 @@ const buttonVariants = cva(
       variant: {
         default: "bg-orange-600 text-white hover:bg-orange-700",
         destructive: "bg-red-600 text-white hover:bg-red-700",
-        outline: "border border-gray-300 bg-white hover:bg-gray-100",
+        outline: "border border-input bg-card hover:bg-muted",
         secondary: "bg-gray-600 text-white hover:bg-gray-700",
-        ghost: "hover:bg-gray-100",
+        ghost: "hover:bg-muted",
         link: "text-orange-600 underline-offset-4 hover:underline",
       },
       size: {

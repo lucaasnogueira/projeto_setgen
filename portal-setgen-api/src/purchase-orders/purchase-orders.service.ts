@@ -214,16 +214,6 @@ export class PurchaseOrdersService {
             role: true,
           },
         },
-        invoices: {
-          select: {
-            id: true,
-            invoiceNumber: true,
-            series: true,
-            value: true,
-            issueDate: true,
-            status: true,
-          },
-        },
       },
     });
 

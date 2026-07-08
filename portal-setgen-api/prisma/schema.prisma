@@ -34,13 +34,18 @@ model User {
 
   // RelaÃ§Ãµes
   createdVisits          TechnicalVisit[] @relation("CreatedVisits")
+  requestedVisits        TechnicalVisit[] @relation("VisitRequestedBy")
   createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
+  salesOrders            ServiceOrder[]   @relation("ServiceOrderSalesRep")
   approvals              Approval[]
   uploadedPurchaseOrders PurchaseOrder[]  @relation("UploadedPurchaseOrders")
-  createdInvoices        Invoice[]        @relation("CreatedInvoices")
+  createdNotasFiscais    NotaFiscal[]     @relation("CreatedNotasFiscais")
   deliveredServices      Delivery[]       @relation("DeliveredBy")
   auditLogs              AuditLog[]
   stockMovements         StockMovement[]
+  createdVehicleTrips    VehicleTrip[]
+  fuelRequestsMade       FuelRequest[]    @relation("FuelRequestedBy")
+  fuelRequestsApproved   FuelRequest[]    @relation("FuelApprovedBy")
 
   // Times e clientes sob responsabilidade
   teams                 Team[]
@@ -166,6 +171,8 @@ model Client {
   technicalVisits TechnicalVisit[]
   serviceOrders   ServiceOrder[]
   purchaseOrders  PurchaseOrder[]
+  equipments      Equipment[]
+  notasFiscais    NotaFiscal[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
   expenses Expense[]
@@ -203,6 +210,50 @@ model ClientTaxonomy {
 }
 
 // ============================================
+// EQUIPAMENTOS
+// ============================================
+
+enum EquipmentType {
+  GENERATOR
+  SUBSTATION
+  OTHER
+}
+
+model Equipment {
+  id              String        @id @default(uuid())
+  clientId        String
+  type            EquipmentType
+  brand           String?
+  model           String?
+  serialNumber    String?
+  powerRating     String?
+  installLocation String?
+  purchaseDate    DateTime?
+  notes           String?       @db.Text
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  client          Client           @relation(fields: [clientId], references: [id])
+  technicalVisits TechnicalVisit[]
+  visitLinks      VisitEquipment[]
+  warranties      Warranty[]
+
+  @@index([clientId])
+  @@map("equipments")
+}
+
+model FailureCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  technicalVisits TechnicalVisit[]
+
+  @@map("failure_categories")
+}
+
+// ============================================
 // VISITAS TÃ‰CNICAS E ORDENS DE SERVIÃ‡O
 // ============================================
 
@@ -212,43 +263,107 @@ enum VisitType {
   MAINTENANCE
 }
 
+enum VisitStatus {
+  SCHEDULED
+  CONFIRMED
+  EN_ROUTE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum VisitPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model VisitTaskType {
+  id                         String   @id @default(uuid())
+  name                       String   @unique
+  defaultChecklistTemplateId String?
+  active                     Boolean  @default(true)
+  createdAt                  DateTime @default(now())
+
+  defaultChecklistTemplate ChecklistTemplate? @relation(fields: [defaultChecklistTemplateId], references: [id])
+  technicalVisits          TechnicalVisit[]
+
+  @@map("visit_task_types")
+}
+
 model TechnicalVisit {
-  id                String    @id @default(uuid())
-  clientId          String
-  technicianId      String?
-  visitDate         DateTime
-  visitType         VisitType
-  location          String
-  description       String    @db.Text
-  userReport        String?   @db.Text
-  identifiedNeeds   String?   @db.Text
-  suggestedScope    String?   @db.Text
-  estimatedDeadline String?
-  estimatedValue    Decimal?  @db.Decimal(10, 2)
-  attachments       String[]
-  attachmentsData   Json?
-  responsibleIds    String[]
-  notes             String?   @db.Text
-  checkinAt         DateTime?
-  checkinLat        Float?
-  checkinLng        Float?
-  checkinAccuracy   Float?
-  checkoutAt        DateTime?
-  checkoutLat       Float?
-  checkoutLng       Float?
-  checkoutAccuracy  Float?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                  String        @id @default(uuid())
+  clientId            String
+  technicianId        String?
+  equipmentId         String?
+  failureCategoryId   String?
+  taskTypeId          String?
+  priority            VisitPriority @default(MEDIUM)
+  checklistTemplateId String?
+  checklist           Json[]
+  externalCode        String?       @unique
+  createdById         String?
+  actualValue         Decimal?      @db.Decimal(10, 2)
+  visitDate           DateTime
+  scheduledStart      DateTime?
+  scheduledEnd        DateTime?
+  status              VisitStatus   @default(SCHEDULED)
+  chargeable          Boolean       @default(false)
+  visitType           VisitType
+  location            String
+  description         String        @db.Text
+  userReport          String?       @db.Text
+  identifiedNeeds     String?       @db.Text
+  suggestedScope      String?       @db.Text
+  estimatedDeadline   String?
+  estimatedValue      Decimal?      @db.Decimal(10, 2)
+  attachments         String[]
+  attachmentsData     Json?
+  responsibleIds      String[]
+  notes               String?       @db.Text
+  checkinAt           DateTime?
+  checkinLat          Float?
+  checkinLng          Float?
+  checkinAccuracy     Float?
+  checkoutAt          DateTime?
+  checkoutLat         Float?
+  checkoutLng         Float?
+  checkoutAccuracy    Float?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   // RelaÃ§Ãµes
-  client        Client         @relation(fields: [clientId], references: [id])
-  technician    User?          @relation("CreatedVisits", fields: [technicianId], references: [id])
-  serviceOrders ServiceOrder[]
+  client            Client              @relation(fields: [clientId], references: [id])
+  technician        User?               @relation("CreatedVisits", fields: [technicianId], references: [id])
+  createdBy         User?               @relation("VisitRequestedBy", fields: [createdById], references: [id])
+  equipment         Equipment?          @relation(fields: [equipmentId], references: [id])
+  equipments        VisitEquipment[]
+  failureCategory   FailureCategory?    @relation(fields: [failureCategoryId], references: [id])
+  taskType          VisitTaskType?      @relation(fields: [taskTypeId], references: [id])
+  checklistTemplate ChecklistTemplate?  @relation(fields: [checklistTemplateId], references: [id])
+  serviceOrders     ServiceOrder[]
+  linkedOrders      ServiceOrderVisit[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
   expenses Expense[]
 
+  @@index([equipmentId])
+  @@index([technicianId])
   @@map("technical_visits")
+}
+
+model VisitEquipment {
+  id          String   @id @default(uuid())
+  visitId     String
+  equipmentId String
+  createdAt   DateTime @default(now())
+
+  visit     TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  equipment Equipment      @relation(fields: [equipmentId], references: [id])
+
+  @@unique([visitId, equipmentId])
+  @@map("visit_equipment")
 }
 
 // ============================================
@@ -264,10 +379,27 @@ enum ServiceOrderStatus {
   DRAFT
   PENDING_APPROVAL
   APPROVED
+  SENT_TO_CLIENT
+  AWAITING_RESPONSE
+  EXPIRED
   REJECTED
   IN_PROGRESS
+  AWAITING_MATERIALS
   COMPLETED
   CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  RECEIVED
+}
+
+enum QuoteLineType {
+  SERVICE
+  MATERIAL
+  LABOR_HOUR
+  TRAVEL
+  ADDITIONAL_COST
 }
 
 enum ChecklistFieldType {
@@ -289,7 +421,9 @@ model ChecklistTemplate {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
-  serviceOrders ServiceOrder[]
+  serviceOrders   ServiceOrder[]
+  technicalVisits TechnicalVisit[]
+  visitTaskTypes  VisitTaskType[]
 
   @@map("checklist_templates")
 }
@@ -307,12 +441,20 @@ model ServiceOrder {
   notes               String?            @db.Text
   requiredResources   Json?
   deadline            DateTime?
+  validUntil          DateTime?
   responsibleIds      String[]
   checklist           Json[]
   checklistTemplateId String?
   progress            Int                @default(0)
   attachments         String[]
   createdById         String
+  paymentMethod       PaymentMethod?
+  paymentTerms        String?            @db.Text
+  paymentTermDays     Int?
+  paymentStatus       PaymentStatus      @default(PENDING)
+  completedAt         DateTime?
+  warrantyMonths      Int?
+  salesRepId          String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
@@ -320,17 +462,85 @@ model ServiceOrder {
   client            Client                @relation(fields: [clientId], references: [id])
   technicalVisit    TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
   createdBy         User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
+  salesRep          User?                 @relation("ServiceOrderSalesRep", fields: [salesRepId], references: [id])
   checklistTemplate ChecklistTemplate?    @relation(fields: [checklistTemplateId], references: [id])
   approvals         Approval[]
   purchaseOrders    PurchaseOrder[]
-  invoices          Invoice[]
+  notasFiscais      NotaFiscal[]
   delivery          Delivery?
   items             ServiceOrderProduct[]
+  quoteLines        QuoteLine[]
+  art               ART?
+  materialRequests  MaterialRequest[]
+  linkedVisits      ServiceOrderVisit[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
   expenses Expense[]
 
   @@map("service_orders")
+}
+
+model QuoteLine {
+  id             String        @id @default(uuid())
+  serviceOrderId String
+  type           QuoteLineType
+  description    String
+  quantity       Decimal       @db.Decimal(10, 2)
+  unitValue      Decimal       @db.Decimal(10, 2)
+  discount       Decimal       @default(0) @db.Decimal(10, 2)
+  totalValue     Decimal       @db.Decimal(10, 2)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+  @@map("quote_lines")
+}
+
+model ServiceOrderVisit {
+  id               String   @id @default(uuid())
+  serviceOrderId   String
+  technicalVisitId String
+  createdAt        DateTime @default(now())
+
+  serviceOrder   ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  technicalVisit TechnicalVisit @relation(fields: [technicalVisitId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceOrderId, technicalVisitId])
+  @@map("service_order_visits")
+}
+
+model CompanySettings {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?
+  phone     String?
+  email     String?
+  address   String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+// ============================================
+// ART - ANOTAÃ‡ÃƒO DE RESPONSABILIDADE TÃ‰CNICA
+// ============================================
+
+model ART {
+  id             String   @id @default(uuid())
+  serviceOrderId String   @unique
+  number         String
+  engineerName   String
+  creaNumber     String
+  issueDate      DateTime
+  fileUrl        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@map("arts")
 }
 
 // ============================================
@@ -424,6 +634,7 @@ model Expense {
 
   attachments ExpenseAttachment[]
   cashFlows   CashFlow[]
+  fuelRequest FuelRequest?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -503,6 +714,7 @@ model BankAccount {
   account  String
   type     String // Corrente, PoupanÃ§a
   balance  Decimal @default(0) @db.Decimal(10, 2)
+  pixKey   String?
   isActive Boolean @default(true)
 
   expenses  Expense[]
@@ -664,43 +876,8 @@ model PurchaseOrder {
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   client       Client       @relation(fields: [clientId], references: [id])
   uploadedBy   User         @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
-  invoices     Invoice[]
 
   @@map("purchase_orders")
-}
-
-// ============================================
-// NOTAS FISCAIS
-// ============================================
-
-enum InvoiceStatus {
-  ISSUED
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-model Invoice {
-  id              String        @id @default(uuid())
-  serviceOrderId  String
-  purchaseOrderId String
-  invoiceNumber   String
-  series          String
-  value           Decimal       @db.Decimal(10, 2)
-  issueDate       DateTime
-  dueDate         DateTime
-  status          InvoiceStatus @default(ISSUED)
-  xmlUrl          String?
-  pdfUrl          String?
-  createdById     String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  serviceOrder  ServiceOrder  @relation(fields: [serviceOrderId], references: [id])
-  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
-  createdBy     User          @relation("CreatedInvoices", fields: [createdById], references: [id])
-
-  @@map("invoices")
 }
 
 // ============================================
@@ -721,13 +898,47 @@ model Delivery {
 
   serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
   deliveredBy  User         @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  warranty     Warranty?
 
   @@map("deliveries")
 }
 
 // ============================================
+// GARANTIA
+// ============================================
+
+model Warranty {
+  id             String   @id @default(uuid())
+  deliveryId     String   @unique
+  equipmentId    String?
+  coverageMonths Int      @default(12)
+  startDate      DateTime
+  endDate        DateTime
+  terms          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  delivery  Delivery   @relation(fields: [deliveryId], references: [id])
+  equipment Equipment? @relation(fields: [equipmentId], references: [id])
+
+  @@index([endDate])
+  @@map("warranties")
+}
+
+// ============================================
 // ESTOQUE 
 // ============================================
+
+model StockLocation {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  products Product[]
+
+  @@map("stock_locations")
+}
 
 model Product {
   id           String   @id @default(uuid())
@@ -735,15 +946,23 @@ model Product {
   name         String
   description  String?  @db.Text
   unit         String
+  ncm          String?
   minStock     Int      @default(0)
   currentStock Int      @default(0)
   unitCost     Decimal? @db.Decimal(10, 2)
   active       Boolean  @default(true)
+  photoUrl     String?
+  barcode      String?  @unique
+  locationId   String?
+  location     StockLocation? @relation(fields: [locationId], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  movements     StockMovement[]
-  serviceOrders ServiceOrderProduct[]
+  movements             StockMovement[]
+  serviceOrders         ServiceOrderProduct[]
+  materialRequestItems  MaterialRequestItem[]
+  procurementOrderItems ProcurementOrderItem[]
+  notaFiscalItems       NotaFiscalItem[]
 
   @@map("products")
 }
@@ -764,13 +983,110 @@ model ServiceOrderProduct {
 }
 
 // ============================================
+// SUPRIMENTOS - SOLICITAÃ‡ÃƒO DE MATERIAL E COMPRAS
+// ============================================
+
+enum MaterialRequestStatus {
+  PENDING
+  PARTIALLY_RESERVED
+  SEPARATED
+  AWAITING_PURCHASE
+  RELEASED
+}
+
+model MaterialRequest {
+  id                    String                @id @default(uuid())
+  serviceOrderId        String
+  status                MaterialRequestStatus @default(PENDING)
+  priority              Int                   @default(0)
+  expectedExecutionDate DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  serviceOrder      ServiceOrder          @relation(fields: [serviceOrderId], references: [id])
+  items             MaterialRequestItem[]
+  procurementOrders ProcurementOrder[]
+
+  @@index([serviceOrderId])
+  @@map("material_requests")
+}
+
+model MaterialRequestItem {
+  id                String @id @default(uuid())
+  materialRequestId String
+  productId         String
+  quantityNeeded    Int
+  quantityReserved  Int    @default(0)
+
+  materialRequest MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+  product         Product         @relation(fields: [productId], references: [id])
+
+  @@map("material_request_items")
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?  @unique
+  contact   String?
+  email     String?
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  procurementOrders ProcurementOrder[]
+
+  @@map("suppliers")
+}
+
+enum ProcurementOrderStatus {
+  QUOTING
+  ORDER_ISSUED
+  AWAITING_DELIVERY
+  RECEIVED
+  CANCELLED
+}
+
+model ProcurementOrder {
+  id                   String                 @id @default(uuid())
+  supplierId           String?
+  materialRequestId    String?
+  status               ProcurementOrderStatus @default(QUOTING)
+  expectedDeliveryDate DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  supplier        Supplier?              @relation(fields: [supplierId], references: [id])
+  materialRequest MaterialRequest?       @relation(fields: [materialRequestId], references: [id])
+  items           ProcurementOrderItem[]
+
+  @@index([materialRequestId])
+  @@map("procurement_orders")
+}
+
+model ProcurementOrderItem {
+  id                 String  @id @default(uuid())
+  procurementOrderId String
+  productId          String
+  quantity           Int
+  unitCost           Decimal @db.Decimal(10, 2)
+
+  procurementOrder ProcurementOrder @relation(fields: [procurementOrderId], references: [id], onDelete: Cascade)
+  product          Product          @relation(fields: [productId], references: [id])
+
+  @@map("procurement_order_items")
+}
+
+// ============================================
 // MOVIMENTAÃ‡Ã•ES DE ESTOQUE
 // ============================================
 
 enum MovementType {
   ENTRY
   EXIT
-  ADJUSTMENT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
   TRANSFER
 }
 
@@ -793,6 +1109,86 @@ model StockMovement {
 }
 
 // ============================================
+// FROTA E ABASTECIMENTO
+// ============================================
+
+enum VehicleTripStatus {
+  OUT
+  RETURNED
+}
+
+enum FuelRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Vehicle {
+  id                   String   @id @default(uuid())
+  name                 String
+  plate                String   @unique
+  photoUrl             String?
+  currentKm            Int      @default(0)
+  lastOilChangeKm      Int      @default(0)
+  oilChangeIntervalKm  Int      @default(10000)
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  trips        VehicleTrip[]
+  fuelRequests FuelRequest[]
+
+  @@map("vehicles")
+}
+
+model VehicleTrip {
+  id          String            @id @default(uuid())
+  vehicleId   String
+  vehicle     Vehicle           @relation(fields: [vehicleId], references: [id])
+  driverId    String
+  driver      Employee          @relation(fields: [driverId], references: [id])
+  destination String
+  startKm     Int
+  endKm       Int?
+  status      VehicleTripStatus @default(OUT)
+  startedAt   DateTime          @default(now())
+  endedAt     DateTime?
+  createdById String
+  createdBy   User              @relation(fields: [createdById], references: [id])
+  createdAt   DateTime          @default(now())
+
+  @@index([vehicleId])
+  @@index([status])
+  @@map("vehicle_trips")
+}
+
+model FuelRequest {
+  id              String             @id @default(uuid())
+  vehicleId       String
+  vehicle         Vehicle            @relation(fields: [vehicleId], references: [id])
+  requestedById   String
+  requestedBy     User               @relation("FuelRequestedBy", fields: [requestedById], references: [id])
+  requestedAt     DateTime           @default(now())
+  liters          Decimal            @db.Decimal(10, 2)
+  unitPrice       Decimal            @db.Decimal(10, 2)
+  totalValue      Decimal            @db.Decimal(10, 2)
+  currentKm       Int?
+  fuelStation     String?
+  status          FuelRequestStatus  @default(PENDING)
+  approverId      String?
+  approver        User?              @relation("FuelApprovedBy", fields: [approverId], references: [id])
+  approvedAt      DateTime?
+  rejectionReason String?
+  expenseId       String?            @unique
+  expense         Expense?           @relation(fields: [expenseId], references: [id])
+  createdAt       DateTime           @default(now())
+
+  @@index([vehicleId])
+  @@index([status])
+  @@map("fuel_requests")
+}
+
+// ============================================
 // AUDITORIA
 // ============================================
 
@@ -804,6 +1200,7 @@ enum AuditAction {
   REJECT
   LOGIN
   LOGOUT
+  ALERT
 }
 
 model AuditLog {
@@ -954,6 +1351,7 @@ model Employee {
   terminationReason String?            @db.Text
   terminationDate   DateTime?
   movements         EmployeeMovement[]
+  vehicleTrips      VehicleTrip[]
 
   // ðŸ“Œ 7. Dados de Acesso ao Sistema
   userId String? @unique
@@ -1016,17 +1414,6 @@ model EmployeeDocument {
 // MÓDULO FISCAL – NF-e / NFS-e (2026)
 // ============================================
 
-enum TipoNota {
-  NFE // Nota Fiscal Eletrônica (Modelo 55 – mercadoria/mista)
-  NFSE // Nota Fiscal de Serviços Eletrônica
-}
-
-enum ModalidadeNota {
-  SERVICO
-  MERCADORIA
-  MISTA
-}
-
 enum StatusNota {
   PENDENTE
   PROCESSANDO
@@ -1055,17 +1442,16 @@ enum WebhookEventoTipo {
   NOTA_CANCELADA
 }
 
-// Tabela principal da NF-e / NFS-e
+// Tabela principal da NF-e (mercadoria)
 model NotaFiscal {
   id                 String         @id @default(uuid())
   numero             String         @unique
   serie              String
-  tipo               TipoNota
-  modalidade         ModalidadeNota
   chaveAcesso        String?        @unique
   protocolo          String?
-  serviceOrderId     String
+  serviceOrderId     String?
   clientId           String
+  createdById        String
   emitenteCnpj       String
   destinatarioCnpj   String
   valorBruto         Decimal        @db.Decimal(14, 2)
@@ -1081,13 +1467,37 @@ model NotaFiscal {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  impostos ImpostoRetido[]
-  eventos  EventoSefaz[]
-  webhooks WebhookDispatch[]
+  serviceOrder ServiceOrder?     @relation(fields: [serviceOrderId], references: [id])
+  client       Client            @relation(fields: [clientId], references: [id])
+  createdBy    User              @relation("CreatedNotasFiscais", fields: [createdById], references: [id])
+  itens        NotaFiscalItem[]
+  impostos     ImpostoRetido[]
+  eventos      EventoSefaz[]
+  webhooks     WebhookDispatch[]
 
   @@index([serviceOrderId])
+  @@index([clientId])
   @@index([status])
   @@map("notas_fiscais")
+}
+
+model NotaFiscalItem {
+  id             String     @id @default(uuid())
+  notaId         String
+  nota           NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product    @relation(fields: [productId], references: [id])
+  ncm            String
+  descricao      String
+  quantidade     Decimal    @db.Decimal(10, 3)
+  valorUnitario  Decimal    @db.Decimal(14, 4)
+  valorTotal     Decimal    @db.Decimal(14, 2)
+  fabricadoNaZfm Boolean    @default(false)
+  cfop           String     @default("5102")
+  createdAt      DateTime   @default(now())
+
+  @@index([notaId])
+  @@map("nota_fiscal_itens")
 }
 
 // Impostos calculados, dual-regime 2026

@@ -16,7 +16,12 @@ export class CreateStockMovementDto {
   @IsNotEmpty({ message: 'ID do produto é obrigatório' })
   productId: string;
 
-  @ApiProperty({ enum: MovementType, example: MovementType.ENTRY })
+  @ApiProperty({
+    enum: MovementType,
+    example: MovementType.ENTRY,
+    description:
+      'ENTRY/EXIT movem estoque normal; ADJUSTMENT_IN/ADJUSTMENT_OUT corrigem contagem (ex: inventário físico); TRANSFER não é suportado (depósito único)',
+  })
   @IsEnum(MovementType, { message: 'Tipo de movimentação inválido' })
   type: MovementType;
 

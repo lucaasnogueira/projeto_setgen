@@ -3,15 +3,30 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { purchaseOrdersApi } from '@/lib/api/purchase-orders';
-import { ShoppingCart, Plus, Eye, Calendar, DollarSign } from 'lucide-react';
+import { ShoppingCart, Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
+import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  TableEmpty,
+} from '@/components/ui/table';
 
 export default function PurchaseOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => purchaseOrdersApi.delete(id),
+    (id) => setOrders((prev) => prev.filter((o) => o.id !== id))
+  );
 
   useEffect(() => {
     purchaseOrdersApi.getAll()
@@ -35,48 +50,56 @@ export default function PurchaseOrdersPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {orders.length === 0 ? (
-          <Card className="col-span-2 p-16 text-center">
-            <ShoppingCart className="h-12 w-12 text-border mx-auto mb-3" />
-            <p className="text-text-secondary font-medium text-sm">Nenhuma OC cadastrada</p>
-          </Card>
-        ) : (
-          orders.map(order => (
-            <Card key={order.id} className="p-5">
-              <div className="flex items-start justify-between mb-3.5">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-[10px] bg-status-green-bg flex items-center justify-center shrink-0">
-                    <ShoppingCart className="h-5 w-5 text-status-green-fg" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[15px] text-foreground">OC {order.orderNumber}</h3>
-                    <p className="text-[12.5px] text-text-muted">{order.serviceOrder?.client?.name}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-1.5 mb-3.5">
-                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                  <DollarSign className="h-3.5 w-3.5 text-text-muted" />
-                  R$ {order.value?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </div>
-                <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                  <Calendar className="h-3.5 w-3.5 text-text-muted" />
-                  {new Date(order.issueDate).toLocaleDateString('pt-BR')}
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full rounded-[9px] font-bold gap-2"
-                onClick={() => router.push(`/purchase-orders/${order.id}`)}
-              >
-                <Eye className="h-4 w-4" />
-                Visualizar
-              </Button>
-            </Card>
-          ))
-        )}
-      </div>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-t-0 hover:bg-transparent">
+              <TableHead>OC</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Valor</TableHead>
+              <TableHead>Emissão</TableHead>
+              <TableHead className="w-[96px] text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orders.length === 0 ? (
+              <TableEmpty colSpan={5} icon={ShoppingCart} message="Nenhuma OC cadastrada" />
+            ) : (
+              orders.map((order) => (
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/purchase-orders/${order.id}`)}
+                >
+                  <TableCell className="text-[13px] font-bold text-foreground">
+                    OC {order.orderNumber}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary">
+                    {order.serviceOrder?.client?.name || order.serviceOrder?.client?.companyName || '—'}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] font-bold text-foreground">
+                    R$ {order.value?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-[12.5px] text-text-secondary">
+                    {new Date(order.issueDate).toLocaleDateString('pt-BR')}
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <InlineDeleteAction
+                      confirming={confirmId === order.id}
+                      deleting={deleting}
+                      onView={() => router.push(`/purchase-orders/${order.id}`)}
+                      onEdit={() => router.push(`/purchase-orders/${order.id}/edit`)}
+                      onRequestDelete={() => requestDelete(order.id)}
+                      onConfirmDelete={() => confirmDelete(order.id)}
+                      onCancelDelete={cancelDelete}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

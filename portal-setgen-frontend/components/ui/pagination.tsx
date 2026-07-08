@@ -45,7 +45,7 @@ export function Pagination({
       if (typeof page === 'string') {
         return (
           <div key={`${page}-${index}`} className="flex items-center justify-center w-9 h-9">
-            <MoreHorizontal className="h-4 w-4 text-gray-400" />
+            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
           </div>
         );
       }
@@ -57,7 +57,7 @@ export function Pagination({
           size="icon"
           className={cn(
             "w-9 h-9 transition-all",
-            currentPage === page ? "bg-orange-600 hover:bg-orange-700 text-white border-orange-600 shadow-md" : "hover:bg-gray-100 text-gray-600 border-gray-200"
+            currentPage === page ? "bg-orange-600 hover:bg-orange-700 text-white border-orange-600 shadow-md" : "hover:bg-muted text-muted-foreground border-border"
           )}
           onClick={() => onPageChange(page)}
         >
@@ -72,7 +72,7 @@ export function Pagination({
       <Button
         variant="outline"
         size="icon"
-        className="w-9 h-9 border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+        className="w-9 h-9 border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
       >
@@ -86,7 +86,7 @@ export function Pagination({
       <Button
         variant="outline"
         size="icon"
-        className="w-9 h-9 border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+        className="w-9 h-9 border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
       >

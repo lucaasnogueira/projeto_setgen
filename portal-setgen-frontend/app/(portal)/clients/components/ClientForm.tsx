@@ -1,16 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { IMaskInput } from "react-imask";
 import {
-  Search, FileText, Phone, Mail, MapPin, Save, X, Loader2, Info,
+  Search, FileText, Phone, Mail, MapPin, X, Loader2, Info,
   UserRound, Users, StickyNote, Plus,
 } from "lucide-react";
 import { fetchCep } from "@/lib/api/cep";
+import { geocodeAddress } from "@/lib/api/geocode";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,8 @@ import { usersApi } from "@/lib/api/users";
 import { teamsApi } from "@/lib/api/teams";
 import { clientTaxonomiesApi } from "@/lib/api/client-taxonomies";
 import { Client, ClientStatus, ClientTaxonomyKind, IcmsTaxpayerType, Team, ClientTaxonomy } from "@/types";
+import { cn } from "@/lib/utils";
+import { StepRail, StepFooter, type WizardStep } from "@/components/ui/step-wizard";
 
 const ClientLocationMap = dynamic(
   () => import("./ClientLocationMap").then((m) => m.ClientLocationMap),
@@ -83,6 +86,7 @@ export function ClientForm({
   const [corporateEmails, setCorporateEmails] = useState<string[]>(initialData?.corporateEmails ?? []);
   const [latitude, setLatitude] = useState<number | undefined>(initialData?.latitude);
   const [longitude, setLongitude] = useState<number | undefined>(initialData?.longitude);
+  const manualLocationRef = useRef(false);
 
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -130,6 +134,22 @@ export function ClientForm({
   });
 
   const { register, handleSubmit, setValue, control, formState: { errors } } = form;
+
+  type StepKey = "dados" | "contato" | "detalhes" | "observacoes";
+  const [activeStep, setActiveStep] = useState<StepKey>("dados");
+  const stepDefs: WizardStep[] = [
+    { key: "dados", label: "Dados" },
+    { key: "contato", label: "Contato e Endereço" },
+    { key: "detalhes", label: "Detalhes" },
+    { key: "observacoes", label: "Observações" },
+  ];
+
+  useEffect(() => {
+    // Campos com validação vivem em "dados" (cnpjCpf/companyName) e "contato" (email/phone/address) —
+    // sem isso o usuário fica preso numa etapa sem ver por que o submit falhou.
+    if (errors.cnpjCpf || errors.companyName) { setActiveStep("dados"); return; }
+    if (errors.email || errors.phone || errors.address) { setActiveStep("contato"); return; }
+  }, [errors]);
 
   const handleCNPJLookup = async () => {
     const cnpjClean = form.getValues("cnpjCpf").replace(/\D/g, "");
@@ -181,6 +201,28 @@ export function ClientForm({
     }
   };
 
+  const addrStreet = form.watch("address.street");
+  const addrNumber = form.watch("address.number");
+  const addrNeighborhood = form.watch("address.neighborhood");
+  const addrCity = form.watch("address.city");
+  const addrState = form.watch("address.state");
+
+  useEffect(() => {
+    if (manualLocationRef.current) return;
+    if (!addrStreet || !addrNumber || !addrCity || !addrState) return;
+
+    const timer = setTimeout(async () => {
+      const query = `${addrStreet}, ${addrNumber} - ${addrNeighborhood || ""}, ${addrCity} - ${addrState}, Brasil`;
+      const result = await geocodeAddress(query);
+      if (result) {
+        setLatitude(result.lat);
+        setLongitude(result.lon);
+      }
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [addrStreet, addrNumber, addrNeighborhood, addrCity, addrState]);
+
   const updateListItem = (
     list: string[],
     setList: (v: string[]) => void,
@@ -213,8 +255,10 @@ export function ClientForm({
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+      <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
+
       {/* Identificação Principal */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "dados" && "hidden")}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <FileText className="h-5 w-5 text-orange-600" />
@@ -317,7 +361,7 @@ export function ClientForm({
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={cn("grid md:grid-cols-1 lg:grid-cols-3 gap-6", activeStep !== "contato" && "hidden")}>
         {/* Contato */}
         <Card className="lg:col-span-1 border-none shadow-xl rounded-3xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b">
@@ -466,6 +510,7 @@ export function ClientForm({
                   latitude={latitude}
                   longitude={longitude}
                   onChange={(lat, lng) => {
+                    manualLocationRef.current = true;
                     setLatitude(lat);
                     setLongitude(lng);
                   }}
@@ -527,7 +572,7 @@ export function ClientForm({
       </div>
 
       {/* Detalhes do Cliente */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "detalhes" && "hidden")}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Users className="h-5 w-5 text-orange-600" />
@@ -699,7 +744,7 @@ export function ClientForm({
       </Card>
 
       {/* Observações e Anotações */}
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "observacoes" && "hidden")}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <StickyNote className="h-5 w-5 text-orange-600" />
@@ -731,26 +776,14 @@ export function ClientForm({
         </CardContent>
       </Card>
 
-      {/* Ações */}
-      <div className="flex gap-4 pt-6 pb-12">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          className="flex-1 h-12 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
-        >
-          <X className="h-5 w-5" />
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="flex-1 h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl shadow-lg shadow-orange-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-          {loading ? "Salvando..." : submitLabel}
-        </Button>
-      </div>
+      <StepFooter
+        steps={stepDefs}
+        activeKey={activeStep}
+        onNext={(k) => setActiveStep(k as StepKey)}
+        onCancel={onCancel}
+        loading={loading}
+        submitLabel={submitLabel}
+      />
     </form>
   );
 }

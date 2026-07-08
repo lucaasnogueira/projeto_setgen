@@ -21,8 +21,13 @@ import {
   Wallet,
   Shield,
   Tags,
-  Calendar,
   ClipboardCheck,
+  Zap,
+  PackageSearch,
+  ShoppingCart,
+  Building,
+  ChevronDown,
+  Car,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -30,14 +35,18 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'] },
 
   { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'COMERCIAL' },
-  { name: 'Visitas Técnicas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
-  { name: 'Agenda de Visitas', href: '/visits/agenda', icon: Calendar, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
+  { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE'] },
+  { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
 
   { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'OPERAÇÕES' },
   { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'] },
   { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
 
   { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], section: 'ESTOQUE' },
+  { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'] },
+  { name: 'Compras', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
+  { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
+  { name: 'Frota', href: '/fleet', icon: Car, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'] },
 
   { name: 'Despesas', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], section: 'FINANCEIRO' },
   { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
@@ -52,11 +61,43 @@ const navigation = [
   { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN', 'MANAGER'] },
 ];
 
+type NavItem = (typeof navigation)[number];
+type NavGroup = { section: string | null; items: NavItem[] };
+
+function groupNavigation(items: NavItem[]): NavGroup[] {
+  const groups: NavGroup[] = [];
+  for (const item of items) {
+    if (item.section || groups.length === 0) {
+      groups.push({ section: item.section ?? null, items: [item] });
+    } else {
+      groups[groups.length - 1].items.push(item);
+    }
+  }
+  return groups;
+}
+
+const allSections = new Set(
+  navigation.map((item) => item.section).filter((s): s is string => !!s)
+);
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [closedSections, setClosedSections] = useState<Set<string>>(new Set(allSections));
+
+  const toggleSection = (section: string) => {
+    setClosedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(section)) {
+        next.delete(section);
+      } else {
+        next.add(section);
+      }
+      return next;
+    });
+  };
 
   const handleLogout = () => {
     clearAuth();
@@ -66,6 +107,8 @@ export default function Sidebar() {
   const filteredNavigation = navigation.filter(
     (item) => user?.role && item.roles.includes(user.role)
   );
+
+  const navGroups = groupNavigation(filteredNavigation);
 
   return (
     <div
@@ -94,29 +137,42 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 whitespace-nowrap scrollbar-thin-sidebar">
-        {filteredNavigation.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+        {navGroups.map((group, groupIdx) => {
+          const isSectionClosed = !!group.section && !collapsed && closedSections.has(group.section);
           return (
-            <div key={item.href}>
-              {item.section && !collapsed && (
-                <div className="text-[10.5px] font-bold tracking-wider text-sidebar-fg-dim px-3 pt-3.5 pb-2">
-                  {item.section}
-                </div>
+            <div key={group.section ?? `top-${groupIdx}`}>
+              {group.section && !collapsed && (
+                <button
+                  onClick={() => toggleSection(group.section as string)}
+                  className="w-full flex items-center justify-between px-3 pt-3.5 pb-2 text-[10.5px] font-bold tracking-wider text-sidebar-fg-dim hover:text-sidebar-fg-muted transition-colors"
+                >
+                  <span>{group.section}</span>
+                  <ChevronDown
+                    className={cn('h-3 w-3 transition-transform', isSectionClosed && '-rotate-90')}
+                  />
+                </button>
               )}
-              {item.section && collapsed && <div className="h-2" />}
-              <button
-                onClick={() => router.push(item.href)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13.5px] font-medium transition-colors mb-0.5',
-                  isActive
-                    ? 'bg-primary text-white font-bold'
-                    : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
-                )}
-                title={collapsed ? item.name : ''}
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span>{item.name}</span>}
-              </button>
+              {group.section && collapsed && <div className="h-2" />}
+              {!isSectionClosed &&
+                group.items.map((item) => {
+                  const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={() => router.push(item.href)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13.5px] font-medium transition-colors mb-0.5',
+                        isActive
+                          ? 'bg-primary text-white font-bold'
+                          : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
+                      )}
+                      title={collapsed ? item.name : ''}
+                    >
+                      <item.icon className="h-[18px] w-[18px] shrink-0" />
+                      {!collapsed && <span>{item.name}</span>}
+                    </button>
+                  );
+                })}
             </div>
           );
         })}

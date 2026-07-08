@@ -1,5 +1,5 @@
 import api from "./client";
-import { Product } from "@/types";
+import { Product, StockMovement, MovementType } from "@/types";
 
 export const inventoryApi = {
   async getAll(): Promise<Product[]> {
@@ -31,17 +31,38 @@ export const inventoryApi = {
     await api.delete(`/inventory/products/${id}`);
   },
 
-  async adjustStock(
-    productId: string,
-    quantity: number,
-    type: "ENTRY" | "EXIT" | "ADJUSTMENT" | "TRANSFER",
-  ) {
-    const { data } = await api.post("/inventory/movements", {
-      productId,
-      quantity,
-      type,
-    });
+  async createMovement(payload: {
+    productId: string;
+    quantity: number;
+    type: MovementType;
+    unitCost?: number;
+    reason?: string;
+  }): Promise<StockMovement> {
+    const { data } = await api.post("/inventory/movements", payload);
+    return data;
+  },
 
+  async uploadPhoto(id: string, file: File): Promise<Product> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await api.post(`/inventory/products/${id}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  async getByBarcode(barcode: string): Promise<Product> {
+    const { data } = await api.get(`/inventory/products/barcode/${encodeURIComponent(barcode)}`);
+    return data;
+  },
+
+  async createMovementBatch(payload: {
+    type: MovementType;
+    reason?: string;
+    referenceId?: string;
+    items: { productId: string; quantity: number }[];
+  }): Promise<StockMovement[]> {
+    const { data } = await api.post("/inventory/movements/batch", payload);
     return data;
   },
 };

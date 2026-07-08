@@ -50,13 +50,14 @@ export class EmployeesService {
       }
     }
 
-    const { birthDate, admissionDate, ...rest } = createEmployeeDto;
+    const { birthDate, admissionDate, terminationDate, ...rest } = createEmployeeDto;
 
     return this.prisma.employee.create({
       data: {
         ...rest,
         birthDate: birthDate ? new Date(birthDate) : null,
         admissionDate: admissionDate ? new Date(admissionDate) : null,
+        terminationDate: terminationDate ? new Date(terminationDate) : null,
       },
     });
   }
@@ -140,7 +141,7 @@ export class EmployeesService {
   async update(id: string, updateEmployeeDto: UpdateEmployeeDto) {
     await this.findOne(id);
 
-    const { birthDate, admissionDate, ...rest } = updateEmployeeDto;
+    const { birthDate, admissionDate, terminationDate, ...rest } = updateEmployeeDto;
 
     return this.prisma.employee.update({
       where: { id },
@@ -148,6 +149,7 @@ export class EmployeesService {
         ...rest,
         birthDate: birthDate ? new Date(birthDate) : undefined,
         admissionDate: admissionDate ? new Date(admissionDate) : undefined,
+        terminationDate: terminationDate ? new Date(terminationDate) : undefined,
       },
     });
   }

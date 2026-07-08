@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { OsDataDto, OsItemPecaDto, OsItemServicoDto } from '../dto/os-data.dto';
 
 // ─── Alíquotas fixas 2026 (período de teste – LC 214/2024 art. 430) ──────────
 const CBS_ALIQUOTA = 0.9;   // %
@@ -9,7 +8,6 @@ const IBS_ALIQUOTA = 0.1;   // %
 const PIS_ALIQUOTA     = 0.65; // %
 const COFINS_ALIQUOTA  = 3.0;  // %
 const ICMS_PADRAO      = 12.0; // % (padrão AM → AM; ZFM pode ser isento)
-const ISS_PADRAO       = 5.0;  // % (default quando não informado)
 
 // ─── CNPJ raiz habilitados na ZFM (exemplo – em produção viria de tabela/BD) ──
 // Na prática, consultar a SUFRAMA via API ou manter cache atualizado.
@@ -17,22 +15,19 @@ const CNPJ_RAIZ_ZFM_HABILITADOS = new Set([
   '10834008', // exemplo: CNPJ raiz da própria empresa (primeiros 8 dígitos)
 ]);
 
-// ─── Interfaces de resultado ──────────────────────────────────────────────────
+// ─── Item de entrada ──────────────────────────────────────────────────────────
 
-export interface CalculoItemServico {
+export interface ItemCalculoInput {
+  ncm: string;
   descricao: string;
   quantidade: number;
   valorUnitario: number;
-  valorTotal: number;
-  // Legado
-  issAliquota: number;
-  valorIss: number;
-  // Novo 2026
-  valorCbs: number;
-  valorIbs: number;
+  fabricadoNaZfm?: boolean;
 }
 
-export interface CalculoItemPeca {
+// ─── Interfaces de resultado ──────────────────────────────────────────────────
+
+export interface CalculoItemMercadoria {
   ncm: string;
   descricao: string;
   quantidade: number;
@@ -54,12 +49,9 @@ export interface CalculoItemPeca {
 
 export interface ResultadoCalculo {
   // ─── Totais brutos ────────────────────────────────────────
-  totalServicos: number;
-  totalPecas: number;
-  valorBruto: number;  // base de cálculo "por fora"
+  valorBruto: number; // base de cálculo "por fora"
 
   // ─── Regime Legado ────────────────────────────────────────
-  totalIss: number;
   totalIcms: number;
   totalPis: number;
   totalCofins: number;
@@ -84,40 +76,30 @@ export interface ResultadoCalculo {
   };
 
   // ─── Detalhes por item ────────────────────────────────────
-  itensServico: CalculoItemServico[];
-  itensPecas: CalculoItemPeca[];
+  itens: CalculoItemMercadoria[];
 }
 
 @Injectable()
 export class TaxEngineService {
   /**
    * Ponto de entrada principal.
-   * Realiza o cálculo DUAL: legado (ISS/ICMS/PIS/COFINS) + novo 2026 (IBS/CBS).
+   * Realiza o cálculo DUAL: legado (ICMS/PIS/COFINS) + novo 2026 (IBS/CBS).
    * O cálculo é sempre "por fora": o imposto NÃO compõe a base de cálculo.
    */
-  calcular(osData: OsDataDto): ResultadoCalculo {
-    const emitenteCnpjRaiz = osData.emitenteCnpj.replace(/\D/g, '').slice(0, 8);
+  calcular(itensInput: ItemCalculoInput[], emitenteCnpj: string): ResultadoCalculo {
+    const emitenteCnpjRaiz = emitenteCnpj.replace(/\D/g, '').slice(0, 8);
     const emitenteZfm      = this.validarCreditoPresumidoZfm(emitenteCnpjRaiz);
 
-    const itensServico = osData.itensServico.map((item) =>
-      this.calcularItemServico(item),
-    );
-
-    const itensPecas = osData.itensPecas.map((item) =>
-      this.calcularItemPeca(item, emitenteZfm),
-    );
+    const itens = itensInput.map((item) => this.calcularItem(item, emitenteZfm));
 
     // ─── Totais brutos ─────────────────────────────────────
-    const totalServicos = itensServico.reduce((s, i) => s + i.valorTotal, 0);
-    const totalPecas    = itensPecas.reduce((s, i) => s + i.valorTotal, 0);
-    const valorBruto    = totalServicos + totalPecas;
+    const valorBruto = itens.reduce((s, i) => s + i.valorTotal, 0);
 
     // ─── Totais legado ─────────────────────────────────────
-    const totalIss    = itensServico.reduce((s, i) => s + i.valorIss, 0);
-    const totalIcms   = itensPecas.reduce((s, i) => s + i.valorIcms, 0);
-    const totalPis    = itensPecas.reduce((s, i) => s + i.valorPis, 0);
-    const totalCofins = itensPecas.reduce((s, i) => s + i.valorCofins, 0);
-    const totalImpostoLegado = totalIss + totalIcms + totalPis + totalCofins;
+    const totalIcms   = itens.reduce((s, i) => s + i.valorIcms, 0);
+    const totalPis    = itens.reduce((s, i) => s + i.valorPis, 0);
+    const totalCofins = itens.reduce((s, i) => s + i.valorCofins, 0);
+    const totalImpostoLegado = totalIcms + totalPis + totalCofins;
 
     // ─── Totais 2026 (por fora) ─────────────────────────────
     const totalCbs = this.round(valorBruto * (CBS_ALIQUOTA / 100));
@@ -125,11 +107,11 @@ export class TaxEngineService {
     const totalImposto2026 = totalCbs + totalIbs;
 
     // ─── ZFM – crédito presumido ────────────────────────────
-    const creditoPresumidoZfmTotal = itensPecas.reduce(
+    const creditoPresumidoZfmTotal = itens.reduce(
       (s, i) => s + i.creditoPresumidoZfm,
       0,
     );
-    const beneficioZfmAtivo = itensPecas.some((i) => i.fabricadoNaZfm);
+    const beneficioZfmAtivo = itens.some((i) => i.fabricadoNaZfm);
 
     // ─── Split Payment ──────────────────────────────────────
     const splitPayment = {
@@ -140,10 +122,7 @@ export class TaxEngineService {
     };
 
     return {
-      totalServicos:   this.round(totalServicos),
-      totalPecas:      this.round(totalPecas),
       valorBruto:      this.round(valorBruto),
-      totalIss:        this.round(totalIss),
       totalIcms:       this.round(totalIcms),
       totalPis:        this.round(totalPis),
       totalCofins:     this.round(totalCofins),
@@ -156,39 +135,13 @@ export class TaxEngineService {
       beneficioZfmAtivo,
       creditoPresumidoZfmTotal: this.round(creditoPresumidoZfmTotal),
       splitPayment,
-      itensServico,
-      itensPecas,
+      itens,
     };
   }
 
-  // ─── Cálculo por item de serviço ───────────────────────────────────────────
+  // ─── Cálculo por item de mercadoria ───────────────────────────────────────
 
-  private calcularItemServico(item: OsItemServicoDto): CalculoItemServico {
-    const valorTotal  = this.round(item.quantidade * item.valorUnitario);
-    const issAliquota = item.issAliquota ?? ISS_PADRAO;
-
-    // ISS: incide sobre serviços (regime legado)
-    const valorIss = this.round(valorTotal * (issAliquota / 100));
-
-    // CBS/IBS 2026: por fora
-    const valorCbs = this.round(valorTotal * (CBS_ALIQUOTA / 100));
-    const valorIbs = this.round(valorTotal * (IBS_ALIQUOTA / 100));
-
-    return {
-      descricao:    item.descricao,
-      quantidade:   item.quantidade,
-      valorUnitario: item.valorUnitario,
-      valorTotal,
-      issAliquota,
-      valorIss,
-      valorCbs,
-      valorIbs,
-    };
-  }
-
-  // ─── Cálculo por item de peça/mercadoria ──────────────────────────────────
-
-  private calcularItemPeca(item: OsItemPecaDto, emitenteZfm: boolean): CalculoItemPeca {
+  private calcularItem(item: ItemCalculoInput, emitenteZfm: boolean): CalculoItemMercadoria {
     const valorTotal = this.round(item.quantidade * item.valorUnitario);
     const naZfm      = item.fabricadoNaZfm === true;
 

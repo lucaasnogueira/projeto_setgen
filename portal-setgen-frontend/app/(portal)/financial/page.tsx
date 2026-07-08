@@ -78,7 +78,7 @@ export default function FinancialDashboardPage() {
           <p className="text-sm text-text-secondary mt-1">Visão geral das finanças do período</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 rounded-[11px] border border-border">
+        <div className="flex flex-wrap items-center gap-2 bg-card p-1.5 rounded-[11px] border border-border">
           <div className="flex items-center gap-2 px-2 border-r border-border pr-3">
             <CalendarIcon className="h-4 w-4 text-text-muted" />
             <span className="text-[12.5px] font-semibold text-text-secondary">Período:</span>
@@ -144,7 +144,7 @@ export default function FinancialDashboardPage() {
           </div>
         </>
       ) : (
-        <div className="text-center py-20 bg-white rounded-[14px] border border-dashed border-border">
+        <div className="text-center py-20 bg-card rounded-[14px] border border-dashed border-border">
           <p className="text-text-secondary text-sm">Nenhum dado encontrado para este período.</p>
         </div>
       )}

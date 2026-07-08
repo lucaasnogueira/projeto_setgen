@@ -2,6 +2,9 @@
 // ENUMS
 // ========================================
 
+import { PaymentMethod } from './financial';
+export { PaymentMethod };
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER',
@@ -22,6 +25,28 @@ export enum VisitType {
   MAINTENANCE = 'MAINTENANCE',
 }
 
+export enum VisitStatus {
+  SCHEDULED = 'SCHEDULED',
+  CONFIRMED = 'CONFIRMED',
+  EN_ROUTE = 'EN_ROUTE',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  RESCHEDULED = 'RESCHEDULED',
+}
+
+export enum EquipmentType {
+  GENERATOR = 'GENERATOR',
+  SUBSTATION = 'SUBSTATION',
+  OTHER = 'OTHER',
+}
+
+export enum VisitPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+}
+
 export enum ServiceOrderType {
   VISIT_REPORT = 'VISIT_REPORT',
   EXECUTION = 'EXECUTION',
@@ -40,9 +65,37 @@ export enum ServiceOrderStatus {
   DRAFT = 'DRAFT',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
   APPROVED = 'APPROVED',
+  SENT_TO_CLIENT = 'SENT_TO_CLIENT',
+  AWAITING_RESPONSE = 'AWAITING_RESPONSE',
+  EXPIRED = 'EXPIRED',
   REJECTED = 'REJECTED',
   IN_PROGRESS = 'IN_PROGRESS',
+  AWAITING_MATERIALS = 'AWAITING_MATERIALS',
   COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum QuoteLineType {
+  SERVICE = 'SERVICE',
+  MATERIAL = 'MATERIAL',
+  LABOR_HOUR = 'LABOR_HOUR',
+  TRAVEL = 'TRAVEL',
+  ADDITIONAL_COST = 'ADDITIONAL_COST',
+}
+
+export enum MaterialRequestStatus {
+  PENDING = 'PENDING',
+  PARTIALLY_RESERVED = 'PARTIALLY_RESERVED',
+  SEPARATED = 'SEPARATED',
+  AWAITING_PURCHASE = 'AWAITING_PURCHASE',
+  RELEASED = 'RELEASED',
+}
+
+export enum ProcurementOrderStatus {
+  QUOTING = 'QUOTING',
+  ORDER_ISSUED = 'ORDER_ISSUED',
+  AWAITING_DELIVERY = 'AWAITING_DELIVERY',
+  RECEIVED = 'RECEIVED',
   CANCELLED = 'CANCELLED',
 }
 
@@ -57,17 +110,11 @@ export enum PurchaseOrderStatus {
   EXPIRED = 'EXPIRED',
 }
 
-export enum InvoiceStatus {
-  ISSUED = 'ISSUED',
-  PAID = 'PAID',
-  OVERDUE = 'OVERDUE',
-  CANCELLED = 'CANCELLED',
-}
-
 export enum MovementType {
   ENTRY = 'ENTRY',
   EXIT = 'EXIT',
-  ADJUSTMENT = 'ADJUSTMENT',
+  ADJUSTMENT_IN = 'ADJUSTMENT_IN',
+  ADJUSTMENT_OUT = 'ADJUSTMENT_OUT',
   TRANSFER = 'TRANSFER',
 }
 
@@ -145,11 +192,6 @@ export enum FiscalStatus {
   DENEGADA = 'DENEGADA',
 }
 
-export enum FiscalType {
-  NFE = 'NFE',
-  NFSE = 'NFSE',
-}
-
 export enum IcmsTaxpayerType {
   CONTRIBUINTE = 'CONTRIBUINTE',
   ISENTO = 'ISENTO',
@@ -159,6 +201,17 @@ export enum IcmsTaxpayerType {
 export enum ClientTaxonomyKind {
   GROUP = 'GROUP',
   SEGMENT = 'SEGMENT',
+}
+
+export enum VehicleTripStatus {
+  OUT = 'OUT',
+  RETURNED = 'RETURNED',
+}
+
+export enum FuelRequestStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
 }
 
 // ========================================
@@ -262,11 +315,48 @@ export interface AttachmentData {
   legend?: string;
 }
 
+export interface FailureCategory {
+  id: string;
+  name: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface VisitTaskType {
+  id: string;
+  name: string;
+  defaultChecklistTemplateId?: string;
+  active: boolean;
+  createdAt: string;
+  defaultChecklistTemplate?: Pick<ChecklistTemplate, 'id' | 'name'>;
+}
+
+export interface VisitEquipmentLink {
+  id: string;
+  visitId: string;
+  equipmentId: string;
+  equipment?: Equipment;
+}
+
 export interface TechnicalVisit {
   id: string;
   clientId: string;
   technicianId?: string;
+  equipmentId?: string;
+  equipmentIds?: string[];
+  failureCategoryId?: string;
+  taskTypeId?: string;
+  priority?: VisitPriority;
+  checklistTemplateId?: string;
+  checklist?: ChecklistAnswerItem[];
+  externalCode?: string;
+  createdById?: string;
+  actualValue?: number;
   visitDate: string;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  status?: VisitStatus;
+  chargeable?: boolean;
   visitType: VisitType;
   location: string;
   description: string;
@@ -283,14 +373,41 @@ export interface TechnicalVisit {
   checkinLat?: number;
   checkinLng?: number;
   checkinAccuracy?: number;
+  checkinDistanceMeters?: number | null;
+  checkinImprecise?: boolean;
   checkoutAt?: string;
   checkoutLat?: number;
   checkoutLng?: number;
   checkoutAccuracy?: number;
+  checkoutDistanceMeters?: number | null;
+  checkoutImprecise?: boolean;
   createdAt: string;
   updatedAt: string;
   client?: Client;
   technician?: User;
+  createdBy?: Pick<User, 'id' | 'name'>;
+  equipment?: Equipment;
+  equipments?: VisitEquipmentLink[];
+  failureCategory?: FailureCategory;
+  taskType?: VisitTaskType;
+  checklistTemplate?: Pick<ChecklistTemplate, 'id' | 'name'>;
+}
+
+export interface Equipment {
+  id: string;
+  clientId: string;
+  type: EquipmentType;
+  brand?: string;
+  model?: string;
+  serialNumber?: string;
+  powerRating?: string;
+  installLocation?: string;
+  purchaseDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  client?: Pick<Client, 'id' | 'companyName' | 'tradeName'>;
+  technicalVisits?: Pick<TechnicalVisit, 'id' | 'visitDate' | 'status' | 'chargeable' | 'failureCategoryId'>[];
 }
 
 export interface ServiceOrder {
@@ -306,6 +423,7 @@ export interface ServiceOrder {
   notes?: string;
   requiredResources?: any;
   deadline?: string;
+  validUntil?: string;
   responsibleIds: string[];
   checklist: ChecklistAnswerItem[];
   checklistTemplateId?: string;
@@ -313,6 +431,12 @@ export interface ServiceOrder {
   progress: number;
   attachments: string[];
   createdById: string;
+  paymentMethod?: PaymentMethod;
+  paymentTerms?: string;
+  warrantyMonths?: number;
+  salesRepId?: string;
+  salesRep?: Pick<User, 'id' | 'name'>;
+  linkedVisits?: ServiceOrderVisitLink[];
   createdAt: string;
   updatedAt: string;
   client?: Client;
@@ -320,6 +444,51 @@ export interface ServiceOrder {
   createdBy?: User;
   items?: ServiceOrderProduct[];
   statusHistory?: ServiceOrderStatusHistory[];
+  quoteLines?: QuoteLine[];
+  art?: ART;
+}
+
+export interface ServiceOrderVisitLink {
+  id: string;
+  serviceOrderId: string;
+  technicalVisitId: string;
+  technicalVisit?: Pick<TechnicalVisit, 'id' | 'visitDate' | 'visitType' | 'status'>;
+}
+
+export interface QuoteLine {
+  id: string;
+  serviceOrderId: string;
+  type: QuoteLineType;
+  description: string;
+  quantity: number;
+  unitValue: number;
+  discount: number;
+  totalValue: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ServiceOrderAuditLogEntry {
+  id: string;
+  userId: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  changes: { from?: string; to?: string; comments?: string; reason?: string } | null;
+  createdAt: string;
+  user?: Pick<User, 'id' | 'name'>;
+}
+
+export interface ART {
+  id: string;
+  serviceOrderId: string;
+  number: string;
+  engineerName: string;
+  creaNumber: string;
+  issueDate: string;
+  fileUrl?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChecklistFieldDefinition {
@@ -407,28 +576,39 @@ export interface PurchaseOrder {
   uploadedBy?: User;
 }
 
+export interface NotaFiscalItem {
+  id: string;
+  notaId: string;
+  productId: string;
+  product?: Product;
+  ncm: string;
+  descricao: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  fabricadoNaZfm: boolean;
+  cfop: string;
+}
+
 export interface Invoice {
   id: string;
-  serviceOrderId: string;
-  purchaseOrderId?: string;
+  serviceOrderId?: string;
+  clientId: string;
   invoiceNumber: string;
   series: string;
   serie?: string;
   value: number;
   issueDate: string;
-  dueDate: string;
-  status: InvoiceStatus | FiscalStatus;
-  tipo?: FiscalType;
+  status: FiscalStatus;
   chaveAcesso?: string;
   protocolo?: string;
-  xmlUrl?: string;
-  pdfUrl?: string;
   createdById: string;
   createdAt: string;
   updatedAt: string;
   serviceOrder?: ServiceOrder;
-  purchaseOrder?: PurchaseOrder;
+  client?: Client;
   createdBy?: User;
+  itens?: NotaFiscalItem[];
   impostos?: FiscalTax[];
   splitPayment?: FiscalSplitPayment;
   eventos?: EventoSefaz[];
@@ -485,20 +665,96 @@ export interface Delivery {
   deliveredBy?: User;
 }
 
+export interface StockLocation {
+  id: string;
+  code: string;
+  description?: string;
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
   code: string;
   name: string;
   description?: string;
   unit: string;
+  ncm?: string;
   minStock: number;
   currentStock: number;
   unitCost?: number;
+  photoUrl?: string;
+  barcode?: string;
+  locationId?: string;
+  location?: Pick<StockLocation, 'id' | 'code'>;
   unitPrice?: number;
   unitsPerPackage?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  movements?: StockMovement[];
+}
+
+export interface MaterialRequestItem {
+  id: string;
+  materialRequestId: string;
+  productId: string;
+  quantityNeeded: number;
+  quantityReserved: number;
+  product?: Product;
+}
+
+export interface MaterialRequest {
+  id: string;
+  serviceOrderId: string;
+  status: MaterialRequestStatus;
+  priority: number;
+  expectedExecutionDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  serviceOrder?: {
+    id: string;
+    orderNumber: string;
+    client?: { id: string; companyName: string };
+  };
+  items: MaterialRequestItem[];
+  procurementOrders?: Pick<ProcurementOrder, 'id' | 'status' | 'supplierId'>[];
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  cnpj?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProcurementOrderItem {
+  id: string;
+  procurementOrderId: string;
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  product?: Product;
+}
+
+export interface ProcurementOrder {
+  id: string;
+  supplierId?: string;
+  materialRequestId?: string;
+  status: ProcurementOrderStatus;
+  expectedDeliveryDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  supplier?: Supplier;
+  items: ProcurementOrderItem[];
+  materialRequest?: {
+    id: string;
+    serviceOrder?: { id: string; orderNumber: string };
+  };
 }
 
 export interface StockMovement {
@@ -660,6 +916,57 @@ export interface EmployeeDocument {
   createdAt: string;
   updatedAt: string;
   employee?: Employee;
+}
+
+export interface Vehicle {
+  id: string;
+  name: string;
+  plate: string;
+  photoUrl?: string;
+  currentKm: number;
+  lastOilChangeKm: number;
+  oilChangeIntervalKm: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  // Calculados pelo backend (nunca persistidos)
+  nextOilChangeKm: number;
+  oilStatus: 'OK' | 'TROCAR';
+  kmUntilOilChange: number;
+}
+
+export interface VehicleTrip {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  destination: string;
+  startKm: number;
+  endKm?: number;
+  status: VehicleTripStatus;
+  startedAt: string;
+  endedAt?: string;
+  createdById: string;
+  vehicle?: Pick<Vehicle, 'id' | 'name' | 'plate'>;
+  driver?: Pick<Employee, 'id' | 'name'>;
+}
+
+export interface FuelRequest {
+  id: string;
+  vehicleId: string;
+  requestedById: string;
+  requestedAt: string;
+  liters: number;
+  unitPrice: number;
+  totalValue: number;
+  currentKm?: number;
+  fuelStation?: string;
+  status: FuelRequestStatus;
+  approverId?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
+  vehicle?: Pick<Vehicle, 'id' | 'name' | 'plate'>;
+  requestedBy?: Pick<User, 'id' | 'name'>;
+  approver?: Pick<User, 'id' | 'name'>;
 }
 
 export * from './financial';

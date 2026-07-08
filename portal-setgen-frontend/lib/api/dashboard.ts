@@ -27,7 +27,24 @@ export interface DashboardStats {
   }[];
 }
 
+export interface OperationalKpis {
+  materialSeparationSla: { averageHours: number; sampleSize: number };
+  quoteApprovalRate: { rate: number; approved: number; sentNotExpired: number };
+  supplierLeadTime: { supplierId: string; supplierName: string; averageDays: number; sampleSize: number }[];
+  reworkRate: { rate: number; chargeable: number; total: number };
+}
+
 export const dashboardApi = {
+  async getOperationalKpis(): Promise<OperationalKpis | null> {
+    try {
+      const { data } = await api.get('/dashboard/operational-kpis');
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar KPIs operacionais:', error);
+      return null;
+    }
+  },
+
   async getStats(): Promise<DashboardStats> {
     try {
       const { data } = await api.get('/dashboard/stats');

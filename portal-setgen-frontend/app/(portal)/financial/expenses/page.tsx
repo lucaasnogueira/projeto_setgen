@@ -74,7 +74,7 @@ export default function ExpensesListPage() {
     PAID: 'bg-green-100 text-green-800',
     PARTIALLY_PAID: 'bg-green-50 text-green-600',
     OVERDUE: 'bg-red-100 text-red-800',
-    CANCELLED: 'bg-gray-100 text-gray-800',
+    CANCELLED: 'bg-muted text-foreground',
     REJECTED: 'bg-red-50 text-red-600',
   };
 
@@ -93,7 +93,7 @@ export default function ExpensesListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Despesas</h1>
-          <p className="text-gray-500">Gerencie todas as despesas da empresa</p>
+          <p className="text-muted-foreground">Gerencie todas as despesas da empresa</p>
         </div>
         <Link href="/financial/expenses/new">
           <Button className="bg-orange-600 hover:bg-orange-700">
@@ -103,10 +103,10 @@ export default function ExpensesListPage() {
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-card rounded-xl shadow-lg p-6">
         <div className="flex flex-col md:flex-row gap-4 justify-between mb-6">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               placeholder="Buscar..."
               className="pl-10"
@@ -120,7 +120,7 @@ export default function ExpensesListPage() {
 
         <div className="rounded-md border">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-600 uppercase">
+            <thead className="bg-muted text-muted-foreground uppercase">
               <tr>
                 <th className="px-6 py-3">Data</th>
                 <th className="px-6 py-3">Descrição</th>
@@ -139,24 +139,24 @@ export default function ExpensesListPage() {
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                     Nenhuma despesa encontrada.
                   </td>
                 </tr>
               ) : (
                 expenses.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
+                  <tr key={expense.id} className="hover:bg-muted">
                     <td className="px-6 py-4">
                       {format(new Date(expense.date), 'dd/MM/yyyy')}
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-medium">{expense.description}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-muted-foreground">
                         {expense.client?.companyName || expense.supplier}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
                         {expense.category?.name}
                       </span>
                     </td>
@@ -170,7 +170,7 @@ export default function ExpensesListPage() {
                       <span
                         className={cn(
                           "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          statusColors[expense.status] || 'bg-gray-100 text-gray-800'
+                          statusColors[expense.status] || 'bg-muted text-foreground'
                         )}
                       >
                         {statusLabels[expense.status] || expense.status}

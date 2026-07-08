@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
 
 export default function UsersPage() {
   const router = useRouter();
@@ -37,9 +38,15 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { confirmId, deleting: inlineDeleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => usersApi.delete(id),
+    (id) => {
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      showToast('Usuário excluído com sucesso!');
+    }
+  );
 
   // Estados para Modais
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
   const [statusModal, setStatusModal] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
   const [passwordModal, setPasswordModal] = useState<{ open: boolean; user: User | null }>({ open: false, user: null });
   const [newPassword, setNewPassword] = useState('');
@@ -89,21 +96,6 @@ export default function UsersPage() {
       loadUsers();
     } catch (error) {
       showToast('Erro ao alterar status', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteModal.user) return;
-    setActionLoading(true);
-    try {
-      await usersApi.delete(deleteModal.user.id);
-      showToast('Usuário excluído com sucesso!');
-      setDeleteModal({ open: false, user: null });
-      loadUsers();
-    } catch (error) {
-      showToast('Erro ao excluir usuário', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -173,7 +165,7 @@ export default function UsersPage() {
       />
 
       {/* Ações */}
-      <div className="bg-white rounded-[14px] border border-border p-5">
+      <div className="bg-card rounded-[14px] border border-border p-5">
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
           <input
@@ -188,23 +180,23 @@ export default function UsersPage() {
 
       {/* Estatísticas */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-[14px] border border-border p-4">
+        <div className="bg-card rounded-[14px] border border-border p-4">
           <div className="text-2xl font-extrabold text-foreground">{users.length}</div>
           <div className="text-[12.5px] text-text-muted font-semibold">Total de Usuários</div>
         </div>
-        <div className="bg-white rounded-[14px] border border-border p-4">
+        <div className="bg-card rounded-[14px] border border-border p-4">
           <div className="text-2xl font-extrabold text-status-green-fg">
             {users.filter(u => u.active).length}
           </div>
           <div className="text-[12.5px] text-text-muted font-semibold">Ativos</div>
         </div>
-        <div className="bg-white rounded-[14px] border border-border p-4">
+        <div className="bg-card rounded-[14px] border border-border p-4">
           <div className="text-2xl font-extrabold text-status-red-fg">
             {users.filter(u => !u.active).length}
           </div>
           <div className="text-[12.5px] text-text-muted font-semibold">Inativos</div>
         </div>
-        <div className="bg-white rounded-[14px] border border-border p-4">
+        <div className="bg-card rounded-[14px] border border-border p-4">
           <div className="text-2xl font-extrabold text-status-blue-fg">
             {users.filter(u => u.role === 'ADMIN').length}
           </div>
@@ -213,24 +205,24 @@ export default function UsersPage() {
       </div>
 
       {/* Tabela */}
-      <div className="bg-white rounded-[14px] border border-border overflow-hidden">
+      <div className="bg-card rounded-[14px] border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-muted border-b border-border">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Usuário
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   E-mail
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Perfil
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -238,28 +230,28 @@ export default function UsersPage() {
             <tbody className="divide-y divide-gray-200">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
                     <Users className="h-12 w-12 opacity-20 mx-auto mb-4" />
                     Nenhum usuário encontrado
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 transition-colors group">
+                  <tr key={user.id} className="hover:bg-muted transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center text-gray-700 font-bold border-2 border-white shadow-sm">
+                        <div className="w-10 h-10 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full flex items-center justify-center text-foreground font-bold border-2 border-white shadow-sm">
                           {user.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 group-hover:text-gray-700 transition-colors">{user.name}</p>
+                          <p className="font-medium text-foreground group-hover:text-foreground transition-colors">{user.name}</p>
                           {user.id === currentUser?.id && (
                             <span className="text-[10px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded uppercase font-bold tracking-tight">Você</span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
                       {user.email}
                     </td>
                     <td className="px-6 py-4">
@@ -274,49 +266,68 @@ export default function UsersPage() {
                           Ativo
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1.5 text-gray-400 text-sm font-medium">
+                        <span className="flex items-center gap-1.5 text-muted-foreground text-sm font-medium">
                           <UserX className="h-4 w-4" />
                           Inativo
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => router.push(`/users/${user.id}`)}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setPasswordModal({ open: true, user })}
-                          className="p-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
-                          title="Resetar Senha"
-                        >
-                          <Key className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setStatusModal({ open: true, user })}
-                          className={`p-2 transition-all rounded-lg ${
-                            user.active 
-                              ? 'text-gray-600 hover:text-orange-600 hover:bg-orange-50' 
-                              : 'text-gray-600 hover:text-green-600 hover:bg-green-50'
-                          }`}
-                          title={user.active ? 'Desativar' : 'Ativar'}
-                        >
-                          {user.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                        </button>
-                        {user.id !== currentUser?.id && (
+                      {confirmId === user.id ? (
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => setDeleteModal({ open: true, user })}
-                            className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                            title="Excluir"
+                            onClick={() => confirmDelete(user.id)}
+                            disabled={inlineDeleting}
+                            className="text-[11px] font-bold text-white bg-destructive rounded-md px-2 py-1.5 disabled:opacity-60"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            Excluir
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={cancelDelete}
+                            disabled={inlineDeleting}
+                            className="text-[11px] font-bold text-foreground bg-card border border-border rounded-md px-2 py-1.5"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => router.push(`/users/${user.id}`)}
+                            className="p-2 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setPasswordModal({ open: true, user })}
+                            className="p-2 text-muted-foreground hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                            title="Resetar Senha"
+                          >
+                            <Key className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setStatusModal({ open: true, user })}
+                            className={`p-2 transition-all rounded-lg ${
+                              user.active
+                                ? 'text-muted-foreground hover:text-orange-600 hover:bg-orange-50'
+                                : 'text-muted-foreground hover:text-green-600 hover:bg-green-50'
+                            }`}
+                            title={user.active ? 'Desativar' : 'Ativar'}
+                          >
+                            {user.active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                          </button>
+                          {user.id !== currentUser?.id && (
+                            <button
+                              onClick={() => requestDelete(user.id)}
+                              className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -325,30 +336,6 @@ export default function UsersPage() {
           </table>
         </div>
       </div>
-
-      {/* Modal de Exclusão */}
-      <Dialog open={deleteModal.open} onOpenChange={(open) => !actionLoading && setDeleteModal({ open, user: open ? deleteModal.user : null })}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-              <Trash2 className="h-6 w-6 text-red-600" />
-            </div>
-            <DialogTitle className="text-center">Excluir Usuário</DialogTitle>
-            <DialogDescription className="text-center">
-              Você tem certeza que deseja excluir o usuário <strong>{deleteModal.user?.name}</strong>? Esta ação é irreversível.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDeleteModal({ open: false, user: null })} disabled={actionLoading}>
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={actionLoading}>
-              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Excluir permanentemente
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal de Status */}
       <Dialog open={statusModal.open} onOpenChange={(open) => !actionLoading && setStatusModal({ open, user: open ? statusModal.user : null })}>

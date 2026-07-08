@@ -41,7 +41,7 @@ export default function NewEmployeePage() {
       <PageHeader title="Novo Funcionário" subtitle="Cadastre e organize as informações do novo colaborador" />
 
       {/* Form Container */}
-      <div className="bg-white border border-border rounded-[14px] p-6 md:p-8">
+      <div className="bg-card border border-border rounded-[14px] p-6 md:p-8">
         <EmployeeForm
           onSubmit={handleSubmit} 
           onCancel={() => router.push('/rh/employees')} 

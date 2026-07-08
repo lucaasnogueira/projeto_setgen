@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -17,10 +17,8 @@ import {
 } from '@/types';
 import { IMaskInput } from "react-imask";
 import { fetchCep } from '@/lib/api/cep';
-import { 
-  Save, 
-  X, 
-  User, 
+import {
+  User,
   FileText, 
   Briefcase, 
   Calendar, 
@@ -33,12 +31,10 @@ import {
   Users,
   Clock,
   DollarSign,
-  Loader2,
   AlertCircle,
   FileBadge,
   Map
 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,19 +44,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
-} from "@/components/ui/tabs";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import {
+  Card,
+  CardContent,
+  CardHeader,
   CardTitle,
   CardDescription
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { StepRail, StepFooter, type WizardStep } from "@/components/ui/step-wizard";
+
+type StepKey = "personal" | "contact" | "labor" | "financial" | "org" | "status";
+const stepDefs: WizardStep[] = [
+  { key: "personal", label: "Pessoal" },
+  { key: "contact", label: "Contato" },
+  { key: "labor", label: "Trabalhista" },
+  { key: "financial", label: "Financeiro" },
+  { key: "org", label: "Estrutura" },
+  { key: "status", label: "Status" },
+];
+
+const ERROR_STEP_MAP: Record<string, StepKey> = {
+  name: "personal", socialName: "personal", cpf: "personal", rg: "personal", birthDate: "personal",
+  gender: "personal", civilStatus: "personal", nationality: "personal", birthPlace: "personal", pcdType: "personal",
+  personalEmail: "contact", corporateEmail: "contact", mobilePhone: "contact", landlinePhone: "contact", address: "contact",
+  ctps: "labor", pisPasep: "labor", voterId: "labor", militaryCertificate: "labor", admissionDate: "labor",
+  contractType: "labor", workHours: "labor", position: "labor", department: "labor", costCenterId: "labor",
+  baseSalary: "labor", salaryType: "labor", workRegime: "labor",
+  bank: "financial", agency: "financial", account: "financial", accountType: "financial", pixKey: "financial", irDependents: "financial",
+  registration: "org", managerId: "org", team: "org", branch: "org", businessUnit: "org", hierarchicalLevel: "org",
+  status: "status", terminationReason: "status", terminationDate: "status", login: "status",
+};
 
 const employeeSchema = z.object({
   // Pessoal
@@ -204,6 +218,13 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
   const isPcd = watch("isPcd");
   const currentStatus = watch("status");
 
+  const [activeStep, setActiveStep] = useState<StepKey>("personal");
+
+  useEffect(() => {
+    const firstErrorKey = Object.keys(errors)[0];
+    if (firstErrorKey && ERROR_STEP_MAP[firstErrorKey]) setActiveStep(ERROR_STEP_MAP[firstErrorKey]);
+  }, [errors]);
+
   const handleCepLookup = async (cep: string) => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length === 8) {
@@ -218,26 +239,34 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
   };
 
   const onFormSubmit = async (data: EmployeeFormValues) => {
-    await onSubmit(data);
+    // Campos string opcionais viram "" no form; o backend valida formato
+    // (e-mail, data) mesmo em @IsOptional() quando a chave vem como "" em
+    // vez de ausente — precisa virar undefined pra ser omitido do payload.
+    const sanitized: Record<string, any> = { ...data };
+    for (const [key, value] of Object.entries(sanitized)) {
+      if (value === '') sanitized[key] = undefined;
+    }
+    if (sanitized.address) {
+      const address = { ...sanitized.address };
+      for (const [key, value] of Object.entries(address)) {
+        if (value === '') address[key] = undefined;
+      }
+      sanitized.address = address;
+    }
+    if (data.status !== EmployeeStatus.TERMINATED) {
+      sanitized.terminationReason = undefined;
+      sanitized.terminationDate = undefined;
+    }
+    await onSubmit(sanitized);
   };
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit as any)} className="space-y-8">
-      <Tabs defaultValue="personal" className="w-full">
-        <div className="flex justify-center mb-8 overflow-x-auto pb-2 scrollbar-hide">
-          <TabsList className="h-12 bg-muted/50 p-1 rounded-2xl flex-nowrap">
-            <TabsTrigger value="personal" className="rounded-xl px-6">Pessoal</TabsTrigger>
-            <TabsTrigger value="contact" className="rounded-xl px-6">Contato</TabsTrigger>
-            <TabsTrigger value="labor" className="rounded-xl px-6">Trabalhista</TabsTrigger>
-            <TabsTrigger value="financial" className="rounded-xl px-6">Financeiro</TabsTrigger>
-            <TabsTrigger value="org" className="rounded-xl px-6">Estrutura</TabsTrigger>
-            <TabsTrigger value="status" className="rounded-xl px-6">Status</TabsTrigger>
-          </TabsList>
-        </div>
+      <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
-        {/* 1. Dados Pessoais */}
-        <TabsContent value="personal" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 1. Dados Pessoais */}
+      <div className={cn("space-y-6", activeStep !== "personal" && "hidden")}>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <User className="h-5 w-5 text-indigo-600" />
@@ -329,15 +358,15 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                   <input type="checkbox" id="isPcd" {...register("isPcd")} className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500" />
                   <Label htmlFor="isPcd" className="font-bold text-sm cursor-pointer">Colaborador PCD?</Label>
                 </div>
-                {isPcd && <Input {...register("pcdType")} placeholder="Descreva a deficiência..." className="flex-1 h-11 bg-white rounded-xl" />}
+                {isPcd && <Input {...register("pcdType")} placeholder="Descreva a deficiência..." className="flex-1 h-11 bg-card rounded-xl" />}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        {/* 2. Contato */}
-        <TabsContent value="contact" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 2. Contato */}
+      <div className={cn("space-y-6", activeStep !== "contact" && "hidden")}>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Mail className="h-5 w-5 text-indigo-600" />
@@ -415,11 +444,11 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        {/* 3. Dados Trabalhistas */}
-        <TabsContent value="labor" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 3. Dados Trabalhistas */}
+      <div className={cn("space-y-6", activeStep !== "labor" && "hidden")}>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-indigo-600" />
@@ -521,11 +550,11 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        {/* 4. Financeiro */}
-        <TabsContent value="financial" className="space-y-6">
-           <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 4. Financeiro */}
+      <div className={cn("space-y-6", activeStep !== "financial" && "hidden")}>
+           <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-indigo-600" />
@@ -575,11 +604,11 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        {/* 5. Estrutura */}
-        <TabsContent value="org" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 5. Estrutura */}
+      <div className={cn("space-y-6", activeStep !== "org" && "hidden")}>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Users className="h-5 w-5 text-indigo-600" />
@@ -630,11 +659,11 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                </div>
             </CardContent>
           </Card>
-        </TabsContent>
+      </div>
 
-        {/* 6. Status */}
-        <TabsContent value="status" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/70 backdrop-blur-md">
+      {/* 6. Status */}
+      <div className={cn("space-y-6", activeStep !== "status" && "hidden")}>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
             <CardHeader className="bg-muted/30 border-b">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Clock className="h-5 w-5 text-indigo-600" />
@@ -684,18 +713,16 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
-
-      <div className="flex gap-4 pt-6 pb-12 border-t border-dashed">
-        <Button type="button" variant="outline" onClick={onCancel} className="flex-1 h-14 rounded-2xl border-2 font-bold text-gray-600 active:scale-95 transition-all">
-          <X className="h-5 w-5" /> Cancelar
-        </Button>
-        <Button type="submit" disabled={loading} className="flex-1 h-14 bg-gradient-to-r from-indigo-600 to-blue-700 hover:from-indigo-700 hover:to-blue-800 text-white rounded-2xl shadow-lg font-bold active:scale-95 transition-all">
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-          {loading ? 'Salvando...' : 'Salvar Colaborador'}
-        </Button>
       </div>
+
+      <StepFooter
+        steps={stepDefs}
+        activeKey={activeStep}
+        onNext={(k) => setActiveStep(k as StepKey)}
+        onCancel={onCancel}
+        loading={!!loading}
+        submitLabel="Salvar Colaborador"
+      />
     </form>
   );
 }

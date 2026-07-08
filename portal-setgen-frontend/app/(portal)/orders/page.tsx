@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ordersApi } from '@/lib/api/orders';
-import { ServiceOrder } from '@/types';
+import { ServiceOrder, UserRole } from '@/types';
+import { useAuthStore } from '@/store/auth';
 import { getStatusColor, getStatusLabel, getInitials, getAvatarColor, formatDate } from '@/lib/utils';
-import { Plus, Search, Eye, Edit } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
+import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
 import {
   Select,
   SelectContent,
@@ -32,6 +35,12 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const router = useRouter();
+  const { user } = useAuthStore();
+  const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
+  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
+    (id) => ordersApi.delete(id),
+    (id) => setOrders((prev) => prev.filter((o) => o.id !== id))
+  );
 
   useEffect(() => {
     loadOrders();
@@ -87,7 +96,12 @@ export default function OrdersPage() {
               <SelectItem value="DRAFT">Rascunho</SelectItem>
               <SelectItem value="PENDING_APPROVAL">Aguardando Aprovação</SelectItem>
               <SelectItem value="APPROVED">Aprovada</SelectItem>
+              <SelectItem value="SENT_TO_CLIENT">Enviado ao Cliente</SelectItem>
+              <SelectItem value="AWAITING_RESPONSE">Aguardando Resposta</SelectItem>
+              <SelectItem value="EXPIRED">Expirado</SelectItem>
+              <SelectItem value="REJECTED">Rejeitada</SelectItem>
               <SelectItem value="IN_PROGRESS">Em Andamento</SelectItem>
+              <SelectItem value="AWAITING_MATERIALS">Aguardando Materiais</SelectItem>
               <SelectItem value="COMPLETED">Concluída</SelectItem>
               <SelectItem value="CANCELLED">Cancelada</SelectItem>
             </SelectContent>
@@ -112,13 +126,14 @@ export default function OrdersPage() {
               <TableHead>Cliente</TableHead>
               <TableHead>Responsável</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Prazo</TableHead>
               <TableHead>Abertura</TableHead>
-              <TableHead className="w-11" />
+              <TableHead className="w-[96px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredOrders.length === 0 ? (
-              <TableEmpty colSpan={6} message="Nenhuma OS encontrada" />
+              <TableEmpty colSpan={7} message="Nenhuma OS encontrada" />
             ) : (
               filteredOrders.map((order) => {
                 const respName = order.createdBy?.name ?? '—';
@@ -145,26 +160,24 @@ export default function OrdersPage() {
                         {getStatusLabel(order.status)}
                       </span>
                     </TableCell>
+                    <TableCell className="text-[12.5px] text-text-secondary">
+                      {order.deadline ? formatDate(order.deadline) : '—'}
+                    </TableCell>
                     <TableCell className="text-[12.5px] text-text-secondary">{formatDate(order.createdAt)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => router.push(`/orders/${order.id}`)}
-                          className="p-1.5 text-text-muted hover:text-primary hover:bg-muted/40 rounded-md transition-colors"
-                          title="Visualizar"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        {(order.status === 'DRAFT' || order.status === 'REJECTED') && (
-                          <button
-                            onClick={() => router.push(`/orders/${order.id}/edit`)}
-                            className="p-1.5 text-text-muted hover:text-primary hover:bg-muted/40 rounded-md transition-colors"
-                            title="Editar"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
+                      <InlineDeleteAction
+                        confirming={confirmId === order.id}
+                        deleting={deleting}
+                        onView={() => router.push(`/orders/${order.id}`)}
+                        onEdit={
+                          order.status === 'DRAFT' || order.status === 'REJECTED'
+                            ? () => router.push(`/orders/${order.id}/edit`)
+                            : undefined
+                        }
+                        onRequestDelete={canDelete ? () => requestDelete(order.id) : undefined}
+                        onConfirmDelete={() => confirmDelete(order.id)}
+                        onCancelDelete={cancelDelete}
+                      />
                     </TableCell>
                   </TableRow>
                 );

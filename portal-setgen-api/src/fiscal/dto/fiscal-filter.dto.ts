@@ -1,5 +1,5 @@
 import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
-import { StatusNota, TipoNota } from '@prisma/client';
+import { StatusNota } from '@prisma/client';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FiscalFilterDto {
@@ -7,11 +7,6 @@ export class FiscalFilterDto {
   @IsOptional()
   @IsEnum(StatusNota)
   status?: StatusNota;
-
-  @ApiPropertyOptional({ enum: TipoNota })
-  @IsOptional()
-  @IsEnum(TipoNota)
-  tipo?: TipoNota;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -7,8 +7,11 @@ import {
   IsOptional,
   IsArray,
   IsDateString,
+  IsInt,
+  Min,
 } from 'class-validator';
-import { ServiceOrderType } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { ServiceOrderType, PaymentMethod } from '@prisma/client';
 
 export class CreateServiceOrderDto {
   @ApiProperty({
@@ -78,6 +81,15 @@ export class CreateServiceOrderDto {
   @IsOptional()
   deadline?: string;
 
+  @ApiProperty({
+    example: '2024-02-28T23:59:59.000Z',
+    required: false,
+    description: 'Validade do orçamento — usada para expiração automática após envio ao cliente',
+  })
+  @IsDateString()
+  @IsOptional()
+  validUntil?: string;
+
   @ApiProperty({ example: ['tech-uuid-1', 'tech-uuid-2'], required: false })
   @IsArray()
   @IsUUID('4', { each: true })
@@ -98,4 +110,36 @@ export class CreateServiceOrderDto {
   @IsUUID()
   @IsOptional()
   checklistTemplateId?: string;
+
+  @ApiProperty({ enum: PaymentMethod, required: false })
+  @IsEnum(PaymentMethod)
+  @IsOptional()
+  paymentMethod?: PaymentMethod;
+
+  @ApiProperty({
+    example: '50% entrada e 50% na conclusão',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  paymentTerms?: string;
+
+  @ApiProperty({ example: 12, required: false, description: 'Meses de garantia — usado na entrega para gerar a Warranty' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  warrantyMonths?: number;
+
+  @ApiProperty({ example: 'user-uuid-here', required: false, description: 'Colaborador responsável comercial pelo orçamento' })
+  @IsUUID()
+  @IsOptional()
+  salesRepId?: string;
+
+  @ApiProperty({ example: 30, required: false, description: 'Prazo de pagamento em dias, contado a partir da conclusão da OS — usado para previsão de recebíveis' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  paymentTermDays?: number;
 }

@@ -68,7 +68,7 @@ export function ChecklistFieldsEditor({ value, onChange }: ChecklistFieldsEditor
   return (
     <div className="space-y-4">
       {value.map((field, index) => (
-        <div key={field.id} className="p-5 rounded-2xl border bg-gray-50/50 space-y-4">
+        <div key={field.id} className="p-5 rounded-2xl border bg-muted/50 space-y-4">
           <div className="flex items-start gap-3">
             <div className="flex flex-col gap-1 pt-6">
               <button
@@ -96,7 +96,7 @@ export function ChecklistFieldsEditor({ value, onChange }: ChecklistFieldsEditor
                   placeholder="Ex: Equipamento instalado corretamente?"
                   value={field.label}
                   onChange={(e) => updateField(index, { label: e.target.value })}
-                  className="h-11 rounded-xl bg-white"
+                  className="h-11 rounded-xl bg-card"
                 />
               </div>
               <div className="space-y-2">
@@ -105,7 +105,7 @@ export function ChecklistFieldsEditor({ value, onChange }: ChecklistFieldsEditor
                   value={field.type}
                   onValueChange={(v) => updateField(index, { type: v as ChecklistFieldType })}
                 >
-                  <SelectTrigger className="h-11 rounded-xl bg-white">
+                  <SelectTrigger className="h-11 rounded-xl bg-card">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -145,7 +145,7 @@ export function ChecklistFieldsEditor({ value, onChange }: ChecklistFieldsEditor
                     value={opt}
                     onChange={(e) => updateOption(index, optIndex, e.target.value)}
                     placeholder={`Opção ${optIndex + 1}`}
-                    className="h-10 rounded-xl bg-white"
+                    className="h-10 rounded-xl bg-card"
                   />
                   <Button
                     type="button"

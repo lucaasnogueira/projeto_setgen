@@ -68,7 +68,7 @@ export function CommandMenu() {
               />
             </div>
             <Command.List className="max-h-[450px] overflow-y-auto overflow-x-hidden p-4 scrollbar-hide">
-              <Command.Empty className="py-12 text-center text-sm text-gray-400">Nenhum resultado encontrado.</Command.Empty>
+              <Command.Empty className="py-12 text-center text-sm text-muted-foreground">Nenhum resultado encontrado.</Command.Empty>
               
               <Command.Group heading="Atalhos Rápidos" className="px-2 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                 <CommandItem icon={FileText} label="Nova Ordem de Serviço" onSelect={() => runCommand(() => router.push('/orders/new'))} />
@@ -76,7 +76,7 @@ export function CommandMenu() {
                 <CommandItem icon={DollarSign} label="Lançar Despesa" onSelect={() => runCommand(() => router.push('/financial/expenses/new'))} />
               </Command.Group>
 
-              <Command.Separator className="h-px bg-gray-100 my-4" />
+              <Command.Separator className="h-px bg-muted my-4" />
 
               <Command.Group heading="Módulos" className="px-2 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                 <CommandItem icon={Building2} label="Comercial" onSelect={() => runCommand(() => router.push('/clients'))} />
@@ -85,7 +85,7 @@ export function CommandMenu() {
                 <CommandItem icon={DollarSign} label="Financeiro" onSelect={() => runCommand(() => router.push('/financial'))} />
               </Command.Group>
 
-              <Command.Separator className="h-px bg-gray-100 my-4" />
+              <Command.Separator className="h-px bg-muted my-4" />
 
               <Command.Group heading="Configurações" className="px-2 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                 <CommandItem icon={User} label="Meu Perfil" onSelect={() => runCommand(() => router.push('/profile'))} />

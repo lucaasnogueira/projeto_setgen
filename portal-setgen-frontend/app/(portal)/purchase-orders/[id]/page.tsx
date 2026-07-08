@@ -5,23 +5,22 @@ import { useRouter, useParams } from 'next/navigation';
 import { purchaseOrdersApi } from '@/lib/api/purchase-orders';
 import { PurchaseOrder, UserRole } from '@/types';
 import { useAuthStore } from '@/store/auth';
-import { 
-  ShoppingCart, 
-  Calendar, 
-  User, 
-  FileText, 
-  ArrowLeft, 
-  Edit, 
-  Trash2, 
+import {
+  ShoppingCart,
+  User,
+  FileText,
+  Edit,
+  Trash2,
   Info,
-  DollarSign,
   CheckCircle,
   AlertCircle,
-  Briefcase
+  Briefcase,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DetailHeader } from "@/components/layout/DetailHeader";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
+import { FieldBlock } from "@/components/ui/field-block";
 import Link from 'next/link';
 
 export default function PurchaseOrderDetailsPage() {
@@ -77,14 +76,18 @@ export default function PurchaseOrderDetailsPage() {
   const isExpired = order.expiryDate && new Date(order.expiryDate) < new Date();
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-12">
-      <DetailHeader
+    <div className="max-w-5xl mx-auto space-y-4 pb-12">
+      <CompactDetailHeader
         icon={ShoppingCart}
         tone="green"
         title={`Ordem de Compra #${order.orderNumber}`}
-        subtitle={<><Briefcase className="h-3.5 w-3.5" />{order.client?.companyName}</>}
-        onBack={() => router.back()}
+        badge={{
+          label: isExpired ? 'Expirada' : (order.status || 'Ativa'),
+          className: isExpired ? 'bg-status-red-bg text-status-red-fg' : 'bg-status-green-bg text-status-green-fg',
+        }}
+        meta={<><Briefcase className="h-3.5 w-3.5" />{order.client?.companyName}</>}
         backLabel="Voltar para lista"
+        onBack={() => router.back()}
         actions={
           <>
             <Link href={`/purchase-orders/${order.id}/edit`}>
@@ -107,106 +110,86 @@ export default function PurchaseOrderDetailsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Coluna Principal */}
-        <div className="md:col-span-2 space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800">
-                <Info className="h-5 w-5 text-green-600" />
-                Informações da OC
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 space-y-8">
-              <div className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Valor</h4>
-                  <p className="text-3xl font-black text-green-600">
-                    {order.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
-                  <div className={`flex items-center gap-2 font-bold px-3 py-1 rounded-full w-fit ${isExpired ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
-                    {isExpired ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+      <Tabs defaultValue="detalhes">
+        <TabsList>
+          <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+          <TabsTrigger value="vinculos">Vínculos & Arquivos</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="detalhes" className="mt-4">
+          <Card className="p-6">
+            <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+              <Info className="h-4 w-4 text-status-green-fg" />
+              Informações da OC
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <FieldBlock
+                label="Valor"
+                value={<span className="text-[20px] font-black text-status-green-fg">{order.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+              />
+              <FieldBlock
+                label="Status"
+                value={
+                  <span className={`inline-flex items-center gap-1.5 font-bold px-2.5 py-0.5 rounded-full text-[11.5px] ${isExpired ? 'bg-status-red-bg text-status-red-fg' : 'bg-status-green-bg text-status-green-fg'}`}>
+                    {isExpired ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
                     {isExpired ? 'Expirada' : (order.status || 'Ativa')}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-8 pt-8 border-t border-gray-100">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data de Emissão</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Calendar className="h-4 w-4 text-green-500" />
-                    <span className="font-medium">{new Date(order.issueDate).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Data de Validade</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Calendar className="h-4 w-4 text-green-500" />
-                    <span className="font-medium">{new Date(order.expiryDate).toLocaleDateString('pt-BR')}</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
+                  </span>
+                }
+              />
+              <FieldBlock label="Data de Emissão" value={new Date(order.issueDate).toLocaleDateString('pt-BR')} />
+              <FieldBlock label="Data de Validade" value={new Date(order.expiryDate).toLocaleDateString('pt-BR')} />
+            </div>
           </Card>
-        </div>
+        </TabsContent>
 
-        {/* Coluna Lateral */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
-                <FileText className="h-5 w-5 text-green-600" />
+        <TabsContent value="vinculos" className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <FileText className="h-4 w-4 text-status-green-fg" />
                 Vínculos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              {order.serviceOrderId && (
-                <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Ordem de Serviço</p>
-                  <Link href={`/orders/${order.serviceOrderId}`}>
-                    <Button variant="outline" className="w-full justify-start gap-2 border-green-100 hover:bg-green-50 hover:text-green-600 rounded-xl">
-                      <FileText className="h-4 w-4" />
-                      Ver OS #{order.serviceOrder?.orderNumber}
-                    </Button>
-                  </Link>
-                </div>
-              )}
-              {order.uploadedBy && (
-                <div>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2">Cadastrado por</p>
-                  <div className="flex items-center gap-2 text-gray-700 p-3 rounded-xl bg-gray-50">
-                    <User className="h-4 w-4 text-green-500" />
-                    <span className="text-sm font-medium">{order.uploadedBy.name}</span>
+              </div>
+              <div className="space-y-4">
+                {order.serviceOrderId && (
+                  <div>
+                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Ordem de Serviço</p>
+                    <Link href={`/orders/${order.serviceOrderId}`}>
+                      <Button variant="outline" className="w-full justify-start gap-2 rounded-xl">
+                        <FileText className="h-4 w-4" />
+                        Ver OS #{order.serviceOrder?.orderNumber}
+                      </Button>
+                    </Link>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+                {order.uploadedBy && (
+                  <div>
+                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Cadastrado por</p>
+                    <div className="flex items-center gap-2 text-foreground p-3 rounded-xl bg-muted/40">
+                      <User className="h-4 w-4 text-status-green-fg" />
+                      <span className="text-[13px] font-medium">{order.uploadedBy.name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
 
-           <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-             <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
-                <Briefcase className="h-5 w-5 text-green-600" />
+            <Card className="p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-status-green-fg" />
                 Arquivos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-3">
+              </div>
               {order.fileUrl ? (
-                <Button className="w-full bg-green-50 text-green-600 hover:bg-green-100 border-none rounded-xl font-bold flex items-center gap-2">
+                <Button className="w-full bg-status-green-bg text-status-green-fg hover:bg-status-green-bg/80 border-none rounded-xl font-bold flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   Visualizar Documento
                 </Button>
               ) : (
-                <p className="text-sm text-gray-400 text-center italic">Nenhum documento anexo.</p>
+                <p className="text-[13px] text-text-muted text-center italic">Nenhum documento anexo.</p>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

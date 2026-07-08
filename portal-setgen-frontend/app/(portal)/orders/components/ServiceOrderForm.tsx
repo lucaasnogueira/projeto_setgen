@@ -7,7 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { clientsApi } from '@/lib/api/clients';
 import { FileText, Save, X, User, Briefcase, Calendar, Info, Layers, Tag, Trash2, Plus, DollarSign, Loader2, ClipboardCheck, Camera } from 'lucide-react';
-import { ServiceOrderType, ServiceOrder, ChecklistTemplate, ChecklistAnswerItem, ChecklistFieldType } from '@/types';
+import { cn } from '@/lib/utils';
+import { ServiceOrderType, ServiceOrder, ChecklistTemplate, ChecklistAnswerItem, ChecklistFieldType, PaymentMethod } from '@/types';
+import { usersApi, User as ApiUser } from '@/lib/api/users';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +24,7 @@ import {
 import { inventoryApi } from '@/lib/api/inventory';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
 import { ordersApi } from '@/lib/api/orders';
+import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 const SignaturePad = dynamic(
   () => import('./SignaturePad').then((m) => m.SignaturePad),
@@ -29,6 +32,16 @@ const SignaturePad = dynamic(
 );
 
 const NONE = '__none__';
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  [PaymentMethod.CASH]: 'Dinheiro',
+  [PaymentMethod.DEBIT_CARD]: 'Cartão de Débito',
+  [PaymentMethod.CREDIT_CARD]: 'Cartão de Crédito',
+  [PaymentMethod.BANK_TRANSFER]: 'Transferência Bancária',
+  [PaymentMethod.PIX]: 'PIX',
+  [PaymentMethod.BANK_SLIP]: 'Boleto',
+  [PaymentMethod.CHECK]: 'Cheque',
+};
 
 const fieldTypeLabels: Record<ChecklistFieldType, string> = {
   [ChecklistFieldType.TEXT]: 'Texto',
@@ -47,7 +60,12 @@ const serviceOrderSchema = z.object({
   requestedServices: z.string().optional(),
   notes: z.string().optional(),
   deadline: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Data inválida"),
+  validUntil: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Data inválida"),
   checklistTemplateId: z.string().optional(),
+  paymentMethod: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  warrantyMonths: z.string().optional(),
+  salesRepId: z.string().optional(),
 });
 
 type ServiceOrderFormValues = z.infer<typeof serviceOrderSchema>;
@@ -69,6 +87,7 @@ export function ServiceOrderForm({
 }: ServiceOrderFormProps) {
   const [clients, setClients] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [users, setUsers] = useState<ApiUser[]>([]);
   const [items, setItems] = useState<any[]>(initialData?.items?.map(i => ({
     productId: i.productId,
     quantity: i.quantity,
@@ -87,6 +106,9 @@ export function ServiceOrderForm({
   const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null);
   const [knownAttachments, setKnownAttachments] = useState<string[]>(initialData?.attachments || []);
 
+  type StepKey = 'geral' | 'pagamento' | 'materiais' | 'checklist';
+  const [activeStep, setActiveStep] = useState<StepKey>('geral');
+
   const form = useForm<ServiceOrderFormValues>({
     resolver: zodResolver(serviceOrderSchema),
     defaultValues: {
@@ -97,17 +119,36 @@ export function ServiceOrderForm({
       requestedServices: initialData?.requestedServices || '',
       notes: initialData?.notes || '',
       deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
+      validUntil: initialData?.validUntil ? new Date(initialData.validUntil).toISOString().split('T')[0] : '',
       checklistTemplateId: initialData?.checklistTemplateId || NONE,
+      paymentMethod: initialData?.paymentMethod || NONE,
+      paymentTerms: initialData?.paymentTerms || '',
+      warrantyMonths: initialData?.warrantyMonths ? String(initialData.warrantyMonths) : '',
+      salesRepId: initialData?.salesRepId || NONE,
     }
   });
 
   const { register, handleSubmit, control, watch, formState: { errors } } = form;
   const watchedType = watch('type');
 
+  const stepDefs: WizardStep[] = [
+    { key: 'geral', label: 'Geral' },
+    { key: 'pagamento', label: 'Pagamento' },
+    { key: 'materiais', label: 'Materiais' },
+    ...(checklistAnswers.length > 0 ? [{ key: 'checklist', label: 'Checklist' }] : []),
+  ];
+
   useEffect(() => {
     loadClients();
     loadProducts();
+    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
   }, []);
+
+  useEffect(() => {
+    // Campos com validação (clientId, type, scope, deadline, validUntil) vivem na etapa "Geral" —
+    // sem isso o usuário vê "Salvando..." falhar sem entender por que, preso numa etapa sem erros visíveis.
+    if (Object.keys(errors).length > 0) setActiveStep('geral');
+  }, [errors]);
 
   useEffect(() => {
     if (initialData) return; // seleção de template só faz sentido na criação
@@ -161,6 +202,11 @@ export function ServiceOrderForm({
     const payload: any = {
       ...data,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
+      validUntil: data.validUntil ? new Date(data.validUntil).toISOString() : undefined,
+      paymentMethod: data.paymentMethod && data.paymentMethod !== NONE ? data.paymentMethod : undefined,
+      paymentTerms: data.paymentTerms || undefined,
+      warrantyMonths: data.warrantyMonths ? Number(data.warrantyMonths) : undefined,
+      salesRepId: data.salesRepId && data.salesRepId !== NONE ? data.salesRepId : undefined,
       items: items.map(i => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -208,7 +254,9 @@ export function ServiceOrderForm({
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
+
+      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Info className="h-5 w-5 text-blue-600" />
@@ -225,7 +273,7 @@ export function ServiceOrderForm({
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -245,7 +293,7 @@ export function ServiceOrderForm({
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
                       <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
                     <SelectContent>
@@ -273,7 +321,7 @@ export function ServiceOrderForm({
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-gray-200">
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
                       <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
                     <SelectContent>
@@ -290,7 +338,7 @@ export function ServiceOrderForm({
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Briefcase className="h-5 w-5 text-blue-600" />
@@ -303,7 +351,7 @@ export function ServiceOrderForm({
             <div className="space-y-2">
               <Label className="font-bold text-sm">Defeitos Relatados</Label>
               <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 placeholder="Problemas informados pelo cliente..."
                 {...register('reportedDefects')}
               />
@@ -312,7 +360,7 @@ export function ServiceOrderForm({
             <div className="space-y-2">
               <Label className="font-bold text-sm">Serviços Solicitados</Label>
               <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                 placeholder="Ações específicas solicitadas..."
                 {...register('requestedServices')}
               />
@@ -322,7 +370,7 @@ export function ServiceOrderForm({
           <div className="space-y-2">
             <Label className="font-bold text-sm">Escopo do Serviço *</Label>
             <textarea
-              className="w-full flex min-h-[120px] rounded-2xl border border-gray-200 bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full flex min-h-[120px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
               placeholder="Descrição técnica detalhada do trabalho..."
               {...register('scope')}
             />
@@ -336,18 +384,31 @@ export function ServiceOrderForm({
                 <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
                 <Input
                   type="date"
-                  className="h-12 pl-10 rounded-2xl border-gray-200 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
                   {...register('deadline')}
                 />
               </div>
               {errors.deadline && <p className="text-xs font-bold text-red-500">{errors.deadline.message}</p>}
             </div>
-            
+
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Validade do Orçamento</Label>
+              <div className="relative group">
+                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
+                <Input
+                  type="date"
+                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                  {...register('validUntil')}
+                />
+              </div>
+              {errors.validUntil && <p className="text-xs font-bold text-red-500">{errors.validUntil.message}</p>}
+            </div>
+
             <div className="space-y-2">
               <Label className="font-bold text-sm">Observações Internas</Label>
               <Input
                 placeholder="Notas para a equipe técnica..."
-                className="h-12 rounded-2xl border-gray-200 focus:ring-blue-500/20 focus:border-blue-500"
+                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
                 {...register('notes')}
               />
             </div>
@@ -355,7 +416,82 @@ export function ServiceOrderForm({
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'pagamento' && 'hidden')}>
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <DollarSign className="h-5 w-5 text-blue-600" />
+            Pagamento e Garantia
+          </CardTitle>
+          <CardDescription>Condições comerciais do orçamento</CardDescription>
+        </CardHeader>
+        <CardContent className="p-8 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Forma de Pagamento</Label>
+              <Controller
+                name="paymentMethod"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                      <SelectValue placeholder="Não definida" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Não definida</SelectItem>
+                      {Object.values(PaymentMethod).map((pm) => (
+                        <SelectItem key={pm} value={pm}>{PAYMENT_METHOD_LABELS[pm]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Garantia (meses)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="12"
+                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                {...register('warrantyMonths')}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Responsável Comercial</Label>
+              <Controller
+                name="salesRepId"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                      <SelectValue placeholder="Não definido" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>Não definido</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="font-bold text-sm">Condição de Pagamento</Label>
+              <Input
+                placeholder="Ex: 50% entrada e 50% na conclusão"
+                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                {...register('paymentTerms')}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'materiais' && 'hidden')}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Layers className="h-5 w-5 text-blue-600" />
@@ -364,11 +500,11 @@ export function ServiceOrderForm({
           <CardDescription>Produtos que serão utilizados na OS</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 items-end bg-gray-50/50 p-6 rounded-2xl border border-dashed">
+          <div className="flex flex-col md:flex-row gap-4 items-end bg-muted/50 p-6 rounded-2xl border border-dashed">
             <div className="flex-1 space-y-2">
               <Label className="font-bold text-sm">Produto</Label>
               <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                <SelectTrigger className="h-12 rounded-2xl bg-white">
+                <SelectTrigger className="h-12 rounded-2xl bg-card">
                   <SelectValue placeholder="Selecione um produto do estoque" />
                 </SelectTrigger>
                 <SelectContent>
@@ -387,7 +523,7 @@ export function ServiceOrderForm({
                 min="1"
                 value={itemQuantity}
                 onChange={(e) => setItemQuantity(e.target.value)}
-                className="h-12 rounded-2xl bg-white"
+                className="h-12 rounded-2xl bg-card"
               />
             </div>
             <Button 
@@ -401,7 +537,7 @@ export function ServiceOrderForm({
           </div>
 
           <div className="border rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full border-collapse bg-white">
+            <table className="w-full border-collapse bg-card">
               <thead className="bg-muted/50 border-b">
                 <tr>
                   <th className="text-left py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Cód</th>
@@ -421,7 +557,7 @@ export function ServiceOrderForm({
                   </tr>
                 ) : (
                   items.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={index} className="hover:bg-muted/50 transition-colors">
                       <td className="py-4 px-6 text-sm font-medium text-muted-foreground">{item.code}</td>
                       <td className="py-4 px-6 text-sm font-bold">{item.name}</td>
                       <td className="py-4 px-6 text-sm text-right font-semibold">{item.quantity}</td>
@@ -461,7 +597,7 @@ export function ServiceOrderForm({
       </Card>
 
       {checklistAnswers.length > 0 && (
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
+        <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'checklist' && 'hidden')}>
           <CardHeader className="bg-muted/30 border-b">
             <CardTitle className="flex items-center gap-2 text-xl">
               <ClipboardCheck className="h-5 w-5 text-blue-600" />
@@ -478,7 +614,7 @@ export function ServiceOrderForm({
               // Shape legado (pré-templates): { item, completed }, sem type
               if (!item.type) {
                 return (
-                  <label key={item.id ?? index} className="flex items-center gap-3 p-3 rounded-xl border bg-gray-50/50">
+                  <label key={item.id ?? index} className="flex items-center gap-3 p-3 rounded-xl border bg-muted/50">
                     <input
                       type="checkbox"
                       checked={item.completed}
@@ -492,7 +628,7 @@ export function ServiceOrderForm({
               }
 
               return (
-                <div key={item.id} className="p-5 rounded-2xl border bg-gray-50/50 space-y-3">
+                <div key={item.id} className="p-5 rounded-2xl border bg-muted/50 space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <Label className="font-bold text-sm">
                       {item.label}
@@ -515,7 +651,7 @@ export function ServiceOrderForm({
                     <Input
                       value={(item.answer as string) || ''}
                       onChange={(e) => updateAnswer(index, { answer: e.target.value })}
-                      className="h-11 rounded-xl bg-white"
+                      className="h-11 rounded-xl bg-card"
                     />
                   )}
 
@@ -524,7 +660,7 @@ export function ServiceOrderForm({
                       type="number"
                       value={item.answer === null ? '' : String(item.answer)}
                       onChange={(e) => updateAnswer(index, { answer: e.target.value === '' ? null : Number(e.target.value) })}
-                      className="h-11 rounded-xl bg-white"
+                      className="h-11 rounded-xl bg-card"
                     />
                   )}
 
@@ -554,7 +690,7 @@ export function ServiceOrderForm({
                       value={(item.answer as string) || undefined}
                       onValueChange={(v) => updateAnswer(index, { answer: v })}
                     >
-                      <SelectTrigger className="h-11 rounded-xl bg-white">
+                      <SelectTrigger className="h-11 rounded-xl bg-card">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
@@ -570,7 +706,7 @@ export function ServiceOrderForm({
                       {item.answer && (
                         <img src={String(item.answer)} alt="Foto enviada" className="h-24 rounded-xl border object-cover" />
                       )}
-                      <label className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border bg-white cursor-pointer text-sm font-semibold hover:bg-gray-50">
+                      <label className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border bg-card cursor-pointer text-sm font-semibold hover:bg-muted">
                         {uploadingFieldId === item.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
@@ -597,7 +733,7 @@ export function ServiceOrderForm({
                   {item.type === ChecklistFieldType.SIGNATURE && (
                     <div className="space-y-2">
                       {item.answer ? (
-                        <img src={String(item.answer)} alt="Assinatura" className="h-24 rounded-xl border bg-white" />
+                        <img src={String(item.answer)} alt="Assinatura" className="h-24 rounded-xl border bg-card" />
                       ) : initialData?.id ? (
                         <SignaturePad
                           onSave={(blob) => uploadChecklistFile(index, new File([blob], 'assinatura.png', { type: 'image/png' }))}
@@ -614,25 +750,14 @@ export function ServiceOrderForm({
         </Card>
       )}
 
-      <div className="flex gap-4 pt-6 pb-12">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          className="flex-1 h-14 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
-        >
-          <X className="h-5 w-5" />
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          disabled={loading}
-          className="flex-1 h-14 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
-        >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
-          {loading ? 'Salvando...' : submitLabel}
-        </Button>
-      </div>
+      <StepFooter
+        steps={stepDefs}
+        activeKey={activeStep}
+        onNext={(k) => setActiveStep(k as StepKey)}
+        onCancel={onCancel}
+        loading={loading}
+        submitLabel={submitLabel}
+      />
     </form>
   );
 }

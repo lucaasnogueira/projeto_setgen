@@ -62,7 +62,7 @@ export function SignaturePad({ onSave }: SignaturePadProps) {
         width={400}
         height={200}
         style={{ touchAction: "none" }}
-        className="border rounded-2xl bg-white w-full max-w-[400px] h-[200px] cursor-crosshair"
+        className="border rounded-2xl bg-card w-full max-w-[400px] h-[200px] cursor-crosshair"
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}

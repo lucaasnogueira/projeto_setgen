@@ -56,15 +56,15 @@ export default function NewApprovalPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Seleção da OS */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-            <CardTitle className="flex items-center gap-2 text-gray-800">
+          <CardHeader className="bg-muted/50 border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5 text-orange-600" />
               Seleção de Ordem de Serviço
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">OS para Avaliação <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">OS para Avaliação <span className="text-red-500">*</span></Label>
               <select
                 required
                 value={formData.serviceOrderId}
@@ -79,7 +79,7 @@ export default function NewApprovalPage() {
                 ))}
               </select>
               {pendingOrders.length === 0 && (
-                <p className="text-sm text-gray-500 mt-2 italic flex items-center gap-1">
+                <p className="text-sm text-muted-foreground mt-2 italic flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   Nenhuma OS aguardando aprovação no momento.
                 </p>
@@ -90,15 +90,15 @@ export default function NewApprovalPage() {
 
         {/* Avaliação */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-            <CardTitle className="flex items-center gap-2 text-gray-800">
+          <CardHeader className="bg-muted/50 border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-foreground">
               <CheckCircle className="h-5 w-5 text-orange-600" />
               Decisão e Comentários
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8 space-y-6">
             <div className="space-y-4">
-              <Label className="text-gray-700 font-semibold">Decisão <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Decisão <span className="text-red-500">*</span></Label>
               <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
@@ -106,7 +106,7 @@ export default function NewApprovalPage() {
                   className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${
                     formData.status === 'APPROVED' 
                     ? 'border-green-500 bg-green-50 text-green-700 font-bold shadow-md' 
-                    : 'border-gray-200 text-gray-500 hover:border-green-200'
+                    : 'border-border text-muted-foreground hover:border-green-200'
                   }`}
                 >
                   <CheckCircle className="h-5 w-5" />
@@ -118,7 +118,7 @@ export default function NewApprovalPage() {
                   className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${
                     formData.status === 'REJECTED' 
                     ? 'border-red-500 bg-red-50 text-red-700 font-bold shadow-md' 
-                    : 'border-gray-200 text-gray-500 hover:border-red-200'
+                    : 'border-border text-muted-foreground hover:border-red-200'
                   }`}
                 >
                   <X className="h-5 w-5" />
@@ -128,12 +128,12 @@ export default function NewApprovalPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-gray-700 font-semibold">
+              <Label className="text-foreground font-semibold">
                 {formData.status === 'REJECTED' ? 'Motivo da Rejeição' : 'Observações'} 
                 {formData.status === 'REJECTED' && <span className="text-red-500">*</span>}
               </Label>
               <div className="relative">
-                <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <textarea
                   required={formData.status === 'REJECTED'}
                   value={formData.comments}
@@ -153,7 +153,7 @@ export default function NewApprovalPage() {
             type="button"
             variant="outline"
             onClick={() => router.back()}
-            className="flex-1 h-12 rounded-2xl border-2 hover:bg-gray-50 flex items-center justify-center gap-2 font-bold text-gray-600 transition-all active:scale-95"
+            className="flex-1 h-12 rounded-2xl border-2 hover:bg-muted flex items-center justify-center gap-2 font-bold text-muted-foreground transition-all active:scale-95"
           >
             <X className="h-5 w-5" />
             Cancelar

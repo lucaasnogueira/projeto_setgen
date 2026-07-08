@@ -4,15 +4,24 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
+import { MaterialRequestsService } from '../material-requests/material-requests.service';
+import { snapshotChecklistFields } from '../common/checklist/snapshot-checklist-fields.util';
 import { CreateServiceOrderDto } from './dto/create-service-order.dto';
 import { UpdateServiceOrderDto } from './dto/update-service-order.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+import { CreateQuoteLineDto } from './dto/create-quote-line.dto';
+import { UpdateQuoteLineDto } from './dto/update-quote-line.dto';
 import {
   Prisma,
   UserRole,
   ServiceOrderStatus,
   ServiceOrderType,
+  AuditAction,
+  MaterialRequestStatus,
+  PaymentStatus,
 } from '@prisma/client';
 
 // Máquina de estados: transições permitidas a partir de cada status atual.
@@ -30,16 +39,37 @@ const VALID_STATUS_TRANSITIONS: Record<
     ServiceOrderStatus.REJECTED,
     ServiceOrderStatus.CANCELLED,
   ],
+  // APPROVED = engenharia/gerência aprovou internamente o escopo e valor.
+  // A partir daqui o orçamento pode seguir dois caminhos: ir direto para
+  // execução (OS tipo EXECUTION) ou ser enviado ao cliente para resposta.
   [ServiceOrderStatus.APPROVED]: [
+    ServiceOrderStatus.SENT_TO_CLIENT,
     ServiceOrderStatus.IN_PROGRESS,
     ServiceOrderStatus.CANCELLED,
   ],
+  [ServiceOrderStatus.SENT_TO_CLIENT]: [
+    ServiceOrderStatus.AWAITING_RESPONSE,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.AWAITING_RESPONSE]: [
+    ServiceOrderStatus.IN_PROGRESS,
+    ServiceOrderStatus.REJECTED,
+    ServiceOrderStatus.EXPIRED,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  // Orçamento vencido sem resposta: só volta ao fluxo revisando o escopo/valor.
+  [ServiceOrderStatus.EXPIRED]: [ServiceOrderStatus.PENDING_APPROVAL],
   [ServiceOrderStatus.REJECTED]: [
     ServiceOrderStatus.PENDING_APPROVAL,
     ServiceOrderStatus.CANCELLED,
   ],
   [ServiceOrderStatus.IN_PROGRESS]: [
+    ServiceOrderStatus.AWAITING_MATERIALS,
     ServiceOrderStatus.COMPLETED,
+    ServiceOrderStatus.CANCELLED,
+  ],
+  [ServiceOrderStatus.AWAITING_MATERIALS]: [
+    ServiceOrderStatus.IN_PROGRESS,
     ServiceOrderStatus.CANCELLED,
   ],
   [ServiceOrderStatus.COMPLETED]: [],
@@ -48,7 +78,11 @@ const VALID_STATUS_TRANSITIONS: Record<
 
 @Injectable()
 export class ServiceOrdersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+    private materialRequestsService: MaterialRequestsService,
+  ) {}
 
   private async generateOrderNumber(): Promise<string> {
     const year = new Date().getFullYear();
@@ -121,23 +155,7 @@ export class ServiceOrdersService {
         throw new NotFoundException('Template de checklist não encontrado');
       }
 
-      const fields = template.fields as unknown as Array<{
-        id: string;
-        type: string;
-        label: string;
-        required: boolean;
-        options?: string[];
-      }>;
-
-      checklistData = fields.map((f) => ({
-        id: f.id,
-        type: f.type,
-        label: f.label,
-        required: f.required,
-        ...(f.options && { options: f.options }),
-        answer: null,
-        completed: false,
-      })) as Prisma.InputJsonValue[];
+      checklistData = snapshotChecklistFields(template.fields);
     }
 
     const orderData: Prisma.ServiceOrderCreateInput = {
@@ -157,6 +175,9 @@ export class ServiceOrdersService {
       ...(createServiceOrderDto.deadline && {
         deadline: new Date(createServiceOrderDto.deadline),
       }),
+      ...(createServiceOrderDto.validUntil && {
+        validUntil: new Date(createServiceOrderDto.validUntil),
+      }),
       responsibleIds: createServiceOrderDto.responsibleIds || [],
       checklist: checklistData,
       ...(createServiceOrderDto.checklistTemplateId && {
@@ -165,6 +186,21 @@ export class ServiceOrdersService {
         },
       }),
       createdBy: { connect: { id: createdById } },
+      ...(createServiceOrderDto.paymentMethod && {
+        paymentMethod: createServiceOrderDto.paymentMethod,
+      }),
+      ...(createServiceOrderDto.paymentTerms !== undefined && {
+        paymentTerms: createServiceOrderDto.paymentTerms,
+      }),
+      ...(createServiceOrderDto.paymentTermDays !== undefined && {
+        paymentTermDays: createServiceOrderDto.paymentTermDays,
+      }),
+      ...(createServiceOrderDto.warrantyMonths !== undefined && {
+        warrantyMonths: createServiceOrderDto.warrantyMonths,
+      }),
+      ...(createServiceOrderDto.salesRepId && {
+        salesRep: { connect: { id: createServiceOrderDto.salesRepId } },
+      }),
       status:
         createServiceOrderDto.type === ServiceOrderType.VISIT_REPORT
           ? ServiceOrderStatus.PENDING_APPROVAL
@@ -291,6 +327,24 @@ export class ServiceOrdersService {
             role: true,
           },
         },
+        salesRep: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        linkedVisits: {
+          include: {
+            technicalVisit: {
+              select: {
+                id: true,
+                visitDate: true,
+                visitType: true,
+                status: true,
+              },
+            },
+          },
+        },
         approvals: {
           include: {
             approver: {
@@ -307,8 +361,12 @@ export class ServiceOrdersService {
           },
         },
         purchaseOrders: true,
-        invoices: true,
+        notasFiscais: true,
         delivery: true,
+        quoteLines: {
+          orderBy: { createdAt: 'asc' },
+        },
+        art: true,
         checklistTemplate: {
           select: { id: true, name: true },
         },
@@ -380,6 +438,9 @@ export class ServiceOrdersService {
       ...(updateServiceOrderDto.deadline && {
         deadline: new Date(updateServiceOrderDto.deadline),
       }),
+      ...(updateServiceOrderDto.validUntil && {
+        validUntil: new Date(updateServiceOrderDto.validUntil),
+      }),
       ...(updateServiceOrderDto.responsibleIds && {
         responsibleIds: updateServiceOrderDto.responsibleIds,
       }),
@@ -397,6 +458,23 @@ export class ServiceOrdersService {
       }),
       ...(updateServiceOrderDto.notes !== undefined && {
         notes: updateServiceOrderDto.notes,
+      }),
+      ...(updateServiceOrderDto.paymentMethod !== undefined && {
+        paymentMethod: updateServiceOrderDto.paymentMethod,
+      }),
+      ...(updateServiceOrderDto.paymentTerms !== undefined && {
+        paymentTerms: updateServiceOrderDto.paymentTerms,
+      }),
+      ...(updateServiceOrderDto.paymentTermDays !== undefined && {
+        paymentTermDays: updateServiceOrderDto.paymentTermDays,
+      }),
+      ...(updateServiceOrderDto.warrantyMonths !== undefined && {
+        warrantyMonths: updateServiceOrderDto.warrantyMonths,
+      }),
+      ...(updateServiceOrderDto.salesRepId !== undefined && {
+        salesRep: updateServiceOrderDto.salesRepId
+          ? { connect: { id: updateServiceOrderDto.salesRepId } }
+          : { disconnect: true },
       }),
     };
 
@@ -496,16 +574,67 @@ export class ServiceOrdersService {
       throw new ForbiddenException('Apenas gerentes podem rejeitar OS');
     }
 
-    return this.prisma.serviceOrder.update({
+    if (
+      updateStatusDto.status === ServiceOrderStatus.SENT_TO_CLIENT &&
+      !order.validUntil
+    ) {
+      throw new BadRequestException(
+        'Defina a validade do orçamento (validUntil) antes de enviar ao cliente',
+      );
+    }
+
+    // Sair de AWAITING_MATERIALS só é permitido quando a mesa do almoxarife
+    // já separou (ou liberou) os materiais vinculados a esta OS.
+    if (
+      order.status === ServiceOrderStatus.AWAITING_MATERIALS &&
+      updateStatusDto.status === ServiceOrderStatus.IN_PROGRESS
+    ) {
+      const materialRequest = await this.prisma.materialRequest.findFirst({
+        where: { serviceOrderId: id },
+      });
+      const isReady =
+        materialRequest &&
+        (materialRequest.status === MaterialRequestStatus.SEPARATED ||
+          materialRequest.status === MaterialRequestStatus.RELEASED);
+
+      if (materialRequest && !isReady) {
+        throw new BadRequestException(
+          'Materiais desta OS ainda não foram separados pelo almoxarifado',
+        );
+      }
+    }
+
+    const updated = await this.prisma.serviceOrder.update({
       where: { id },
       data: {
         status: updateStatusDto.status,
+        ...(updateStatusDto.status === ServiceOrderStatus.COMPLETED && {
+          completedAt: new Date(),
+        }),
       },
       include: {
         client: true,
-        createdBy: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, role: true },
+        },
       },
     });
+
+    await this.auditService.record(
+      userId,
+      AuditAction.UPDATE,
+      'ServiceOrder',
+      id,
+      { from: order.status, to: updateStatusDto.status, comments: updateStatusDto.comments },
+    );
+
+    // Aprovação (por este endpoint ou pelo fluxo dedicado de Approvals) gera
+    // automaticamente a solicitação de separação de material, se houver itens.
+    if (updateStatusDto.status === ServiceOrderStatus.APPROVED) {
+      await this.materialRequestsService.createFromServiceOrder(id);
+    }
+
+    return updated;
   }
 
   async updateProgress(id: string, progress: number) {
@@ -515,8 +644,20 @@ export class ServiceOrdersService {
       where: { id },
       data: {
         progress,
-        ...(progress === 100 && { status: ServiceOrderStatus.COMPLETED }),
+        ...(progress === 100 && {
+          status: ServiceOrderStatus.COMPLETED,
+          completedAt: new Date(),
+        }),
       },
+    });
+  }
+
+  async updatePaymentStatus(id: string, paymentStatus: PaymentStatus) {
+    await this.findOne(id);
+
+    return this.prisma.serviceOrder.update({
+      where: { id },
+      data: { paymentStatus },
     });
   }
 
@@ -541,11 +682,17 @@ export class ServiceOrdersService {
     // Verificar se existem registros financeiros vinculados
     const hasFinancialRecords =
       (order.purchaseOrders && order.purchaseOrders.length > 0) ||
-      (order.invoices && order.invoices.length > 0);
+      (order.notasFiscais && order.notasFiscais.length > 0);
 
     if (hasFinancialRecords) {
       throw new BadRequestException(
         'Não é possível deletar esta OS pois existem Ordens de Compra ou Notas Fiscais vinculadas. Remova-as primeiro.',
+      );
+    }
+
+    if (order.art) {
+      throw new BadRequestException(
+        'Não é possível deletar esta OS pois existe uma ART vinculada. Remova-a primeiro.',
       );
     }
 
@@ -573,6 +720,148 @@ export class ServiceOrdersService {
         where: { id },
       });
     });
+  }
+
+  async addQuoteLine(serviceOrderId: string, dto: CreateQuoteLineDto) {
+    await this.findOne(serviceOrderId);
+
+    const discount = dto.discount ?? 0;
+
+    return this.prisma.quoteLine.create({
+      data: {
+        serviceOrder: { connect: { id: serviceOrderId } },
+        type: dto.type,
+        description: dto.description,
+        quantity: dto.quantity,
+        unitValue: dto.unitValue,
+        discount,
+        totalValue: dto.quantity * dto.unitValue - discount,
+      },
+    });
+  }
+
+  async updateQuoteLine(
+    serviceOrderId: string,
+    lineId: string,
+    dto: UpdateQuoteLineDto,
+  ) {
+    const line = await this.prisma.quoteLine.findUnique({
+      where: { id: lineId },
+    });
+
+    if (!line || line.serviceOrderId !== serviceOrderId) {
+      throw new NotFoundException('Linha de orçamento não encontrada');
+    }
+
+    const quantity = dto.quantity ?? Number(line.quantity);
+    const unitValue = dto.unitValue ?? Number(line.unitValue);
+    const discount = dto.discount ?? Number(line.discount);
+
+    return this.prisma.quoteLine.update({
+      where: { id: lineId },
+      data: {
+        ...(dto.type && { type: dto.type }),
+        ...(dto.description && { description: dto.description }),
+        quantity,
+        unitValue,
+        discount,
+        totalValue: quantity * unitValue - discount,
+      },
+    });
+  }
+
+  async removeQuoteLine(serviceOrderId: string, lineId: string) {
+    const line = await this.prisma.quoteLine.findUnique({
+      where: { id: lineId },
+    });
+
+    if (!line || line.serviceOrderId !== serviceOrderId) {
+      throw new NotFoundException('Linha de orçamento não encontrada');
+    }
+
+    return this.prisma.quoteLine.delete({ where: { id: lineId } });
+  }
+
+  async linkVisit(serviceOrderId: string, technicalVisitId: string) {
+    await this.findOne(serviceOrderId);
+
+    const visit = await this.prisma.technicalVisit.findUnique({
+      where: { id: technicalVisitId },
+    });
+    if (!visit) {
+      throw new NotFoundException('Visita técnica não encontrada');
+    }
+
+    return this.prisma.serviceOrderVisit.upsert({
+      where: {
+        serviceOrderId_technicalVisitId: { serviceOrderId, technicalVisitId },
+      },
+      create: { serviceOrderId, technicalVisitId },
+      update: {},
+    });
+  }
+
+  async unlinkVisit(serviceOrderId: string, technicalVisitId: string) {
+    await this.prisma.serviceOrderVisit
+      .delete({
+        where: {
+          serviceOrderId_technicalVisitId: {
+            serviceOrderId,
+            technicalVisitId,
+          },
+        },
+      })
+      .catch(() => {
+        throw new NotFoundException('Vínculo de visita não encontrado');
+      });
+  }
+
+  async getAuditLog(serviceOrderId: string) {
+    await this.findOne(serviceOrderId);
+
+    return this.prisma.auditLog.findMany({
+      where: { entity: 'ServiceOrder', entityId: serviceOrderId },
+      include: {
+        user: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Varre orçamentos enviados ao cliente cuja validade expirou e marca como
+  // EXPIRED automaticamente. Roda de hora em hora (ver @Cron abaixo).
+  @Cron(CronExpression.EVERY_HOUR)
+  async expireOverdueQuotes() {
+    const overdue = await this.prisma.serviceOrder.findMany({
+      where: {
+        status: {
+          in: [
+            ServiceOrderStatus.SENT_TO_CLIENT,
+            ServiceOrderStatus.AWAITING_RESPONSE,
+          ],
+        },
+        validUntil: { lt: new Date() },
+      },
+    });
+
+    for (const order of overdue) {
+      await this.prisma.serviceOrder.update({
+        where: { id: order.id },
+        data: { status: ServiceOrderStatus.EXPIRED },
+      });
+
+      await this.auditService.record(
+        order.createdById,
+        AuditAction.UPDATE,
+        'ServiceOrder',
+        order.id,
+        { from: order.status, to: ServiceOrderStatus.EXPIRED, reason: 'Expiração automática (validUntil vencido)' },
+      );
+    }
+
+    return overdue.length;
   }
 
   async getStatistics() {

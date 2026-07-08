@@ -2,14 +2,18 @@
 
 import { useState } from 'react';
 import { ServiceOrderStatus, UserRole } from '@/types';
-import { 
+import {
   ArrowRight,
   CheckCircle,
   XCircle,
   PlayCircle,
   Flag,
   Ban,
-  AlertCircle
+  AlertCircle,
+  Send,
+  Hourglass,
+  CalendarX,
+  PackageX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,12 +24,17 @@ interface StatusManagerProps {
   onStatusChange: (newStatus: ServiceOrderStatus, comments?: string) => Promise<void>;
 }
 
+// Espelha VALID_STATUS_TRANSITIONS de service-orders.service.ts no backend.
 const statusTransitions: Record<ServiceOrderStatus, ServiceOrderStatus[]> = {
   [ServiceOrderStatus.DRAFT]: [ServiceOrderStatus.PENDING_APPROVAL],
   [ServiceOrderStatus.PENDING_APPROVAL]: [ServiceOrderStatus.APPROVED, ServiceOrderStatus.REJECTED],
-  [ServiceOrderStatus.APPROVED]: [ServiceOrderStatus.IN_PROGRESS],
-  [ServiceOrderStatus.REJECTED]: [],
-  [ServiceOrderStatus.IN_PROGRESS]: [ServiceOrderStatus.COMPLETED],
+  [ServiceOrderStatus.APPROVED]: [ServiceOrderStatus.SENT_TO_CLIENT, ServiceOrderStatus.IN_PROGRESS],
+  [ServiceOrderStatus.SENT_TO_CLIENT]: [ServiceOrderStatus.AWAITING_RESPONSE],
+  [ServiceOrderStatus.AWAITING_RESPONSE]: [ServiceOrderStatus.IN_PROGRESS, ServiceOrderStatus.REJECTED, ServiceOrderStatus.EXPIRED],
+  [ServiceOrderStatus.EXPIRED]: [ServiceOrderStatus.PENDING_APPROVAL],
+  [ServiceOrderStatus.REJECTED]: [ServiceOrderStatus.PENDING_APPROVAL],
+  [ServiceOrderStatus.IN_PROGRESS]: [ServiceOrderStatus.AWAITING_MATERIALS, ServiceOrderStatus.COMPLETED],
+  [ServiceOrderStatus.AWAITING_MATERIALS]: [ServiceOrderStatus.IN_PROGRESS],
   [ServiceOrderStatus.COMPLETED]: [],
   [ServiceOrderStatus.CANCELLED]: []
 };
@@ -34,8 +43,12 @@ const statusLabels: Record<ServiceOrderStatus, string> = {
   [ServiceOrderStatus.DRAFT]: 'Rascunho',
   [ServiceOrderStatus.PENDING_APPROVAL]: 'Aguardando Aprovação',
   [ServiceOrderStatus.APPROVED]: 'Aprovada',
+  [ServiceOrderStatus.SENT_TO_CLIENT]: 'Enviado ao Cliente',
+  [ServiceOrderStatus.AWAITING_RESPONSE]: 'Aguardando Resposta do Cliente',
+  [ServiceOrderStatus.EXPIRED]: 'Expirado',
   [ServiceOrderStatus.REJECTED]: 'Rejeitada',
   [ServiceOrderStatus.IN_PROGRESS]: 'Em Andamento',
+  [ServiceOrderStatus.AWAITING_MATERIALS]: 'Aguardando Materiais',
   [ServiceOrderStatus.COMPLETED]: 'Concluída',
   [ServiceOrderStatus.CANCELLED]: 'Cancelada'
 };
@@ -44,8 +57,12 @@ const statusIcons: Record<ServiceOrderStatus, any> = {
   [ServiceOrderStatus.DRAFT]: ArrowRight,
   [ServiceOrderStatus.PENDING_APPROVAL]: CheckCircle,
   [ServiceOrderStatus.APPROVED]: PlayCircle,
+  [ServiceOrderStatus.SENT_TO_CLIENT]: Send,
+  [ServiceOrderStatus.AWAITING_RESPONSE]: Hourglass,
+  [ServiceOrderStatus.EXPIRED]: CalendarX,
   [ServiceOrderStatus.REJECTED]: XCircle,
   [ServiceOrderStatus.IN_PROGRESS]: Flag,
+  [ServiceOrderStatus.AWAITING_MATERIALS]: PackageX,
   [ServiceOrderStatus.COMPLETED]: CheckCircle,
   [ServiceOrderStatus.CANCELLED]: Ban
 };
@@ -54,8 +71,12 @@ const statusColors: Record<ServiceOrderStatus, string> = {
   [ServiceOrderStatus.DRAFT]: 'blue',
   [ServiceOrderStatus.PENDING_APPROVAL]: 'yellow',
   [ServiceOrderStatus.APPROVED]: 'green',
+  [ServiceOrderStatus.SENT_TO_CLIENT]: 'blue',
+  [ServiceOrderStatus.AWAITING_RESPONSE]: 'yellow',
+  [ServiceOrderStatus.EXPIRED]: 'red',
   [ServiceOrderStatus.REJECTED]: 'red',
   [ServiceOrderStatus.IN_PROGRESS]: 'blue',
+  [ServiceOrderStatus.AWAITING_MATERIALS]: 'yellow',
   [ServiceOrderStatus.COMPLETED]: 'emerald',
   [ServiceOrderStatus.CANCELLED]: 'red'
 };
@@ -99,10 +120,10 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
   return (
     <>
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2 text-gray-800">
-            <ArrowRight className="h-5 w-5 text-blue-600" />
+      <Card className="overflow-hidden">
+        <CardHeader className="bg-muted/30 border-b">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ArrowRight className="h-5 w-5 text-primary" />
             Ações de Status
           </CardTitle>
         </CardHeader>
@@ -152,15 +173,15 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
       {/* Modal de Confirmação */}
       {showModal && selectedStatus && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+          <div className="bg-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 p-6 text-white">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                   <AlertCircle className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">Confirmar Mudança de Status</h3>
-                  <p className="text-blue-100 text-sm mt-1">
+                  <h3 className="text-lg font-bold">Confirmar Mudança de Status</h3>
+                  <p className="text-orange-100 text-sm mt-1">
                     {statusLabels[currentStatus]} → {statusLabels[selectedStatus]}
                   </p>
                 </div>
@@ -169,7 +190,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
             
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-foreground mb-2">
                   Observações {selectedStatus === 'REJECTED' && <span className="text-red-500">*</span>}
                 </label>
                 <textarea
@@ -181,7 +202,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                       ? 'Informe o motivo da rejeição...'
                       : 'Adicione observações sobre esta mudança (opcional)...'
                   }
-                  className="w-full rounded-xl border border-gray-300 p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-xl border border-input p-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
                   required={selectedStatus === 'REJECTED'}
                 />
               </div>
@@ -202,7 +223,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                 <Button
                   onClick={confirmTransition}
                   disabled={loading || (selectedStatus === 'REJECTED' && !comments.trim())}
-                  className="flex-1 h-11 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-bold shadow-lg"
+                  className="flex-1 h-11 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-bold shadow-lg"
                 >
                   {loading ? 'Processando...' : 'Confirmar'}
                 </Button>

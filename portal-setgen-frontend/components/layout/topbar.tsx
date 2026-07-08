@@ -9,6 +9,36 @@ import { CommandMenu } from './CommandMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationCenter } from './NotificationCenter';
 
+const BREADCRUMB_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  clients: 'Clientes',
+  equipment: 'Equipamentos',
+  visits: 'Gestão de Visitas',
+  agenda: 'Agenda',
+  orders: 'Ordem de Serviço',
+  approvals: 'Aprovações',
+  deliveries: 'Entregas',
+  inventory: 'Estoque',
+  warehouse: 'Mesa do Almoxarife',
+  procurement: 'Compras',
+  suppliers: 'Fornecedores',
+  financial: 'Despesas',
+  expenses: 'Despesas',
+  invoices: 'Faturamento',
+  'purchase-orders': 'Pedidos de Compra',
+  rh: 'RH',
+  employees: 'Funcionários',
+  reports: 'Relatórios',
+  users: 'Usuários',
+  roles: 'Cargos e Permissões',
+  settings: 'Configurações',
+  'client-lookups': 'Equipes e Grupos',
+  'checklist-templates': 'Templates de Checklist',
+  profile: 'Meu Perfil',
+  new: 'Novo',
+  edit: 'Editar',
+};
+
 export default function Topbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,7 +57,10 @@ export default function Topbar() {
     const paths = pathname.split('/').filter(Boolean);
     const breadcrumbItems = paths.map((path, index) => {
       const href = '/' + paths.slice(0, index + 1).join('/');
-      const label = path.charAt(0).toUpperCase() + path.slice(1);
+      const isDynamicSegment = paths[index - 1] !== undefined && /^[0-9a-f-]{8,}$|^\d+$/i.test(path);
+      const label = isDynamicSegment
+        ? 'Detalhes'
+        : BREADCRUMB_LABELS[path] ?? path.charAt(0).toUpperCase() + path.slice(1);
       return { label, href };
     });
     return breadcrumbItems;
@@ -36,7 +69,7 @@ export default function Topbar() {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <header className="bg-white border-b border-border sticky top-0 z-20 h-16 shrink-0">
+    <header className="bg-card border-b border-border sticky top-0 z-20 h-16 shrink-0">
       <div className="h-full px-6 flex items-center justify-between">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-[13.5px]">
@@ -91,7 +124,7 @@ export default function Topbar() {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowUserMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-52 bg-white rounded-xl shadow-[0_12px_32px_rgba(20,30,40,0.14)] border border-border py-1.5 z-50">
+                <div className="absolute right-0 mt-2 w-52 bg-card rounded-xl shadow-[0_12px_32px_rgba(20,30,40,0.14)] border border-border py-1.5 z-50">
                   <button
                     onClick={() => {
                       router.push('/profile');

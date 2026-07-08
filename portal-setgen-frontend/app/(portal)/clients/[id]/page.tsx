@@ -1,28 +1,56 @@
 "use client"
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
 import { clientsApi } from '@/lib/api/clients';
-import { Client, UserRole } from '@/types';
+import { equipmentApi } from '@/lib/api/equipment';
+import { Client, ClientStatus, IcmsTaxpayerType, UserRole, Equipment, EquipmentType } from '@/types';
 import { useAuthStore } from '@/store/auth';
-import { 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Edit, 
-  Trash2, 
-  ArrowLeft,
+import { getStatusColor, formatDate } from '@/lib/utils';
+import {
+  Building2,
+  MapPin,
+  Edit,
+  Trash2,
   Info,
-  CheckCircle,
-  FileText,
-  User,
-  Users
+  Users,
+  History,
+  Zap,
+  Box,
+  Plus,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DetailHeader } from "@/components/layout/DetailHeader";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
+import { FieldBlock } from "@/components/ui/field-block";
+import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
+import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
 import Link from 'next/link';
+
+const ClientLocationView = dynamic(
+  () => import('../components/ClientLocationView').then((m) => m.ClientLocationView),
+  { ssr: false, loading: () => <div className="h-72 rounded-2xl bg-muted animate-pulse" /> },
+);
+
+const ICMS_LABELS: Record<IcmsTaxpayerType, string> = {
+  [IcmsTaxpayerType.CONTRIBUINTE]: 'Contribuinte de ICMS',
+  [IcmsTaxpayerType.ISENTO]: 'Isento',
+  [IcmsTaxpayerType.NAO_CONTRIBUINTE]: 'Não Contribuinte',
+};
+
+const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
+  [EquipmentType.GENERATOR]: "Gerador",
+  [EquipmentType.SUBSTATION]: "Subestação",
+  [EquipmentType.OTHER]: "Outro",
+};
+
+const STATUS_LABELS: Record<ClientStatus, string> = {
+  [ClientStatus.ACTIVE]: 'Ativo',
+  [ClientStatus.INACTIVE]: 'Inativo',
+  [ClientStatus.DEFAULTER]: 'Inadimplente',
+};
 
 export default function ClientDetailsPage() {
   const params = useParams();
@@ -30,10 +58,23 @@ export default function ClientDetailsPage() {
   const { user } = useAuthStore();
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
+  const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [loadingEquipments, setLoadingEquipments] = useState(true);
+  const {
+    confirmId: confirmDeleteEquipmentId,
+    deleting: deletingEquipment,
+    requestDelete: requestDeleteEquipment,
+    cancelDelete: cancelDeleteEquipment,
+    confirmDelete: confirmDeleteEquipment,
+  } = useInlineDelete(
+    (id) => equipmentApi.delete(id),
+    (id) => setEquipments((prev) => prev.filter((e) => e.id !== id))
+  );
 
   useEffect(() => {
     if (params.id) {
       loadClient();
+      loadEquipments();
     }
   }, [params.id]);
 
@@ -47,6 +88,17 @@ export default function ClientDetailsPage() {
       router.push('/clients');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEquipments = async () => {
+    try {
+      const data = await equipmentApi.getAll({ clientId: params.id as string });
+      setEquipments(data);
+    } catch (error) {
+      console.error('Error loading equipments:', error);
+    } finally {
+      setLoadingEquipments(false);
     }
   };
 
@@ -74,14 +126,22 @@ export default function ClientDetailsPage() {
 
   if (!client) return null;
 
+  const badges = [
+    client.group && { label: client.group.name, cls: 'bg-orange-50 text-orange-700' },
+    client.segment && { label: client.segment.name, cls: 'bg-status-blue-bg text-status-blue-fg' },
+    client.responsibleTeam && { label: `Equipe: ${client.responsibleTeam.name}`, cls: 'bg-status-purple-bg text-status-purple-fg' },
+    client.responsibleUser && { label: `Resp.: ${client.responsibleUser.name}`, cls: 'bg-muted text-text-secondary' },
+  ].filter(Boolean) as { label: string; cls: string }[];
+
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-12">
-      <DetailHeader
+    <div className="max-w-5xl mx-auto space-y-4 pb-12">
+      <CompactDetailHeader
         icon={Building2}
         title={client.companyName}
-        subtitle={<><FileText className="h-3.5 w-3.5" />{client.cnpjCpf} {client.tradeName && `• ${client.tradeName}`}</>}
-        onBack={() => router.back()}
+        badge={{ label: STATUS_LABELS[client.status] || client.status, className: getStatusColor(client.status) }}
+        meta={<>{client.cnpjCpf} · cliente desde {new Date(client.createdAt).toLocaleDateString('pt-BR')}</>}
         backLabel="Voltar para lista"
+        onBack={() => router.back()}
         actions={
           <>
             <Link href={`/clients/${client.id}/edit`}>
@@ -104,141 +164,207 @@ export default function ClientDetailsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Coluna Principal */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Informações de Contato */}
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800">
-                <Users className="h-5 w-5 text-orange-600" />
-                Contato e Identificação
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 grid md:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">E-mail</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Mail className="h-4 w-4 text-orange-500" />
-                    <span className="font-medium">{client.email}</span>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Telefone</h4>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Phone className="h-4 w-4 text-orange-500" />
-                    <span className="font-medium">{client.phone}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h4>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-green-100 text-green-700">
-                    {client.status || 'Ativo'}
-                  </span>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">CNPJ / CPF</h4>
-                  <p className="font-medium text-gray-700">{client.cnpjCpf}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <Tabs defaultValue="detalhes">
+        <TabsList>
+          <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+          <TabsTrigger value="equipamentos">Equipamentos</TabsTrigger>
+          <TabsTrigger value="localizacao">Localização</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
+        </TabsList>
 
-          {/* Endereço */}
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800">
-                <MapPin className="h-5 w-5 text-orange-600" />
-                Localização
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 space-y-4">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Logradouro</h4>
-                  <p className="text-gray-700 font-medium">
-                    {client.address?.street}, {client.address?.number}
-                  </p>
-                  {client.address?.complement && (
-                    <p className="text-sm text-gray-500 italic mt-1">{client.address.complement}</p>
+        <TabsContent value="detalhes" className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="md:col-span-2 overflow-hidden p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                Contato e Identificação
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <FieldBlock label="E-mail" value={client.email} />
+                <FieldBlock
+                  label="Status"
+                  value={
+                    <span className={`inline-block text-[11.5px] font-bold px-2.5 py-0.5 rounded-full ${getStatusColor(client.status)}`}>
+                      {STATUS_LABELS[client.status] || client.status}
+                    </span>
+                  }
+                />
+                <FieldBlock label="Telefone" value={client.phone} />
+                <FieldBlock label="CNPJ / CPF" value={client.cnpjCpf} />
+                <FieldBlock label="Nome Fantasia" value={client.tradeName} />
+                <FieldBlock label="Responsável no Local" value={client.onSiteContact} />
+              </div>
+
+              {(client.corporatePhones?.length || client.corporateEmails?.length) ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-4 mt-4 border-t border-border">
+                  {!!client.corporatePhones?.length && (
+                    <FieldBlock label="Telefones Corporativos" value={client.corporatePhones.join(', ')} />
+                  )}
+                  {!!client.corporateEmails?.length && (
+                    <FieldBlock label="E-mails Corporativos" value={client.corporateEmails.join(', ')} />
                   )}
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Bairro</h4>
-                  <p className="text-gray-700 font-medium">{client.address?.neighborhood}</p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Cidade / Estado</h4>
-                  <p className="text-gray-700 font-medium">{client.address?.city} - {client.address?.state}</p>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">CEP</h4>
-                  <p className="text-gray-700 font-medium">{client.address?.cep}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              ) : null}
+            </Card>
 
-        {/* Coluna Lateral */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="flex items-center gap-2 text-gray-800 text-lg">
-                <Info className="h-5 w-5 text-orange-600" />
+            <Card className="overflow-hidden p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-3 flex items-center gap-2">
+                <Info className="h-4 w-4 text-primary" />
                 Resumo
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              <p className="text-sm text-gray-600 leading-relaxed">
+              </div>
+              <p className="text-[13px] text-text-secondary leading-relaxed pb-4 border-b border-border">
                 {client.notes || 'Sem observações cadastradas para este cliente.'}
               </p>
 
-              {(client.group || client.segment || client.responsibleTeam || client.responsibleUser) && (
-                <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
-                  {client.group && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-700">
-                      {client.group.name}
+              {badges.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-4 pb-4 border-b border-border">
+                  {badges.map((b) => (
+                    <span key={b.label} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${b.cls}`}>
+                      {b.label}
                     </span>
-                  )}
-                  {client.segment && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
-                      {client.segment.name}
-                    </span>
-                  )}
-                  {client.responsibleTeam && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700">
-                      Equipe: {client.responsibleTeam.name}
-                    </span>
-                  )}
-                  {client.responsibleUser && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
-                      Resp.: {client.responsibleUser.name}
-                    </span>
-                  )}
+                  ))}
                 </div>
               )}
 
               {client.externalCode && (
-                <div className="pt-4 border-t border-gray-100">
-                  <p className="text-xs text-gray-400">Código externo</p>
-                  <p className="text-sm font-bold text-gray-700">{client.externalCode}</p>
+                <div className="pt-4 pb-4 border-b border-border">
+                  <div className="text-[10.5px] font-bold tracking-wider text-text-muted uppercase mb-1">Código externo</div>
+                  <div className="text-[14px] font-semibold text-foreground">{client.externalCode}</div>
                 </div>
               )}
 
-              <div className="pt-4 border-t border-gray-100">
-                <p className="text-xs text-gray-400">Cliente desde</p>
-                <p className="text-sm font-bold text-gray-700">
+              <div className="pt-4">
+                <div className="text-[10.5px] font-bold tracking-wider text-text-muted uppercase mb-1">Cliente desde</div>
+                <div className="text-[14px] font-semibold text-foreground">
                   {new Date(client.createdAt).toLocaleDateString('pt-BR')}
-                </p>
+                </div>
               </div>
-            </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2 overflow-hidden p-6">
+              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+                <Info className="h-4 w-4 text-primary" />
+                Dados de Cobrança
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <FieldBlock label="Contribuinte do ICMS" value={client.icmsTaxpayerType ? ICMS_LABELS[client.icmsTaxpayerType] : undefined} />
+                <FieldBlock label="E-mail de Cobrança" value={client.billingEmail} />
+                <FieldBlock label="Inscrição Estadual" value={client.stateRegistration} />
+                <FieldBlock label="Inscrição Municipal" value={client.municipalRegistration} />
+              </div>
+            </Card>
+
+            {client.internalNotes && (
+              <Card className="md:col-span-2 overflow-hidden p-6">
+                <div className="text-[13.5px] font-bold text-foreground mb-3 flex items-center gap-2">
+                  <Info className="h-4 w-4 text-primary" />
+                  Observação Interna
+                </div>
+                <p className="text-[13px] text-text-secondary leading-relaxed">{client.internalNotes}</p>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="equipamentos" className="mt-4">
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+              <div className="text-[13.5px] font-bold text-foreground">
+                {equipments.length} equipamento{equipments.length !== 1 ? 's' : ''} cadastrado{equipments.length !== 1 ? 's' : ''}
+              </div>
+              <Button
+                onClick={() => router.push(`/equipment/new?clientId=${client.id}`)}
+                className="rounded-[9px] font-bold gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Novo Equipamento
+              </Button>
+            </div>
+
+            {loadingEquipments ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : equipments.length === 0 ? (
+              <div className="p-12 text-center">
+                <Zap className="h-9 w-9 text-border mx-auto mb-3" />
+                <p className="text-[13.5px] text-text-secondary">Nenhum equipamento cadastrado para este cliente ainda.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {equipments.map((eq) => (
+                  <div
+                    key={eq.id}
+                    className="flex items-center justify-between gap-3 px-5 py-3.5 hover:bg-muted/40 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/equipment/${eq.id}`)}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center shrink-0 bg-orange-50 text-orange-700">
+                        {eq.type === EquipmentType.GENERATOR ? <Zap className="h-4 w-4" /> : <Box className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-bold text-foreground truncate">{eq.brand || 'Sem marca'} {eq.model}</div>
+                        <div className="text-[11.5px] text-text-muted truncate">
+                          {EQUIPMENT_TYPE_LABELS[eq.type]}
+                          {eq.serialNumber && ` · SN: ${eq.serialNumber}`}
+                          {` · cadastrado em ${formatDate(eq.createdAt)}`}
+                        </div>
+                      </div>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <InlineDeleteAction
+                        confirming={confirmDeleteEquipmentId === eq.id}
+                        deleting={deletingEquipment}
+                        onView={() => router.push(`/equipment/${eq.id}`)}
+                        onEdit={() => router.push(`/equipment/${eq.id}/edit`)}
+                        onRequestDelete={() => requestDeleteEquipment(eq.id)}
+                        onConfirmDelete={() => confirmDeleteEquipment(eq.id)}
+                        onCancelDelete={cancelDeleteEquipment}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="localizacao" className="mt-4">
+          <Card className="overflow-hidden p-6">
+            <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Localização
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+              <FieldBlock
+                label="Logradouro"
+                value={
+                  <>
+                    {client.address?.street}, {client.address?.number}
+                    {client.address?.complement && (
+                      <span className="block text-[12px] text-text-muted italic font-normal mt-0.5">{client.address.complement}</span>
+                    )}
+                  </>
+                }
+              />
+              <FieldBlock label="Bairro" value={client.address?.neighborhood} />
+              <FieldBlock label="Cidade / Estado" value={`${client.address?.city || ''} - ${client.address?.state || ''}`} />
+              <FieldBlock label="CEP" value={client.address?.cep} />
+            </div>
+
+            <div className="mt-6">
+              <ClientLocationView latitude={client.latitude} longitude={client.longitude} />
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="historico" className="mt-4">
+          <Card className="overflow-hidden p-12 text-center">
+            <History className="h-9 w-9 text-border mx-auto mb-3" />
+            <p className="text-[13.5px] text-text-secondary">Nenhum registro de atividade para este cliente ainda.</p>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

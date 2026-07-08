@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
-import { dashboardApi, DashboardStats } from '@/lib/api/dashboard';
+import { dashboardApi, DashboardStats, OperationalKpis } from '@/lib/api/dashboard';
 import {
   Clock,
   FileText,
@@ -12,6 +12,10 @@ import {
   AlertTriangle,
   Users,
   ArrowRight,
+  PackageSearch,
+  Percent,
+  Truck,
+  RotateCcw,
 } from 'lucide-react';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { OSStatusChart } from '@/components/dashboard/OSStatusChart';
@@ -23,6 +27,7 @@ export default function DashboardPage() {
   const { user } = useAuthStore();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [kpis, setKpis] = useState<OperationalKpis | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,8 +37,12 @@ export default function DashboardPage() {
   const loadStats = async () => {
     setLoading(true);
     try {
-      const data = await dashboardApi.getStats();
-      setStats(data);
+      const [statsData, kpisData] = await Promise.all([
+        dashboardApi.getStats(),
+        dashboardApi.getOperationalKpis(),
+      ]);
+      setStats(statsData);
+      setKpis(kpisData);
     } catch (error) {
       console.error('Erro ao carregar dashboard:', error);
     } finally {
@@ -98,6 +107,40 @@ export default function DashboardPage() {
         <OSStatusChart data={stats.ordersByStatus} />
       </div>
 
+      {/* KPIs Operacionais */}
+      {kpis && (canSeeFinancials || user?.role === 'ADMINISTRATIVE' || user?.role === 'WAREHOUSE') && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="SLA Separação de Material"
+            value={kpis.materialSeparationSla.sampleSize > 0 ? `${kpis.materialSeparationSla.averageHours}h` : '-'}
+            icon={PackageSearch}
+            tone="purple"
+          />
+          <StatCard
+            label="Taxa de Aprovação de Orçamento"
+            value={`${kpis.quoteApprovalRate.rate}%`}
+            icon={Percent}
+            tone="blue"
+          />
+          <StatCard
+            label="Lead Time de Fornecedor"
+            value={
+              kpis.supplierLeadTime.length > 0
+                ? `${(kpis.supplierLeadTime.reduce((a, s) => a + s.averageDays, 0) / kpis.supplierLeadTime.length).toFixed(1)}d`
+                : '-'
+            }
+            icon={Truck}
+            tone="amber"
+          />
+          <StatCard
+            label="Taxa de Retrabalho"
+            value={`${kpis.reworkRate.rate}%`}
+            icon={RotateCcw}
+            tone={kpis.reworkRate.rate > 10 ? 'red' : 'green'}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent Activities */}
         <Card className="overflow-hidden">
@@ -150,7 +193,7 @@ export default function DashboardPage() {
             <AlertCard label="Itens com Estoque Baixo" count={stats.lowStockItems} desc="Reposição necessária" tone="amber" />
           )}
           {stats.overdueInvoices > 0 && canSeeBillingAlerts && (
-            <AlertCard label="Faturas Vencidas" count={stats.overdueInvoices} desc="Cobrança pendente" tone="red" />
+            <AlertCard label="Notas Rejeitadas" count={stats.overdueInvoices} desc="Necessita correção" tone="red" />
           )}
         </div>
       )}

@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeForm } from '@/components/rh/EmployeeForm';
 import { ASOList } from '@/components/rh/ASOList';
 import { DocumentList } from '@/components/rh/DocumentList';
-import { DetailHeader } from '@/components/layout/DetailHeader';
+import { CompactDetailHeader } from '@/components/layout/CompactDetailHeader';
 import { getStatusColor, getStatusLabel } from '@/lib/utils';
 
 export default function EmployeeDetailsPage() {
@@ -69,45 +69,38 @@ export default function EmployeeDetailsPage() {
   if (!employee) return null;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5 pb-12">
-      <DetailHeader
+    <div className="max-w-5xl mx-auto space-y-4 pb-12">
+      <CompactDetailHeader
         icon={User}
         tone="gray"
         title={employee.name}
-        subtitle={
-          <>
-            <Briefcase className="h-3.5 w-3.5" />
-            {employee.position || 'Cargo não informado'} • CPF: {employee.cpf}
-            <span className={`ml-2 px-2.5 py-0.5 text-[11px] font-bold rounded-full ${getStatusColor(employee.status)}`}>
-              {getStatusLabel(employee.status)}
-            </span>
-          </>
-        }
+        badge={{ label: getStatusLabel(employee.status), className: getStatusColor(employee.status) }}
+        meta={<><Briefcase className="h-3.5 w-3.5" />{employee.position || 'Cargo não informado'} · CPF: {employee.cpf}</>}
         onBack={() => router.push('/rh/employees')}
         backLabel="Voltar para lista"
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-white p-1 rounded-xl shadow-md border mb-6">
-          <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-gray-100 data-[state=active]:text-gray-900">
+        <TabsList>
+          <TabsTrigger value="info">
             <Info className="h-4 w-4 mr-2" />
             Informações
           </TabsTrigger>
-          <TabsTrigger value="aso" className="rounded-lg data-[state=active]:bg-gray-100 data-[state=active]:text-gray-900">
+          <TabsTrigger value="aso">
             <ShieldCheck className="h-4 w-4 mr-2" />
             ASO (Saúde)
           </TabsTrigger>
-          <TabsTrigger value="docs" className="rounded-lg data-[state=active]:bg-gray-100 data-[state=active]:text-gray-900">
+          <TabsTrigger value="docs">
             <FileBox className="h-4 w-4 mr-2" />
             Documentos
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="info" className="mt-0 space-y-6">
-          <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-            <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-              <CardTitle className="text-gray-800 flex items-center gap-2">
-                <Edit className="h-5 w-5 text-gray-400" />
+        <TabsContent value="info" className="mt-4 space-y-4">
+          <Card className="overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Edit className="h-5 w-5 text-muted-foreground" />
                 Editar Informações
               </CardTitle>
             </CardHeader>
@@ -121,7 +114,7 @@ export default function EmployeeDetailsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="aso" className="mt-0">
+        <TabsContent value="aso" className="mt-4">
           <ASOList 
             employeeId={employee.id} 
             initialAsos={employee.asos || []} 
@@ -129,7 +122,7 @@ export default function EmployeeDetailsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="docs" className="mt-0">
+        <TabsContent value="docs" className="mt-4">
           <DocumentList 
             employeeId={employee.id} 
             initialDocuments={employee.documents || []} 

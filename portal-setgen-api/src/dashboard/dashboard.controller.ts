@@ -102,6 +102,28 @@ export class DashboardController {
     return this.dashboardService.getStats();
   }
 
+  @Get('operational-kpis')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.WAREHOUSE)
+  @ApiOperation({ summary: 'KPIs operacionais: SLA de separação, aprovação de orçamento, lead time de fornecedor, retrabalho' })
+  getOperationalKpis() {
+    return this.dashboardService.getOperationalKpis();
+  }
+
+  @Get('receivables')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Previsão de recebíveis do mês (OS concluídas + prazo de pagamento, controle interno)' })
+  @ApiQuery({ name: 'year', required: false, example: 2026 })
+  @ApiQuery({ name: 'month', required: false, example: 7 })
+  getReceivables(
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
+    const yearNum = year && !isNaN(+year) ? Number(year) : undefined;
+    const monthNum = month && !isNaN(+month) ? Number(month) : undefined;
+
+    return this.dashboardService.getReceivables(yearNum, monthNum);
+  }
+
   @Get('activities')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.WAREHOUSE, UserRole.TECHNICIAN)
   @ApiOperation({ summary: 'Atividades recentes do sistema' })
