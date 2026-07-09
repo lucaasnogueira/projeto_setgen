@@ -13,6 +13,7 @@ import { approvalsApi } from "@/lib/api/approvals"
 import { inventoryApi } from "@/lib/api/inventory"
 import { fuelRequestsApi } from "@/lib/api/fuel-requests"
 import { materialRequestsApi } from "@/lib/api/material-requests"
+import { useAuthStore } from "@/store/auth"
 import { FuelRequestStatus, MaterialRequestStatus } from "@/types"
 
 interface NotificationItem {
@@ -32,18 +33,22 @@ const TYPE_STYLE: Record<NotificationItem["type"], { icon: React.ComponentType<{
 
 export function NotificationCenter() {
   const router = useRouter()
+  const { user } = useAuthStore()
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([])
   const [loading, setLoading] = React.useState(false)
+
+  const prefs = user?.notifyPrefs
+  const wants = (key: keyof NonNullable<typeof prefs>) => prefs?.[key] !== false
 
   const loadNotifications = async () => {
     setLoading(true)
     const items: NotificationItem[] = []
 
     const results = await Promise.allSettled([
-      approvalsApi.getPending(),
-      inventoryApi.getAll(),
-      fuelRequestsApi.getAll({ status: FuelRequestStatus.PENDING }),
-      materialRequestsApi.getAll(MaterialRequestStatus.PENDING),
+      wants("approvals") ? approvalsApi.getPending() : Promise.resolve([]),
+      wants("lowStock") ? inventoryApi.getAll() : Promise.resolve([]),
+      wants("fuelRequests") ? fuelRequestsApi.getAll({ status: FuelRequestStatus.PENDING }) : Promise.resolve([]),
+      wants("materialRequests") ? materialRequestsApi.getAll(MaterialRequestStatus.PENDING) : Promise.resolve([]),
     ])
 
     if (results[0].status === "fulfilled") {

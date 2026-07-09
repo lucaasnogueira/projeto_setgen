@@ -16,4 +16,8 @@ export const authApi = {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
+
+  changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
+    await api.post('/auth/change-password', { currentPassword, newPassword });
+  },
 };

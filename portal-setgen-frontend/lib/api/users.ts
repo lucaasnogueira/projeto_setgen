@@ -1,4 +1,5 @@
 import api from './client';
+import type { NotificationPrefs } from '@/types';
 
 export interface User {
   id: string;
@@ -9,6 +10,7 @@ export interface User {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  notifyPrefs?: NotificationPrefs | null;
   roleRef?: {
     name?: string;
     permissions?: { permission: { id: string; name: string } }[];
@@ -53,5 +55,25 @@ export const usersApi = {
 
   async resetPassword(id: string, newPassword: string): Promise<void> {
     await api.patch(`/users/${id}/reset-password`, { password: newPassword });
+  },
+
+  async getMe(): Promise<User> {
+    const { data } = await api.get('/users/me');
+    return data;
+  },
+
+  async updateMe(profileData: { name?: string; email?: string }): Promise<User> {
+    const { data } = await api.patch('/users/me', profileData);
+    return data;
+  },
+
+  async updateMyNotifications(prefs: {
+    approvals?: boolean;
+    lowStock?: boolean;
+    fuelRequests?: boolean;
+    materialRequests?: boolean;
+  }): Promise<User> {
+    const { data } = await api.patch('/users/me/notifications', prefs);
+    return data;
   },
 };

@@ -6,6 +6,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   setAuth: (user: User, token: string) => void;
+  updateUser: (partial: Partial<User>) => void;
   clearAuth: () => void;
 }
 
@@ -20,6 +21,14 @@ export const useAuthStore = create<AuthState>()(
         localStorage.setItem('user', JSON.stringify(user));
         // Salvar também em cookie para o middleware/proxy
         document.cookie = `auth-storage=${token}; path=/; max-age=86400; SameSite=Lax`;
+      },
+      updateUser: (partial) => {
+        set((state) => {
+          if (!state.user) return state;
+          const user = { ...state.user, ...partial };
+          localStorage.setItem('user', JSON.stringify(user));
+          return { user };
+        });
       },
       clearAuth: () => {
         set({ user: null, token: null });
