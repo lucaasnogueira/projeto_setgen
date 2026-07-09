@@ -137,6 +137,7 @@ export default function Topbar() {
                   </button>
                   <button
                     onClick={() => {
+                      router.push('/settings');
                       setShowUserMenu(false);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 text-[13px] font-semibold text-foreground hover:bg-muted/40 rounded-lg transition-colors"

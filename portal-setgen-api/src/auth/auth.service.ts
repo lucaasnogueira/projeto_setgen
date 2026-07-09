@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 interface AuthUser {
   id: string;
@@ -55,5 +56,13 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    return this.usersService.changeOwnPassword(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 }

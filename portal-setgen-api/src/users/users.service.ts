@@ -2,11 +2,14 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -184,6 +187,74 @@ export class UsersService {
     });
   }
 
+  async findMe(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        createdAt: true,
+        notifyPrefs: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    return user;
+  }
+
+  async updateProfile(id: string, updateProfileDto: UpdateProfileDto) {
+    await this.findOne(id);
+
+    if (updateProfileDto.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: updateProfileDto.email },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('E-mail já cadastrado');
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: updateProfileDto,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        active: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async updateNotificationPrefs(
+    id: string,
+    dto: UpdateNotificationPrefsDto,
+  ) {
+    const user = await this.findMe(id);
+    const currentPrefs = (user.notifyPrefs as Record<string, boolean>) ?? {};
+
+    const notifyPrefs = { ...currentPrefs, ...dto };
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { notifyPrefs },
+      select: {
+        id: true,
+        notifyPrefs: true,
+      },
+    });
+
+    return updated;
+  }
+
   async resetPassword(id: string, resetPasswordDto: ResetPasswordDto) {
     await this.findOne(id);
     const hashedPassword = await bcrypt.hash(resetPasswordDto.password, 10);
@@ -198,5 +269,35 @@ export class UsersService {
         updatedAt: true,
       },
     });
+  }
+
+  async changeOwnPassword(
+    id: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    const passwordMatch = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
+
+    if (!passwordMatch) {
+      throw new BadRequestException('Senha atual incorreta');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword },
+    });
+
+    return { message: 'Senha alterada com sucesso' };
   }
 }

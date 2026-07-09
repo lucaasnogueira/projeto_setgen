@@ -228,6 +228,13 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface NotificationPrefs {
+  approvals?: boolean;
+  lowStock?: boolean;
+  fuelRequests?: boolean;
+  materialRequests?: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -236,6 +243,7 @@ export interface User {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  notifyPrefs?: NotificationPrefs | null;
 }
 
 export interface Client {

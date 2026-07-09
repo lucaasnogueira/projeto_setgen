@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -13,6 +14,8 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -37,6 +40,27 @@ export class UsersController {
   @ApiOperation({ summary: 'Listar todos os usuários' })
   findAll() {
     return this.usersService.findAll();
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Buscar dados do usuário logado' })
+  findMe(@Request() req) {
+    return this.usersService.findMe(req.user.id);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Atualizar perfil do usuário logado (nome/e-mail)' })
+  updateMe(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
+    return this.usersService.updateProfile(req.user.id, updateProfileDto);
+  }
+
+  @Patch('me/notifications')
+  @ApiOperation({ summary: 'Atualizar preferências de notificação do usuário logado' })
+  updateMyNotifications(
+    @Request() req,
+    @Body() dto: UpdateNotificationPrefsDto,
+  ) {
+    return this.usersService.updateNotificationPrefs(req.user.id, dto);
   }
 
   @Get(':id')
