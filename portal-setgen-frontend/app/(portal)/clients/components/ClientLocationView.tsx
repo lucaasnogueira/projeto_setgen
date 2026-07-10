@@ -14,12 +14,12 @@ const markerIcon = L.icon({
 });
 
 interface ClientLocationViewProps {
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export function ClientLocationView({ latitude, longitude }: ClientLocationViewProps) {
-  if (latitude === undefined || longitude === undefined) {
+  if (latitude == null || longitude == null) {
     return (
       <div className="h-72 rounded-2xl border flex items-center justify-center text-[13px] text-text-muted">
         Localização não informada para este cliente.

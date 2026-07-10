@@ -270,8 +270,8 @@ export interface Client {
   stateRegistration?: string;
   municipalRegistration?: string;
   billingEmail?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   responsibleUserId?: string;
   responsibleTeamId?: string;
   groupId?: string;

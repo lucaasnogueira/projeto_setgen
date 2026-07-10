@@ -19,8 +19,8 @@ const markerIcon = L.icon({
 const DEFAULT_CENTER: [number, number] = [-15.7801, -47.9292]; // Brasília
 
 interface ClientLocationMapProps {
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   onChange: (lat: number, lng: number) => void;
 }
 
@@ -37,8 +37,8 @@ export function ClientLocationMap({ latitude, longitude, onChange }: ClientLocat
   const [manualLat, setManualLat] = useState(latitude?.toString() ?? "");
   const [manualLng, setManualLng] = useState(longitude?.toString() ?? "");
 
-  const position: [number, number] =
-    latitude !== undefined && longitude !== undefined ? [latitude, longitude] : DEFAULT_CENTER;
+  const hasPosition = latitude != null && longitude != null;
+  const position: [number, number] = hasPosition ? [latitude, longitude] : DEFAULT_CENTER;
 
   const applyManual = () => {
     const lat = parseFloat(manualLat);
@@ -73,12 +73,12 @@ export function ClientLocationMap({ latitude, longitude, onChange }: ClientLocat
         </div>
       </div>
       <div className="h-72 rounded-2xl overflow-hidden border">
-        <MapContainer center={position} zoom={latitude !== undefined ? 15 : 4} className="h-full w-full">
+        <MapContainer center={position} zoom={hasPosition ? 15 : 4} className="h-full w-full">
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {latitude !== undefined && longitude !== undefined && (
+          {hasPosition && (
             <Marker position={[latitude, longitude]} icon={markerIcon} />
           )}
           <ClickHandler
