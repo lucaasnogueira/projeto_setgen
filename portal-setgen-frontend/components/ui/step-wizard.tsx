@@ -82,6 +82,7 @@ export function StepFooter({ steps, activeKey, onNext, onCancel, loading, submit
       </Button>
       {!isLast ? (
         <Button
+          key="next"
           type="button"
           onClick={() => onNext(steps[activeIndex + 1].key)}
           className="flex-1 h-14 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl shadow-lg shadow-orange-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95"
@@ -91,6 +92,7 @@ export function StepFooter({ steps, activeKey, onNext, onCancel, loading, submit
         </Button>
       ) : (
         <Button
+          key="submit"
           type="submit"
           disabled={loading}
           className="flex-1 h-14 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl shadow-lg shadow-orange-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"

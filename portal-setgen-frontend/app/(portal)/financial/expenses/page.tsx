@@ -7,7 +7,7 @@ import { Expense, FilterExpenseDto } from '@/types/financial';
 import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Filter, Loader2, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Loader2, Edit, Trash2, CheckCircle, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -65,6 +65,35 @@ export default function ExpensesListPage() {
       loadExpenses();
     } catch (error) {
       toast({ title: 'Erro', description: 'Erro ao excluir.', variant: 'destructive' });
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      await expensesApi.approve(id);
+      toast({ title: 'Sucesso', description: 'Despesa aprovada.' });
+      loadExpenses();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.response?.data?.message || 'Erro ao aprovar despesa.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMarkAsPaid = async (id: string) => {
+    if (!confirm('Marcar esta despesa como paga hoje?')) return;
+    try {
+      await expensesApi.markAsPaid(id, { paymentDate: new Date().toISOString() });
+      toast({ title: 'Sucesso', description: 'Despesa marcada como paga.' });
+      loadExpenses();
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error.response?.data?.message || 'Erro ao marcar como paga.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -178,16 +207,38 @@ export default function ExpensesListPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        {expense.status === 'PENDING' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                            title="Aprovar"
+                            onClick={() => handleApprove(expense.id)}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {expense.status === 'APPROVED' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-green-600 hover:text-green-800 hover:bg-green-50"
+                            title="Marcar como Pago"
+                            onClick={() => handleMarkAsPaid(expense.id)}
+                          >
+                            <DollarSign className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => router.push(`/financial/expenses/${expense.id}`)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="text-red-600 hover:text-red-800 hover:bg-red-50"
                           onClick={() => handleDelete(expense.id)}
                         >
