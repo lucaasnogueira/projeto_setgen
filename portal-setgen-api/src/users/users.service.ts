@@ -38,7 +38,7 @@ export class UsersService {
         permissions: {
           create: createUserDto.permissionIds?.map((pId) => ({
             permission: {
-              connect: { id: pId },
+              connect: { name: pId },
             },
           })),
         },
@@ -139,7 +139,7 @@ export class UsersService {
           deleteMany: {},
           create: permissionIds.map((pId) => ({
             permission: {
-              connect: { id: pId },
+              connect: { name: pId },
             },
           })),
         } : undefined,
