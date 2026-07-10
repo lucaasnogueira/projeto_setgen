@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/components/ui/use-toast';
 
 interface StatusManagerProps {
   currentStatus: ServiceOrderStatus;
@@ -82,14 +83,19 @@ const statusColors: Record<ServiceOrderStatus, string> = {
 };
 
 export function StatusManager({ currentStatus, userRole, onStatusChange }: StatusManagerProps) {
+  const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<ServiceOrderStatus | null>(null);
   const [comments, setComments] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const availableTransitions = statusTransitions[currentStatus] || [];
-  const canCancel = (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) && 
-                    currentStatus !== ServiceOrderStatus.COMPLETED && 
+  // Mudar status da OS é restrito a ADMIN/MANAGER no backend (@Roles em
+  // PATCH /service-orders/:id/status) — esconder os botões pra outros perfis
+  // em vez de deixar clicar e falhar com 403 sem explicação.
+  const canManageStatus = userRole === UserRole.ADMIN || userRole === UserRole.MANAGER;
+  const availableTransitions = canManageStatus ? statusTransitions[currentStatus] || [] : [];
+  const canCancel = canManageStatus &&
+                    currentStatus !== ServiceOrderStatus.COMPLETED &&
                     currentStatus !== ServiceOrderStatus.CANCELLED;
 
   const handleTransition = (newStatus: ServiceOrderStatus) => {
@@ -99,16 +105,20 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
   const confirmTransition = async () => {
     if (!selectedStatus) return;
-    
+
     setLoading(true);
     try {
       await onStatusChange(selectedStatus, comments || undefined);
       setShowModal(false);
       setComments('');
       setSelectedStatus(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error changing status:', error);
-      alert('Erro ao alterar status da OS');
+      toast({
+        title: 'Erro ao alterar status',
+        description: error.response?.data?.message || 'Não foi possível alterar o status da OS.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
