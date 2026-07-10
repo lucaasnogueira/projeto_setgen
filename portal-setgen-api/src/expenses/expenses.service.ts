@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { FilterExpenseDto } from './dto/filter-expense.dto';
-import { ExpenseStatus, CashFlowType, Prisma } from '@prisma/client';
+import { ExpenseStatus, CashFlowType, PaymentMethod, Prisma } from '@prisma/client';
 
 @Injectable()
 export class ExpensesService {
@@ -53,6 +53,15 @@ export class ExpensesService {
       createExpenseDto.totalInstallments > 1
     ) {
       await this.createInstallments(expense, createExpenseDto, userId);
+    }
+
+    // Pagamento em dinheiro não passa por aprovação/baixa manual: já nasce paga.
+    if (createExpenseDto.paymentMethod === PaymentMethod.CASH) {
+      return this.applyPayment(
+        expense.id,
+        new Date(createExpenseDto.date),
+        Number(expense.amount),
+      );
     }
 
     return expense;
@@ -261,6 +270,19 @@ export class ExpensesService {
         'Apenas despesas aprovadas podem ser marcadas como pagas',
       );
     }
+
+    return this.applyPayment(id, paymentDate, paidAmount);
+  }
+
+  /** Marca a despesa como paga (total ou parcial), debita a conta bancária e
+   * lança no fluxo de caixa quando houver conta vinculada. Não valida status
+   * anterior — quem chama decide se a transição é permitida. */
+  private async applyPayment(
+    id: string,
+    paymentDate: Date,
+    paidAmount?: number,
+  ) {
+    const expense = await this.findOne(id);
 
     const finalPaidAmount = paidAmount
       ? new Prisma.Decimal(paidAmount)
