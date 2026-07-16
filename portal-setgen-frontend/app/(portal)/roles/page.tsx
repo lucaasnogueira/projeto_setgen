@@ -90,7 +90,10 @@ export default function RolesPage() {
       setFormData({
         name: fullRole.name,
         description: fullRole.description || "",
-        permissionIds: fullRole.permissions?.map((p) => p.permission.name) || [],
+        permissionIds:
+          fullRole.permissions
+            ?.map((p) => p.permission.name)
+            .filter((name): name is string => Boolean(name)) || [],
       });
       setRoleModal({ open: true, mode, role: fullRole });
     } else {
