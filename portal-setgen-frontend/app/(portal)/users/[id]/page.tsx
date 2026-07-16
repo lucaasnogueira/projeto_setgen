@@ -61,7 +61,7 @@ export default function EditUserPage({ params }: EditUserPageProps) {
         email: user.email,
         password: '',
         roleId: user.roleId || '', // Handle legacy users without roleId
-        permissionIds: user.permissions?.map(p => p.permission.id) || [],
+        permissionIds: user.permissions?.map(p => p.permission.name) || [],
         active: user.active,
       });
 

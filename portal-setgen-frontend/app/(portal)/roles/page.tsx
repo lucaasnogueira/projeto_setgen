@@ -83,17 +83,20 @@ export default function RolesPage() {
     }
   };
 
-  const handleOpenModal = (mode: "create" | "edit", role: Role | null = null) => {
+  const handleOpenModal = async (mode: "create" | "edit", role: Role | null = null) => {
     if (mode === "edit" && role) {
+      setRoleModal({ open: true, mode, role });
+      const fullRole = await rolesApi.getOne(role.id);
       setFormData({
-        name: role.name,
-        description: role.description || "",
-        permissionIds: role.permissions?.map((p) => p.permission.id) || [],
+        name: fullRole.name,
+        description: fullRole.description || "",
+        permissionIds: fullRole.permissions?.map((p) => p.permission.name) || [],
       });
+      setRoleModal({ open: true, mode, role: fullRole });
     } else {
       setFormData({ name: "", description: "", permissionIds: [] });
+      setRoleModal({ open: true, mode, role: null });
     }
-    setRoleModal({ open: true, mode, role });
   };
 
   const handleSaveRole = async () => {
