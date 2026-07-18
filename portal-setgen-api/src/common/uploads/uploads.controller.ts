@@ -26,9 +26,12 @@ const UPLOADS_ROOT = resolve(process.cwd(), 'uploads');
 @UseGuards(JwtAuthGuard)
 @Controller('uploads')
 export class UploadsController {
-  @Get('*')
+  // Express 5 (path-to-regexp v6+) não aceita mais '*' solto como wildcard;
+  // precisa de nome ('*splat') e a captura vem como array de segmentos, não string única.
+  @Get('*splat')
   getFile(@Req() req: Request, @Res() res: Response) {
-    const requestedPath = req.params[0];
+    const splat = req.params.splat;
+    const requestedPath = Array.isArray(splat) ? splat.join('/') : splat;
 
     if (!requestedPath) {
       throw new BadRequestException('Caminho de arquivo não informado');
