@@ -94,6 +94,16 @@ const ROLE_DEFINITIONS: { name: string; description: string; permissionIds: stri
   },
 ];
 
+// Endpoints migrados para PermissionsGuard não consultam mais o enum legado
+// User.role (só ADMIN tem bypass) - sem isso, um usuário antigo com role=WAREHOUSE
+// mas roleId nulo perde acesso a tudo que exigir permissão de cargo.
+const LEGACY_ROLE_TO_CARGO: Record<string, string> = {
+  MANAGER: 'Gestor',
+  ADMINISTRATIVE: 'Administrativo/Compras',
+  WAREHOUSE: 'Almoxarife',
+  TECHNICIAN: 'Técnico',
+};
+
 export async function seedRolesAndPermissions() {
   const allFlatPermissions = PERMISSION_GROUPS.flatMap((g) => g.permissions);
 
@@ -107,12 +117,14 @@ export async function seedRolesAndPermissions() {
     permissionIdByName.set(permission.name, permission.id);
   }
 
+  const roleIdByName = new Map<string, string>();
   for (const roleDef of ROLE_DEFINITIONS) {
     const role = await prisma.role.upsert({
       where: { name: roleDef.name },
       update: { description: roleDef.description },
       create: { name: roleDef.name, description: roleDef.description },
     });
+    roleIdByName.set(role.name, role.id);
 
     // Idempotente: substitui o conjunto de permissões do cargo pelo definido acima.
     await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
@@ -126,4 +138,20 @@ export async function seedRolesAndPermissions() {
   }
 
   console.log(`✅ ${ROLE_DEFINITIONS.length} cargos operacionais com permissões sincronizados`);
+
+  let backfilled = 0;
+  for (const [legacyRole, cargoName] of Object.entries(LEGACY_ROLE_TO_CARGO)) {
+    const cargoId = roleIdByName.get(cargoName);
+    if (!cargoId) continue;
+
+    const result = await prisma.user.updateMany({
+      where: { role: legacyRole as any, roleId: null },
+      data: { roleId: cargoId },
+    });
+    backfilled += result.count;
+  }
+
+  if (backfilled > 0) {
+    console.log(`✅ ${backfilled} usuário(s) sem cargo atribuído vinculados por compatibilidade com o role legado`);
+  }
 }
