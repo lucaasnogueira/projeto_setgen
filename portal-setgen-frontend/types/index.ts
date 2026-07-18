@@ -240,6 +240,9 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  roleId?: string;
+  /** Permissões efetivas (cargo + extras individuais), retornadas por /users/me. */
+  permissions?: string[];
   active: boolean;
   createdAt: string;
   updatedAt: string;

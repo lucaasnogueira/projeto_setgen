@@ -52,6 +52,11 @@ export class RolesService {
         _count: {
           select: { users: true, permissions: true },
         },
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
