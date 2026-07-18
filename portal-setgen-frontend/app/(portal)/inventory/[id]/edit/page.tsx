@@ -7,6 +7,7 @@ import { Product } from '@/types';
 import { ProductForm } from '../../components/ProductForm';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AuthImage } from '@/components/ui/auth-image';
 import { Camera, Loader2 } from 'lucide-react';
 
 export default function EditInventoryItemPage() {
@@ -84,8 +85,8 @@ export default function EditInventoryItemPage() {
         </CardHeader>
         <CardContent className="p-8 space-y-3">
           {product.photoUrl && (
-            <img
-              src={`${process.env.NEXT_PUBLIC_API_URL}/${product.photoUrl}`}
+            <AuthImage
+              src={product.photoUrl}
               alt={product.name}
               className="h-32 rounded-xl border object-cover"
             />

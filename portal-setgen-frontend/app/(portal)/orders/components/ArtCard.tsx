@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { openAuthedFile } from '@/lib/utils/auth-file';
 
 const ART_ELIGIBLE_STATUSES: ServiceOrderStatus[] = [
   ServiceOrderStatus.APPROVED,
@@ -85,15 +86,14 @@ export function ArtCard({ serviceOrderId, serviceOrderStatus, art, onIssued }: A
             <p className="text-sm text-foreground">{new Date(art.issueDate).toLocaleDateString('pt-BR')}</p>
           </div>
           {art.fileUrl && (
-            <a
-              href={`${process.env.NEXT_PUBLIC_API_URL}/${art.fileUrl}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => openAuthedFile(art.fileUrl!)}
               className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline pt-2"
             >
               <FileDown className="h-4 w-4" />
               Ver documento
-            </a>
+            </button>
           )}
         </CardContent>
       </Card>

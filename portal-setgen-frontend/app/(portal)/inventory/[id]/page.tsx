@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
 import { FieldBlock } from "@/components/ui/field-block";
+import { AuthImage } from "@/components/ui/auth-image";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -191,8 +192,8 @@ export default function ProductDetailsPage() {
               Especificações
             </div>
             {product.photoUrl && (
-              <img
-                src={`${process.env.NEXT_PUBLIC_API_URL}/${product.photoUrl}`}
+              <AuthImage
+                src={product.photoUrl}
                 alt={product.name}
                 className="h-24 rounded-xl border object-cover mb-4"
               />
