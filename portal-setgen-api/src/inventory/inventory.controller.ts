@@ -31,11 +31,14 @@ import { BatchMovementDto } from './dto/batch-movement.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequiredPermissions } from '../common/decorators/permissions.decorator';
+import { PERMISSIONS } from '../access-control/permissions.constants';
 import { UserRole, MovementType } from '@prisma/client';
 
 @ApiTags('Inventory')
 @Controller('inventory')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
@@ -43,7 +46,7 @@ export class InventoryController {
   // ==================== PRODUTOS ====================
 
   @Post('products')
-  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Criar novo produto' })
   createProduct(@Body() createProductDto: CreateProductDto) {
     return this.inventoryService.createProduct(createProductDto);
@@ -64,14 +67,14 @@ export class InventoryController {
   }
 
   @Get('products/low-stock')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Listar produtos com estoque baixo' })
   getLowStockProducts() {
     return this.inventoryService.getLowStockProducts();
   }
 
   @Get('products/needing-restock')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Produtos que precisam reposição urgente' })
   @ApiQuery({ name: 'threshold', required: false, example: 0.2 })
   getProductsNeedingRestock(@Query('threshold') threshold?: string) {
@@ -92,7 +95,7 @@ export class InventoryController {
   }
 
   @Patch('products/:id')
-  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Atualizar produto' })
   updateProduct(
     @Param('id') id: string,
@@ -102,7 +105,7 @@ export class InventoryController {
   }
 
   @Post('products/:id/photo')
-  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Enviar foto do produto' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -143,7 +146,7 @@ export class InventoryController {
   // ==================== MOVIMENTAÇÕES ====================
 
   @Post('movements')
-  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Registrar movimentação de estoque' })
   createMovement(
     @Body() createMovementDto: CreateStockMovementDto,
@@ -153,7 +156,7 @@ export class InventoryController {
   }
 
   @Post('movements/batch')
-  @Roles(UserRole.ADMIN, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Registrar movimentação em lote (bipagem de vários itens de uma vez)' })
   createBatchMovement(@Body() dto: BatchMovementDto, @Request() req) {
     return this.inventoryService.createBatchMovement(dto, req.user.id);
@@ -185,14 +188,14 @@ export class InventoryController {
   // ==================== RELATÓRIOS ====================
 
   @Get('reports/inventory-value')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Valor total do estoque' })
   getInventoryValue() {
     return this.inventoryService.getInventoryValue();
   }
 
   @Get('reports/movement-statistics')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE)
+  @RequiredPermissions(PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE)
   @ApiOperation({ summary: 'Estatísticas de movimentação' })
   @ApiQuery({ name: 'startDate', required: false })
   @ApiQuery({ name: 'endDate', required: false })
