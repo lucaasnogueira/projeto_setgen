@@ -18,6 +18,11 @@ export interface User {
   permissions?: { permission: { id: string; name: string } }[];
 }
 
+/** Shape returned by GET /users/me: permissions here are already flattened to effective permission names. */
+export interface CurrentUser extends Omit<User, 'permissions'> {
+  permissions?: string[];
+}
+
 export const usersApi = {
   async getAll(): Promise<User[]> {
     try {
@@ -57,7 +62,7 @@ export const usersApi = {
     await api.patch(`/users/${id}/reset-password`, { password: newPassword });
   },
 
-  async getMe(): Promise<User> {
+  async getMe(): Promise<CurrentUser> {
     const { data } = await api.get('/users/me');
     return data;
   },

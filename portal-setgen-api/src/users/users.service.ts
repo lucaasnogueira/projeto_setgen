@@ -195,9 +195,24 @@ export class UsersService {
         name: true,
         email: true,
         role: true,
+        roleId: true,
         active: true,
         createdAt: true,
         notifyPrefs: true,
+        roleRef: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+        permissions: {
+          include: {
+            permission: true,
+          },
+        },
       },
     });
 
@@ -205,7 +220,15 @@ export class UsersService {
       throw new NotFoundException('Usuário não encontrado');
     }
 
-    return user;
+    const { roleRef, permissions, ...rest } = user;
+    const effectivePermissions = Array.from(
+      new Set([
+        ...(roleRef?.permissions.map((p) => p.permission.name) || []),
+        ...permissions.map((p) => p.permission.name),
+      ]),
+    );
+
+    return { ...rest, permissions: effectivePermissions };
   }
 
   async updateProfile(id: string, updateProfileDto: UpdateProfileDto) {

@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { getRoleLabel, cn } from '@/lib/utils';
+import { UserRole } from '@/types';
 import {
   LayoutDashboard,
   Users,
@@ -29,34 +30,42 @@ import {
   ChevronDown,
   Car,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usersApi } from '@/lib/api/users';
 
-const navigation = [
+const navigation: {
+  name: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  roles: string[];
+  permissions?: string[];
+  section?: string;
+}[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'] },
 
-  { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'COMERCIAL' },
-  { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE'] },
-  { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'] },
+  { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'], section: 'COMERCIAL' },
+  { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE'], permissions: ['equipment:view'] },
+  { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'], permissions: ['visits:view'] },
 
-  { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], section: 'OPERAÇÕES' },
-  { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'] },
+  { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'], section: 'OPERAÇÕES' },
+  { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'], permissions: ['orders:approve', 'expenses:approve'] },
   { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
 
-  { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], section: 'ESTOQUE' },
-  { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'] },
-  { name: 'Compras', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-  { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
-  { name: 'Frota', href: '/fleet', icon: Car, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'] },
+  { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['inventory:view'], section: 'ESTOQUE' },
+  { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['material-requests:view'] },
+  { name: 'Compras', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['procurement:view'] },
+  { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['suppliers:view'] },
+  { name: 'Frota', href: '/fleet', icon: Car, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['fleet:view'] },
 
-  { name: 'Despesas', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], section: 'FINANCEIRO' },
+  { name: 'Despesas', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['expenses:view'], section: 'FINANCEIRO' },
   { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
 
-  { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], section: 'RH' },
+  { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['rh:view'], section: 'RH' },
 
   { name: 'Relatórios', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'], section: 'ANÁLISE' },
 
-  { name: 'Usuários', href: '/users', icon: UserCog, roles: ['ADMIN'], section: 'CONFIGURAÇÕES' },
-  { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'] },
+  { name: 'Usuários', href: '/users', icon: UserCog, roles: ['ADMIN'], permissions: ['users:view'], section: 'CONFIGURAÇÕES' },
+  { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'], permissions: ['roles:view'] },
   { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN', 'MANAGER'] },
   { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN', 'MANAGER'] },
 ];
@@ -83,9 +92,21 @@ const allSections = new Set(
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user, clearAuth, updateUser } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
   const [closedSections, setClosedSections] = useState<Set<string>>(new Set(allSections));
+
+  // O cargo/permissões do usuário são fixados no login e persistidos em localStorage;
+  // revalida aqui para refletir mudanças feitas por um admin sem exigir novo login.
+  useEffect(() => {
+    usersApi.getMe().then((fresh) => {
+      updateUser({
+        role: fresh.role as unknown as UserRole,
+        roleId: fresh.roleId,
+        permissions: fresh.permissions,
+      });
+    }).catch(() => {});
+  }, []);
 
   const toggleSection = (section: string) => {
     setClosedSections((prev) => {
@@ -104,9 +125,13 @@ export default function Sidebar() {
     router.push('/auth/login');
   };
 
-  const filteredNavigation = navigation.filter(
-    (item) => user?.role && item.roles.includes(user.role)
-  );
+  const filteredNavigation = navigation.filter((item) => {
+    if (user?.role && item.roles.includes(user.role)) return true;
+    if (item.permissions?.length && user?.permissions?.length) {
+      return item.permissions.some((p) => user.permissions!.includes(p));
+    }
+    return false;
+  });
 
   const navGroups = groupNavigation(filteredNavigation);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useMemo, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { usersApi } from '@/lib/api/users';
 import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
@@ -44,6 +44,17 @@ export default function EditUserPage({ params }: EditUserPageProps) {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Permissões concedidas via cargo atribuído (base) - vêm marcadas e travadas no seletor.
+  const rolePermissionNames = useMemo(() => {
+    const role = roles.find((r) => r.id === formData.roleId);
+    return (role?.permissions?.map((p) => p.permission.name).filter((n): n is string => !!n)) || [];
+  }, [roles, formData.roleId]);
+
+  const displayedPermissions = useMemo(
+    () => Array.from(new Set([...rolePermissionNames, ...formData.permissionIds])),
+    [rolePermissionNames, formData.permissionIds]
+  );
 
   const loadData = async () => {
     try {
@@ -269,8 +280,14 @@ export default function EditUserPage({ params }: EditUserPageProps) {
 
               <PermissionSelector
                 availablePermissions={availablePermissions}
-                selectedPermissions={formData.permissionIds}
-                onChange={(ids) => setFormData({ ...formData, permissionIds: ids })}
+                selectedPermissions={displayedPermissions}
+                lockedPermissions={rolePermissionNames}
+                onChange={(ids) =>
+                  setFormData({
+                    ...formData,
+                    permissionIds: ids.filter((id) => !rolePermissionNames.includes(id)),
+                  })
+                }
               />
             </div>
         </div>
