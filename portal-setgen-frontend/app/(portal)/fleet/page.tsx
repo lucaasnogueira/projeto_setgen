@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AuthImage } from "@/components/ui/auth-image";
 import {
   Table,
   TableHeader,
@@ -216,8 +217,8 @@ export default function FleetPage() {
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           {v.photoUrl ? (
-                            <img
-                              src={`${process.env.NEXT_PUBLIC_API_URL}/${v.photoUrl}`}
+                            <AuthImage
+                              src={v.photoUrl}
                               alt={v.name}
                               className="w-[34px] h-[34px] rounded-[9px] object-cover shrink-0"
                             />

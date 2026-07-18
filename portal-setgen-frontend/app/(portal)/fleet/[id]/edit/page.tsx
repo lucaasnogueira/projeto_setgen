@@ -6,6 +6,7 @@ import { vehiclesApi } from "@/lib/api/vehicles";
 import { Vehicle } from "@/types";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthImage } from "@/components/ui/auth-image";
 import { Camera, Loader2 } from "lucide-react";
 import { VehicleForm } from "../../components/VehicleForm";
 
@@ -79,8 +80,8 @@ export default function EditVehiclePage() {
         </CardHeader>
         <CardContent className="p-8 space-y-3">
           {vehicle.photoUrl && (
-            <img
-              src={`${process.env.NEXT_PUBLIC_API_URL}/${vehicle.photoUrl}`}
+            <AuthImage
+              src={vehicle.photoUrl}
               alt={vehicle.name}
               className="h-32 rounded-xl border object-cover"
             />

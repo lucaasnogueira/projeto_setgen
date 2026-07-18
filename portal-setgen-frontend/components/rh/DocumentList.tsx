@@ -14,6 +14,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { DOCUMENT_CATEGORIES } from '@/constants/documentTypes';
+import { openAuthedFile } from '@/lib/utils/auth-file';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -159,7 +160,7 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL}/${doc.fileUrl}`, '_blank')}
+                    onClick={() => openAuthedFile(doc.fileUrl)}
                     className="h-8 w-8 p-0"
                   >
                     <Download className="h-4 w-4" />

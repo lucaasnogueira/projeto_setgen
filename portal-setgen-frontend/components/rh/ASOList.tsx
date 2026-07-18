@@ -26,6 +26,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Pagination } from '../ui/pagination';
 import { PaginatedResponse } from '@/types';
+import { openAuthedFile } from '@/lib/utils/auth-file';
 import { 
   Dialog, 
   DialogContent, 
@@ -206,7 +207,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => window.open(`${process.env.NEXT_PUBLIC_API_URL}/${aso.fileUrl}`, '_blank')}
+                              onClick={() => openAuthedFile(aso.fileUrl!)}
                               className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
                               <Download className="h-4 w-4" />
