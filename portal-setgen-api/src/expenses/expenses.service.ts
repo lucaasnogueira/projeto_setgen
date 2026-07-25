@@ -496,6 +496,16 @@ export class ExpensesService {
       throw new BadRequestException('Categoria não encontrada');
     }
 
+    if (
+      dto.installmentDaysOffsets &&
+      dto.totalInstallments &&
+      dto.installmentDaysOffsets.length !== dto.totalInstallments - 1
+    ) {
+      throw new BadRequestException(
+        `installmentDaysOffsets deve ter ${dto.totalInstallments - 1} posições (uma por parcela a partir da 2ª)`,
+      );
+    }
+
     // Se vinculada a OS, validar que cliente é o mesmo
     if (dto.serviceOrderId && dto.clientId) {
       const serviceOrder = await this.prisma.serviceOrder.findUnique({
@@ -537,12 +547,21 @@ export class ExpensesService {
   ) {
     if (!dto.totalInstallments) return;
 
+    const daysOffsets = dto.installmentDaysOffsets;
+
     const installmentAmount = Number(dto.amount) / dto.totalInstallments;
     const installments: Prisma.ExpenseCreateManyInput[] = [];
 
     for (let i = 2; i <= dto.totalInstallments; i++) {
-      const dueDate = new Date(dto.dueDate);
-      dueDate.setMonth(dueDate.getMonth() + (i - 1));
+      let dueDate: Date;
+      if (daysOffsets) {
+        // Offset em dias corridos a partir da data da compra (boleto 15/30/45/60 dias).
+        dueDate = new Date(dto.date);
+        dueDate.setDate(dueDate.getDate() + daysOffsets[i - 2]);
+      } else {
+        dueDate = new Date(dto.dueDate);
+        dueDate.setMonth(dueDate.getMonth() + (i - 1));
+      }
 
       // Mesma sequence usada na despesa pai (generateExpenseCode) — não usar
       // count() aqui, que gera códigos duplicados sob concorrência.

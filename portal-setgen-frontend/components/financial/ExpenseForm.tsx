@@ -37,6 +37,7 @@ const expenseSchema = z.object({
   supplier: z.string().optional(),
   isFixed: z.boolean(),
   totalInstallments: z.number().min(1).optional(),
+  installmentDaysOffsetsText: z.string().optional(),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
@@ -80,7 +81,17 @@ export function ExpenseForm({
   const isFixed = watch('isFixed');
 
   const onFormSubmit = async (data: ExpenseFormValues) => {
-    await onSubmit(data);
+    const { installmentDaysOffsetsText, ...rest } = data;
+    const installmentDaysOffsets = installmentDaysOffsetsText
+      ?.split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .map(Number);
+
+    await onSubmit({
+      ...rest,
+      ...(installmentDaysOffsets?.length ? { installmentDaysOffsets } : {}),
+    });
   };
 
   return (
@@ -279,6 +290,23 @@ export function ExpenseForm({
                   className="h-11 rounded-xl"
                   {...register('totalInstallments', { valueAsNumber: true })}
                 />
+              </div>
+            )}
+
+            {isFixed && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-left-2 lg:col-span-2">
+                <Label htmlFor="installmentDaysOffsetsText" className="font-semibold text-sm">
+                  Vencimento das parcelas (dias corridos da compra)
+                </Label>
+                <Input
+                  id="installmentDaysOffsetsText"
+                  placeholder="Ex: 15,30,45,60 (deixe vazio p/ vencimento mensal padrão)"
+                  className="h-11 rounded-xl"
+                  {...register('installmentDaysOffsetsText')}
+                />
+                <p className="text-[10px] text-muted-foreground uppercase font-bold">
+                  1 valor por parcela a partir da 2ª. Ex.: boleto em 15 e 30 dias = &quot;15,30&quot;
+                </p>
               </div>
             )}
           </div>

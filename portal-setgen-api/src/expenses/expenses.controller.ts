@@ -15,45 +15,35 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { FilterExpenseDto } from './dto/filter-expense.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '@prisma/client';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequiredPermissions } from '../common/decorators/permissions.decorator';
+import { PERMISSIONS } from '../access-control/permissions.constants';
 
 @Controller('expenses')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
 
   @Post()
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.ADMINISTRATIVE,
-    UserRole.TECHNICIAN,
-  )
+  @RequiredPermissions(PERMISSIONS.EXPENSES_CREATE)
   async create(@Body() createExpenseDto: CreateExpenseDto, @Request() req) {
     return this.expensesService.create(createExpenseDto, req.user.id);
   }
 
   @Get('bank-accounts')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_VIEW)
   getBankAccounts() {
     return this.expensesService.getBankAccounts();
   }
 
   @Get()
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.ADMINISTRATIVE,
-    UserRole.TECHNICIAN,
-  )
+  @RequiredPermissions(PERMISSIONS.EXPENSES_VIEW)
   findAll(@Query() filters: FilterExpenseDto) {
     return this.expensesService.findAll(filters);
   }
 
   @Get('dashboard')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_VIEW)
   getDashboard(@Query('year') year: string, @Query('month') month: string) {
     return this.expensesService.getDashboardData(
       Number(year) || new Date().getFullYear(),
@@ -62,24 +52,19 @@ export class ExpensesController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.ADMINISTRATIVE,
-    UserRole.TECHNICIAN,
-  )
+  @RequiredPermissions(PERMISSIONS.EXPENSES_VIEW)
   findOne(@Param('id') id: string) {
     return this.expensesService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_EDIT)
   update(@Param('id') id: string, @Body() updateExpenseDto: UpdateExpenseDto) {
     return this.expensesService.update(id, updateExpenseDto);
   }
 
   @Post(':id/approve')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_APPROVE)
   approve(
     @Param('id') id: string,
     @Body('comments') comments: string,
@@ -89,7 +74,7 @@ export class ExpensesController {
   }
 
   @Post(':id/reject')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_APPROVE)
   reject(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -99,7 +84,7 @@ export class ExpensesController {
   }
 
   @Post(':id/pay')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_APPROVE)
   markAsPaid(
     @Param('id') id: string,
     @Body('paymentDate') paymentDate: string,
@@ -113,7 +98,7 @@ export class ExpensesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @RequiredPermissions(PERMISSIONS.EXPENSES_DELETE)
   remove(@Param('id') id: string) {
     return this.expensesService.remove(id);
   }

@@ -101,6 +101,15 @@ export class CreateExpenseDto {
   @Type(() => Number)
   totalInstallments?: number;
 
+  // Dias corridos (a partir de `date`) do vencimento de cada parcela a partir
+  // da 2ª (ex.: compra parcelada em boletos de 15/30/45/60 dias -> [15,30,45,60]).
+  // Se omitido, mantém o comportamento padrão de +1 mês por parcela.
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @Type(() => Number)
+  installmentDaysOffsets?: number[];
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
