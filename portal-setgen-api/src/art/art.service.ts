@@ -1,29 +1,20 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateArtDto } from './dto/create-art.dto';
 import { UpdateArtDto } from './dto/update-art.dto';
-import { Prisma, ServiceOrderStatus } from '@prisma/client';
-
-// Status a partir dos quais uma ART pode ser emitida: a OS já passou pela
-// aprovação interna do orçamento (ver ServiceOrdersService.VALID_STATUS_TRANSITIONS).
-const ART_ELIGIBLE_STATUSES: ServiceOrderStatus[] = [
-  ServiceOrderStatus.APPROVED,
-  ServiceOrderStatus.SENT_TO_CLIENT,
-  ServiceOrderStatus.AWAITING_RESPONSE,
-  ServiceOrderStatus.IN_PROGRESS,
-  ServiceOrderStatus.AWAITING_MATERIALS,
-  ServiceOrderStatus.COMPLETED,
-];
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ArtService {
   constructor(private prisma: PrismaService) {}
 
+  // Toda ServiceOrder já nasce de um orçamento aceito (ver
+  // ServiceOrdersService.createFromQuote) — bastando ela existir, a ART já
+  // pode ser emitida. Não há mais lista de status elegíveis a checar aqui.
   async create(dto: CreateArtDto, fileUrl?: string) {
     const serviceOrder = await this.prisma.serviceOrder.findUnique({
       where: { id: dto.serviceOrderId },
@@ -36,12 +27,6 @@ export class ArtService {
 
     if (serviceOrder.art) {
       throw new ConflictException('Esta OS já possui uma ART emitida');
-    }
-
-    if (!ART_ELIGIBLE_STATUSES.includes(serviceOrder.status)) {
-      throw new BadRequestException(
-        'ART só pode ser emitida após a aprovação interna do orçamento',
-      );
     }
 
     const data: Prisma.ARTCreateInput = {

@@ -41,13 +41,12 @@ export class PublicQuotesService {
   constructor(private prisma: PrismaService) {}
 
   async renderQuoteHtml(id: string): Promise<string> {
-    const order = await this.prisma.serviceOrder.findUnique({
+    const order = await this.prisma.quote.findUnique({
       where: { id },
       include: {
         client: true,
         salesRep: { select: { name: true } },
         quoteLines: { orderBy: { createdAt: 'asc' } },
-        art: true,
       },
     });
 
@@ -91,7 +90,7 @@ export class PublicQuotesService {
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<title>Orçamento ${escapeHtml(order.orderNumber)}</title>
+<title>Orçamento ${escapeHtml(order.quoteNumber)}</title>
 <style>
   body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 32px 16px; }
   h1 { font-size: 20px; margin-bottom: 4px; }
@@ -119,7 +118,7 @@ export class PublicQuotesService {
       </div>
     </div>
     <div class="muted" style="text-align:right">
-      <div><strong>Orçamento ${escapeHtml(order.orderNumber)}</strong></div>
+      <div><strong>Orçamento ${escapeHtml(order.quoteNumber)}</strong></div>
       <div>Emitido em: ${formatDate(order.createdAt)}</div>
       <div>Válido até: ${formatDate(order.validUntil)}</div>
     </div>

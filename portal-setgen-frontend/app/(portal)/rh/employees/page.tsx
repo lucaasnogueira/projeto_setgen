@@ -26,9 +26,11 @@ import { PaginatedResponse } from '@/types';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
 import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function EmployeesPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -54,8 +56,16 @@ export default function EmployeesPage() {
       );
       setEmployees(response.data);
       setMeta(response.meta);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao carregar funcionários:', error);
+      const forbidden = error?.response?.status === 403;
+      toast({
+        title: 'Erro',
+        description: forbidden
+          ? 'Seu cargo não tem permissão para visualizar funcionários (rh:view).'
+          : 'Não foi possível carregar os funcionários.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }

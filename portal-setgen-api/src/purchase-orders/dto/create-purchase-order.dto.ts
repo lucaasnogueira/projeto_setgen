@@ -10,10 +10,10 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreatePurchaseOrderDto {
-  @ApiProperty({ example: 'service-order-uuid-here' })
+  @ApiProperty({ example: 'quote-uuid-here' })
   @IsUUID()
-  @IsNotEmpty({ message: 'ID da Ordem de Serviço é obrigatório' })
-  serviceOrderId: string;
+  @IsNotEmpty({ message: 'ID do orçamento é obrigatório' })
+  quoteId: string;
 
   @ApiProperty({ example: 'client-uuid-here' })
   @IsUUID()

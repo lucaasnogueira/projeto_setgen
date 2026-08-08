@@ -22,27 +22,28 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { CreateASODto } from './dto/create-aso.dto';
 import { CreateEmployeeDocumentDto } from './dto/create-document.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole, EmployeeStatus } from '@prisma/client';
+import { PermissionsGuard } from '../common/guards/permissions.guard';
+import { RequiredPermissions } from '../common/decorators/permissions.decorator';
+import { PERMISSIONS } from '../access-control/permissions.constants';
+import { EmployeeStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
 
 @ApiTags('Employees')
 @Controller('employees')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Criar novo funcionário' })
   create(@Body() createEmployeeDto: CreateEmployeeDto) {
     return this.employeesService.create(createEmployeeDto);
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.RH_VIEW, PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Listar todos os funcionários' })
   @ApiQuery({ name: 'status', enum: EmployeeStatus, required: false })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -55,6 +56,7 @@ export class EmployeesController {
   }
 
   @Get('asos/expiring')
+  @RequiredPermissions(PERMISSIONS.RH_VIEW, PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Listar ASOs próximos do vencimento' })
   @ApiQuery({ name: 'days', required: false, example: 30 })
   getExpiringASOs(@Query('days') days?: string) {
@@ -63,14 +65,14 @@ export class EmployeesController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.RH_VIEW, PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Buscar funcionário por ID' })
   findOne(@Param('id') id: string) {
     return this.employeesService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Atualizar funcionário' })
   update(
     @Param('id') id: string,
@@ -80,7 +82,7 @@ export class EmployeesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Desativar funcionário' })
   remove(@Param('id') id: string) {
     return this.employeesService.remove(id);
@@ -89,7 +91,7 @@ export class EmployeesController {
   // --- ASO Endpoints ---
 
   @Post(':id/asos')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Adicionar ASO ao funcionário (com upload)' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -119,6 +121,7 @@ export class EmployeesController {
   }
 
   @Get(':id/asos')
+  @RequiredPermissions(PERMISSIONS.RH_VIEW, PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Listar ASOs de um funcionário' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -130,7 +133,7 @@ export class EmployeesController {
   }
 
   @Delete('asos/:asoId')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Remover ASO' })
   removeASO(@Param('asoId') asoId: string) {
     return this.employeesService.removeASO(asoId);
@@ -139,7 +142,7 @@ export class EmployeesController {
   // --- Document Endpoints ---
 
   @Post(':id/documents')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Adicionar documento ao funcionário (com upload)' })
   @UseInterceptors(
     FileInterceptor('file', {
@@ -166,6 +169,7 @@ export class EmployeesController {
   }
 
   @Get(':id/documents')
+  @RequiredPermissions(PERMISSIONS.RH_VIEW, PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Listar documentos de um funcionário' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -177,7 +181,7 @@ export class EmployeesController {
   }
 
   @Delete('documents/:docId')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @RequiredPermissions(PERMISSIONS.RH_MANAGE)
   @ApiOperation({ summary: 'Remover documento' })
   removeDocument(@Param('docId') docId: string) {
     return this.employeesService.removeDocument(docId);

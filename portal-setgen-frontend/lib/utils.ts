@@ -75,6 +75,29 @@ export function getRoleLabel(role: string): string {
   return labels[role] || role
 }
 
+// Mapa cargo customizado (Role granular) -> enum legado User.role. Quem manda
+// de verdade nas telas já migradas pra PermissionsGuard é o cargo/roleId —
+// esse enum só importa pras telas antigas que ainda filtram por @Roles().
+// Cargos sem correspondência óbvia (RH, Financeiro, Atendimento etc.) caem em
+// ADMINISTRATIVE, não em TECHNICIAN — é o enum mais permissivo pra funções de
+// escritório nas rotas legadas ainda não migradas.
+export function mapRoleNameToLegacyEnum(
+  roleName?: string
+): 'ADMIN' | 'MANAGER' | 'ADMINISTRATIVE' | 'WAREHOUSE' | 'TECHNICIAN' {
+  switch (roleName) {
+    case 'Administrador':
+      return 'ADMIN'
+    case 'Gestor':
+      return 'MANAGER'
+    case 'Técnico':
+      return 'TECHNICIAN'
+    case 'Almoxarife':
+      return 'WAREHOUSE'
+    default:
+      return 'ADMINISTRATIVE'
+  }
+}
+
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     // Client

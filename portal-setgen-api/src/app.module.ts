@@ -10,6 +10,7 @@ import { VisitsModule } from './visits/visits.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { VisitTaskTypesModule } from './visit-task-types/visit-task-types.module';
 import { FailureCategoriesModule } from './failure-categories/failure-categories.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { ServiceOrdersModule } from './service-orders/service-orders.module';
 import { ChecklistTemplatesModule } from './checklist-templates/checklist-templates.module';
 import { ApprovalsModule } from './approvals/approvals.module';
@@ -52,6 +53,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     EquipmentModule,
     VisitTaskTypesModule,
     FailureCategoriesModule,
+    QuotesModule,
     ServiceOrdersModule,
     ChecklistTemplatesModule,
     ApprovalsModule,

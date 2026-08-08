@@ -84,21 +84,22 @@ export class PurchaseOrdersController {
       createPurchaseOrderDto,
       file.path,
       req.user.id,
+      req.user.role,
     );
   }
 
   @Get()
   @ApiOperation({ summary: 'Listar todas as Ordens de Compra' })
-  @ApiQuery({ name: 'serviceOrderId', required: false })
+  @ApiQuery({ name: 'quoteId', required: false })
   @ApiQuery({ name: 'clientId', required: false })
   @ApiQuery({ name: 'status', enum: PurchaseOrderStatus, required: false })
   findAll(
-    @Query('serviceOrderId') serviceOrderId?: string,
+    @Query('quoteId') quoteId?: string,
     @Query('clientId') clientId?: string,
     @Query('status') status?: PurchaseOrderStatus,
   ) {
     return this.purchaseOrdersService.findAll({
-      serviceOrderId,
+      quoteId,
       clientId,
       status,
     });
