@@ -7,7 +7,7 @@ import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
 import { Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 import { PermissionSelector } from '@/components/access-control/permission-selector';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { cn } from '@/lib/utils';
+import { cn, mapRoleNameToLegacyEnum } from '@/lib/utils';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 type StepKey = 'general' | 'permissions';
@@ -143,8 +143,7 @@ export default function EditUserPage({ params }: EditUserPageProps) {
       // Legacy role field fallback
       const selectedRole = roles.find(r => r.id === formData.roleId);
       if (selectedRole) {
-        // Approximate mapping just to be safe with DB constraints if any
-        updateData.role = selectedRole.name === 'Administrador' ? 'ADMIN' : 'TECHNICIAN'; 
+        updateData.role = mapRoleNameToLegacyEnum(selectedRole.name);
       }
 
       await usersApi.update(id, updateData);

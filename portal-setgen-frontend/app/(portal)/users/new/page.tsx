@@ -7,7 +7,7 @@ import { rolesApi, Role, PermissionGroup } from '@/lib/api/roles';
 import { Eye, EyeOff, Shield, AlertCircle } from 'lucide-react';
 import { PermissionSelector } from '@/components/access-control/permission-selector';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { cn } from '@/lib/utils';
+import { cn, mapRoleNameToLegacyEnum } from '@/lib/utils';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 type StepKey = 'general' | 'permissions';
@@ -101,10 +101,14 @@ export default function NewUserPage() {
 
     setLoading(true);
 
-    // Encontrar o cargo selecionado para pegar o nome
+    // Encontrar o cargo selecionado pra mapear pro enum legado (compat).
+    // Quem manda de verdade nas telas já migradas pra PermissionsGuard é o
+    // cargo/roleId — esse enum só importa pras telas antigas que ainda
+    // filtram por @Roles(). Cargos sem correspondência óbvia (RH, Financeiro,
+    // Atendimento etc.) caem em ADMINISTRATIVE, não em TECHNICIAN — é o
+    // enum mais permissivo pra funções de escritório nas rotas legadas.
     const selectedRole = roles.find(r => r.id === formData.roleId);
-    // Fallback seguro caso algo dê errado, embora roleId seja obrigatório
-    const roleName = (selectedRole?.name === 'Administrador' ? 'ADMIN' : 'TECHNICIAN') as any; 
+    const roleName = mapRoleNameToLegacyEnum(selectedRole?.name);
 
     try {
       await usersApi.create({
