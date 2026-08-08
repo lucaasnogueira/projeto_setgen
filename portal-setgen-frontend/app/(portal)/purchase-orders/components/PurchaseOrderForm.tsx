@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { ordersApi } from '@/lib/api/orders';
+import { quotesApi } from '@/lib/api/quotes';
+import { QuoteStatus } from '@/types';
 import { FileText, DollarSign, Calendar, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,12 @@ import { PurchaseOrder } from '@/types';
 import { cn } from '@/lib/utils';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
+// Espelha OC_ELIGIBLE_QUOTE_STATUSES do backend (purchase-orders.service.ts).
+const OC_ELIGIBLE_STATUSES: QuoteStatus[] = [QuoteStatus.APPROVED, QuoteStatus.SENT_TO_CLIENT, QuoteStatus.AWAITING_RESPONSE];
+
 interface PurchaseOrderFormProps {
   initialData?: Partial<PurchaseOrder>;
+  defaultQuoteId?: string;
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
   loading: boolean;
@@ -20,14 +25,15 @@ interface PurchaseOrderFormProps {
 
 export function PurchaseOrderForm({
   initialData,
+  defaultQuoteId,
   onSubmit,
   onCancel,
   loading,
   submitLabel
 }: PurchaseOrderFormProps) {
-  const [serviceOrders, setServiceOrders] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    serviceOrderId: initialData?.serviceOrderId || '',
+    quoteId: initialData?.quoteId || defaultQuoteId || '',
     clientId: initialData?.clientId || '',
     orderNumber: initialData?.orderNumber || '',
     value: initialData?.value?.toString() || '',
@@ -36,44 +42,47 @@ export function PurchaseOrderForm({
   });
 
   useEffect(() => {
-    loadServiceOrders();
+    loadQuotes();
   }, []);
 
-  const loadServiceOrders = async () => {
+  const loadQuotes = async () => {
     try {
-      const data = await ordersApi.getAll();
-      // Allow current SO if editing, otherwise APPROVED
-      setServiceOrders(data.filter(o => o.status === 'APPROVED' || o.id === initialData?.serviceOrderId));
+      const data = await quotesApi.getAll();
+      const eligible = data.filter((q) => OC_ELIGIBLE_STATUSES.includes(q.status) || q.id === (initialData?.quoteId || defaultQuoteId));
+      setQuotes(eligible);
+      if (defaultQuoteId && !initialData) {
+        const q = eligible.find((x) => x.id === defaultQuoteId);
+        if (q) setFormData((prev) => ({ ...prev, clientId: q.clientId }));
+      }
     } catch (error) {
-      console.error('Error loading service orders:', error);
+      console.error('Error loading quotes:', error);
     }
   };
 
-  const handleSOSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const soId = e.target.value;
-    const so = serviceOrders.find(o => o.id === soId);
-    
-    setFormData(prev => ({ 
-      ...prev, 
-      serviceOrderId: soId,
-      clientId: so ? so.clientId : ''
+  const handleQuoteSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const quoteId = e.target.value;
+    const quote = quotes.find(q => q.id === quoteId);
+
+    setFormData(prev => ({
+      ...prev,
+      quoteId,
+      clientId: quote ? quote.clientId : ''
     }));
   };
 
   type StepKey = "vinculo" | "dados";
   const [activeStep, setActiveStep] = useState<StepKey>("vinculo");
   const stepDefs: WizardStep[] = [
-    { key: "vinculo", label: "Vínculo com OS" },
+    { key: "vinculo", label: "Vínculo com Orçamento" },
     { key: "dados", label: "Dados da OC" },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Etapas ocultas por CSS quebram o `required` nativo do browser fora da etapa ativa.
-    if (!formData.serviceOrderId) {
+    if (!formData.quoteId) {
       setActiveStep("vinculo");
-      alert("Selecione uma OS aprovada");
+      alert("Selecione um orçamento aprovado");
       return;
     }
     if (!formData.orderNumber || !formData.value || !formData.issueDate || !formData.expiryDate) {
@@ -83,7 +92,7 @@ export function PurchaseOrderForm({
     }
 
     const payload = {
-      serviceOrderId: formData.serviceOrderId,
+      quoteId: formData.quoteId,
       clientId: formData.clientId,
       orderNumber: formData.orderNumber,
       value: parseFloat(formData.value),
@@ -97,27 +106,27 @@ export function PurchaseOrderForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
-      {/* Vínculo com OS */}
       <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "vinculo" && "hidden")}>
         <CardHeader className="bg-muted/50 border-b border-border">
           <CardTitle className="flex items-center gap-2 text-foreground">
             <FileText className="h-5 w-5 text-green-600" />
-            Vínculo com Ordem de Serviço
+            Vínculo com Orçamento
           </CardTitle>
         </CardHeader>
         <CardContent className="p-8">
           <div className="space-y-2">
-            <Label className="text-foreground font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
+            <Label className="text-foreground font-semibold">Orçamento Aprovado <span className="text-red-500">*</span></Label>
             <select
               required
-              value={formData.serviceOrderId}
-              onChange={handleSOSelect}
+              value={formData.quoteId}
+              onChange={handleQuoteSelect}
+              disabled={!!initialData || !!defaultQuoteId}
               className="w-full flex h-11 rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
             >
-              <option value="">Selecione uma OS aprovada</option>
-              {serviceOrders.map(order => (
-                <option key={order.id} value={order.id}>
-                  {order.orderNumber} - {order.client?.companyName || order.client?.name}
+              <option value="">Selecione um orçamento aprovado</option>
+              {quotes.map(quote => (
+                <option key={quote.id} value={quote.id}>
+                  {quote.quoteNumber} - {quote.client?.companyName || quote.client?.name}
                 </option>
               ))}
             </select>
@@ -125,7 +134,6 @@ export function PurchaseOrderForm({
         </CardContent>
       </Card>
 
-      {/* Detalhes da OC */}
       <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "dados" && "hidden")}>
         <CardHeader className="bg-muted/50 border-b border-border">
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -136,7 +144,7 @@ export function PurchaseOrderForm({
         <CardContent className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-foreground font-semibold">Número da OC <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Número da OC/OP <span className="text-red-500">*</span></Label>
               <Input
                 required
                 value={formData.orderNumber}

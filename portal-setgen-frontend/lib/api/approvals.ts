@@ -1,12 +1,10 @@
 import api from './client';
-import { ServiceOrder } from '@/types';
+import { Quote } from '@/types';
 
 export const approvalsApi = {
-  async getPending(): Promise<ServiceOrder[]> {
+  async getPending(): Promise<Quote[]> {
     try {
-      const { data } = await api.get('/service-orders', {
-        params: { status: 'PENDING_APPROVAL' }
-      });
+      const { data } = await api.get('/approvals/pending');
       return data;
     } catch (error) {
       console.error('Erro ao buscar aprovações:', error);
@@ -14,13 +12,13 @@ export const approvalsApi = {
     }
   },
 
-  async approve(id: string, comments?: string): Promise<ServiceOrder> {
-    const { data } = await api.post(`/approvals/approve/${id}`, { comments });
+  async approve(quoteId: string, comments?: string): Promise<Quote> {
+    const { data } = await api.post(`/approvals/approve/${quoteId}`, { comments });
     return data;
   },
 
-  async reject(id: string, comments: string): Promise<ServiceOrder> {
-    const { data } = await api.post(`/approvals/reject/${id}`, { comments });
+  async reject(quoteId: string, comments: string): Promise<Quote> {
+    const { data } = await api.post(`/approvals/reject/${quoteId}`, { comments });
     return data;
   },
 };

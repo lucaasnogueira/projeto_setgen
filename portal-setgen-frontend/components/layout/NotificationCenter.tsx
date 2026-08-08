@@ -52,13 +52,13 @@ export function NotificationCenter() {
     ])
 
     if (results[0].status === "fulfilled") {
-      for (const order of results[0].value) {
+      for (const quote of results[0].value) {
         items.push({
-          id: `approval-${order.id}`,
-          title: `OS ${order.orderNumber} aguardando aprovação`,
-          description: order.client?.companyName || "Cliente não informado",
+          id: `approval-${quote.id}`,
+          title: `Orçamento ${quote.quoteNumber} aguardando aprovação`,
+          description: quote.client?.companyName || "Cliente não informado",
           type: "approval",
-          href: `/approvals/${order.id}`,
+          href: `/approvals/${quote.id}`,
         })
       }
     }

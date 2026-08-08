@@ -4,28 +4,24 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ordersApi } from '@/lib/api/orders';
 import { visitsApi } from '@/lib/api/visits';
-import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, PaymentMethod, TechnicalVisit } from '@/types';
+import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import {
   FileText,
   Calendar,
   User,
-  Briefcase,
   Clock,
   Edit,
   Trash2,
   Info,
   CheckCircle,
   ClipboardList,
-  AlertTriangle,
-  Wrench,
   Layers,
   Tag,
-  ShieldCheck,
-  CreditCard,
   History,
   ExternalLink,
   Link2,
+  Wrench,
   X
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
@@ -35,46 +31,8 @@ import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
 import Link from 'next/link';
 import { StatusTimeline } from '../components/StatusTimeline';
 import { StatusManager } from '../components/StatusManager';
-import { QuoteLineEditor } from '../components/QuoteLineEditor';
 import { ArtCard } from '../components/ArtCard';
-
-const statusColors: Record<ServiceOrderStatus, string> = {
-  DRAFT: 'bg-status-gray-bg text-status-gray-fg',
-  PENDING_APPROVAL: 'bg-status-amber-bg text-status-amber-fg',
-  APPROVED: 'bg-status-blue-bg text-status-blue-fg',
-  SENT_TO_CLIENT: 'bg-status-blue-bg text-status-blue-fg',
-  AWAITING_RESPONSE: 'bg-status-amber-bg text-status-amber-fg',
-  EXPIRED: 'bg-status-red-bg text-status-red-fg',
-  REJECTED: 'bg-status-red-bg text-status-red-fg',
-  IN_PROGRESS: 'bg-status-purple-bg text-status-purple-fg',
-  AWAITING_MATERIALS: 'bg-status-amber-bg text-status-amber-fg',
-  COMPLETED: 'bg-status-green-bg text-status-green-fg',
-  CANCELLED: 'bg-status-red-bg text-status-red-fg',
-};
-
-const statusLabels: Record<ServiceOrderStatus, string> = {
-  DRAFT: 'Rascunho',
-  PENDING_APPROVAL: 'Pendente Aprovação',
-  APPROVED: 'Aprovada',
-  SENT_TO_CLIENT: 'Enviado ao Cliente',
-  AWAITING_RESPONSE: 'Aguardando Resposta',
-  EXPIRED: 'Expirado',
-  REJECTED: 'Rejeitada',
-  IN_PROGRESS: 'Em Andamento',
-  AWAITING_MATERIALS: 'Aguardando Materiais',
-  COMPLETED: 'Concluída',
-  CANCELLED: 'Cancelada',
-};
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  CASH: 'Dinheiro',
-  DEBIT_CARD: 'Cartão de Débito',
-  CREDIT_CARD: 'Cartão de Crédito',
-  BANK_TRANSFER: 'Transferência Bancária',
-  PIX: 'PIX',
-  BANK_SLIP: 'Boleto',
-  CHECK: 'Cheque',
-};
+import { SERVICE_ORDER_STATUS_CONFIG, QUOTE_STATUS_CONFIG, serviceOrderStatusBadgeClass } from '@/lib/status-config';
 
 const PUBLIC_QUOTE_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -172,22 +130,12 @@ export default function OrderDetailsPage() {
       await ordersApi.delete(params.id as string);
       alert('OS excluída com sucesso!');
       router.push('/orders');
-    } catch (error) {
-      alert('Erro ao excluir OS');
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Erro ao excluir OS');
     }
   };
 
   const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
-
-  const QUOTE_FROZEN_STATUSES: ServiceOrderStatus[] = [
-    ServiceOrderStatus.SENT_TO_CLIENT,
-    ServiceOrderStatus.AWAITING_RESPONSE,
-    ServiceOrderStatus.EXPIRED,
-    ServiceOrderStatus.IN_PROGRESS,
-    ServiceOrderStatus.AWAITING_MATERIALS,
-    ServiceOrderStatus.COMPLETED,
-    ServiceOrderStatus.CANCELLED,
-  ];
 
   if (loading) {
     return (
@@ -205,13 +153,13 @@ export default function OrderDetailsPage() {
         icon={FileText}
         tone="blue"
         title={`OS #${order.orderNumber}`}
-        badge={{ label: statusLabels[order.status], className: statusColors[order.status] }}
+        badge={{ label: SERVICE_ORDER_STATUS_CONFIG[order.status].label, className: serviceOrderStatusBadgeClass(order.status) }}
         meta={<>{order.client?.companyName}</>}
         backLabel="Voltar para lista"
         onBack={() => router.back()}
         actions={
           <>
-            <a href={`${PUBLIC_QUOTE_BASE_URL}/public/quotes/${order.id}`} target="_blank" rel="noopener noreferrer">
+            <a href={`${PUBLIC_QUOTE_BASE_URL}/public/quotes/${order.quoteId}`} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" className="rounded-[9px] font-bold gap-2">
                 <ExternalLink className="h-4 w-4" />
                 Visualizar Orçamento
@@ -237,64 +185,42 @@ export default function OrderDetailsPage() {
         }
       />
 
-      <Tabs defaultValue="servico">
+      {order.quote && (
+        <Link href={`/quotes/${order.quote.id}`}>
+          <Card className="p-4 flex items-center gap-3 hover:border-primary/40 transition-colors cursor-pointer">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <History className="h-4 w-4 text-primary" />
+            </div>
+            <p className="text-[13px] text-text-secondary">
+              Gerada a partir do orçamento <span className="font-bold text-foreground">#{order.quote.quoteNumber}</span>
+              {order.quote.quoteLines && order.quote.quoteLines.length > 0 && (
+                <> · {order.quote.quoteLines.reduce((s, l) => s + Number(l.totalValue), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</>
+              )}
+            </p>
+          </Card>
+        </Link>
+      )}
+
+      <Tabs defaultValue="execucao">
         <TabsList>
-          <TabsTrigger value="servico">Serviço</TabsTrigger>
+          <TabsTrigger value="execucao">Execução</TabsTrigger>
           <TabsTrigger value="status">Status & Prazo</TabsTrigger>
           <TabsTrigger value="art">ART & Visitas</TabsTrigger>
           {auditLog.length > 0 && <TabsTrigger value="historico">Histórico</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="servico" className="mt-4 space-y-4">
-          <Card className="p-6 space-y-6">
-            <div className="text-[13.5px] font-bold text-foreground flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-primary" />
-              Descrição do Serviço
-            </div>
-
-            {order.reportedDefects && (
-              <div className="space-y-2">
-                <h4 className="text-[12.5px] font-bold text-status-red-fg flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Defeitos Relatados
-                </h4>
-                <p className="text-text-secondary bg-status-red-bg/40 p-4 rounded-xl border border-status-red-fg/15 leading-relaxed whitespace-pre-wrap text-[13.5px]">
-                  {order.reportedDefects}
-                </p>
+        <TabsContent value="execucao" className="mt-4 space-y-4">
+          {order.quote?.scope && (
+            <Card className="p-6 space-y-2">
+              <div className="text-[13.5px] font-bold text-foreground flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-primary" />
+                Escopo Aprovado
               </div>
-            )}
-
-            {order.requestedServices && (
-              <div className="space-y-2">
-                <h4 className="text-[12.5px] font-bold text-primary flex items-center gap-2">
-                  <Wrench className="h-4 w-4" />
-                  Serviços Solicitados
-                </h4>
-                <p className="text-text-secondary bg-primary/5 p-4 rounded-xl border border-primary/15 leading-relaxed whitespace-pre-wrap text-[13.5px]">
-                  {order.requestedServices}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <h4 className="text-[12.5px] font-bold text-foreground">Escopo Geral</h4>
               <p className="text-text-secondary leading-relaxed whitespace-pre-wrap p-4 rounded-xl bg-muted/40 border border-border text-[13.5px]">
-                {order.scope}
+                {order.quote.scope}
               </p>
-            </div>
-
-            {order.notes && (
-              <div className="space-y-2">
-                <h4 className="text-[12.5px] font-bold text-status-amber-fg flex items-center gap-2">
-                  <Info className="h-4 w-4" />
-                  Observações Importantes
-                </h4>
-                <p className="text-text-secondary bg-status-amber-bg/40 p-4 rounded-xl border border-status-amber-fg/15 leading-relaxed whitespace-pre-wrap italic text-[13.5px]">
-                  {order.notes}
-                </p>
-              </div>
-            )}
-          </Card>
+            </Card>
+          )}
 
           <Card className="overflow-hidden">
             <div className="p-6 pb-0 text-[13.5px] font-bold text-foreground flex items-center gap-2">
@@ -359,13 +285,6 @@ export default function OrderDetailsPage() {
             </div>
           </Card>
 
-          <QuoteLineEditor
-            serviceOrderId={order.id}
-            lines={order.quoteLines || []}
-            editable={!QUOTE_FROZEN_STATUSES.includes(order.status)}
-            onChange={(lines) => setOrder({ ...order, quoteLines: lines })}
-          />
-
           {order.checklist && order.checklist.length > 0 && (
             <Card className="p-6">
               <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
@@ -405,19 +324,13 @@ export default function OrderDetailsPage() {
                 <InfoRow icon={Clock} label="Prazo">
                   {order.deadline ? new Date(order.deadline).toLocaleDateString('pt-BR') : 'Não definido'}
                 </InfoRow>
-                <InfoRow icon={User} label="Criador por">{order.createdBy?.name || 'Sistema'}</InfoRow>
+                <InfoRow icon={User} label="Criado por">{order.createdBy?.name || 'Sistema'}</InfoRow>
                 <InfoRow icon={Calendar} label="Data de Criação">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</InfoRow>
-                {order.salesRep && (
-                  <InfoRow icon={User} label="Responsável Comercial">{order.salesRep.name}</InfoRow>
+                {order.responsibleIds && order.responsibleIds.length > 0 && (
+                  <InfoRow icon={User} label="Equipe Responsável">{order.responsibleIds.length} técnico(s)</InfoRow>
                 )}
-                {order.paymentMethod && (
-                  <InfoRow icon={CreditCard} label="Pagamento">
-                    {PAYMENT_METHOD_LABELS[order.paymentMethod]}
-                    {order.paymentTerms && <p className="text-[11.5px] text-text-muted mt-0.5 font-normal">{order.paymentTerms}</p>}
-                  </InfoRow>
-                )}
-                {order.warrantyMonths != null && (
-                  <InfoRow icon={ShieldCheck} label="Garantia">{order.warrantyMonths} meses</InfoRow>
+                {order.requiredResources?.team && order.requiredResources.team.length > 0 && (
+                  <InfoRow icon={Wrench} label="Ferramentas">{order.requiredResources.team.join(', ')}</InfoRow>
                 )}
               </div>
 
@@ -459,7 +372,6 @@ export default function OrderDetailsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ArtCard
               serviceOrderId={order.id}
-              serviceOrderStatus={order.status}
               art={order.art}
               onIssued={(art) => setOrder({ ...order, art })}
             />
@@ -501,7 +413,7 @@ export default function OrderDetailsPage() {
                 >
                   <option value="">Selecione uma visita do cliente</option>
                   {clientVisits
-                    .filter((v) => !(order.linkedVisits || []).some((l) => l.technicalVisitId === v.id) && v.id !== order.technicalVisitId)
+                    .filter((v) => !(order.linkedVisits || []).some((l) => l.technicalVisitId === v.id))
                     .map((v) => (
                       <option key={v.id} value={v.id}>
                         {new Date(v.visitDate).toLocaleDateString('pt-BR')} — {v.visitType}
@@ -525,7 +437,7 @@ export default function OrderDetailsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[13px] font-bold text-foreground">
                         {entry.changes?.from && entry.changes?.to
-                          ? `${statusLabels[entry.changes.from as ServiceOrderStatus] || entry.changes.from} → ${statusLabels[entry.changes.to as ServiceOrderStatus] || entry.changes.to}`
+                          ? `${SERVICE_ORDER_STATUS_CONFIG[entry.changes.from as ServiceOrderStatus]?.label || entry.changes.from} → ${SERVICE_ORDER_STATUS_CONFIG[entry.changes.to as ServiceOrderStatus]?.label || entry.changes.to}`
                           : entry.action}
                       </span>
                     </div>

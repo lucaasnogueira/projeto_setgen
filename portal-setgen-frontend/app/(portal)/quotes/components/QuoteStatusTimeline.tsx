@@ -1,21 +1,21 @@
 "use client"
 
-import { ServiceOrderStatus } from '@/types';
-import { SERVICE_ORDER_STATUS_CONFIG, SERVICE_ORDER_MAIN_FLOW, statusColorHex } from '@/lib/status-config';
+import { QuoteStatus } from '@/types';
+import { QUOTE_STATUS_CONFIG, QUOTE_MAIN_FLOW, statusColorHex } from '@/lib/status-config';
 
-interface StatusTimelineProps {
-  currentStatus: ServiceOrderStatus;
+interface QuoteStatusTimelineProps {
+  currentStatus: QuoteStatus;
 }
 
-export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
-  const currentOrder = SERVICE_ORDER_STATUS_CONFIG[currentStatus].order;
-  const isOffMainFlow = !SERVICE_ORDER_MAIN_FLOW.includes(currentStatus);
+export function QuoteStatusTimeline({ currentStatus }: QuoteStatusTimelineProps) {
+  const currentOrder = QUOTE_STATUS_CONFIG[currentStatus].order;
+  const isOffMainFlow = !QUOTE_MAIN_FLOW.includes(currentStatus);
 
   return (
     <div className="space-y-6">
       <div className="relative">
-        {SERVICE_ORDER_MAIN_FLOW.map((status, index) => {
-          const config = SERVICE_ORDER_STATUS_CONFIG[status];
+        {QUOTE_MAIN_FLOW.map((status, index) => {
+          const config = QUOTE_STATUS_CONFIG[status];
           const Icon = config.icon;
           const hex = statusColorHex(config.color);
           const isPast = config.order < currentOrder;
@@ -24,7 +24,7 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
 
           return (
             <div key={status} className="relative">
-              {index < SERVICE_ORDER_MAIN_FLOW.length - 1 && (
+              {index < QUOTE_MAIN_FLOW.length - 1 && (
                 <div
                   className="absolute left-6 top-12 w-0.5 h-12 transition-colors"
                   style={{ backgroundColor: isPast ? hex.bg : '#e5e7eb' }}
@@ -54,7 +54,7 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
       </div>
 
       {isOffMainFlow && (() => {
-        const config = SERVICE_ORDER_STATUS_CONFIG[currentStatus];
+        const config = QUOTE_STATUS_CONFIG[currentStatus];
         const Icon = config.icon;
         const hex = statusColorHex(config.color);
         return (

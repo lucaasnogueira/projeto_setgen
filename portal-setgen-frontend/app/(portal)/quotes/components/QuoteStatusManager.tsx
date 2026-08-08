@@ -1,37 +1,37 @@
 "use client"
 
 import { useState } from 'react';
-import { ServiceOrderStatus, UserRole } from '@/types';
-import { SERVICE_ORDER_STATUS_TRANSITIONS, SERVICE_ORDER_STATUS_CONFIG, statusColorHex } from '@/lib/status-config';
+import { QuoteStatus, UserRole } from '@/types';
+import { QUOTE_STATUS_TRANSITIONS, QUOTE_STATUS_CONFIG, statusColorHex } from '@/lib/status-config';
 import { ArrowRight, AlertCircle, Ban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
-interface StatusManagerProps {
-  currentStatus: ServiceOrderStatus;
+interface QuoteStatusManagerProps {
+  currentStatus: QuoteStatus;
   userRole: UserRole;
-  onStatusChange: (newStatus: ServiceOrderStatus, comments?: string) => Promise<void>;
+  onStatusChange: (newStatus: QuoteStatus, comments?: string) => Promise<void>;
 }
 
-export function StatusManager({ currentStatus, userRole, onStatusChange }: StatusManagerProps) {
+export function QuoteStatusManager({ currentStatus, userRole, onStatusChange }: QuoteStatusManagerProps) {
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<ServiceOrderStatus | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<QuoteStatus | null>(null);
   const [comments, setComments] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Mudar status da OS é restrito a ADMIN/MANAGER no backend (@Roles em
-  // PATCH /service-orders/:id/status) — esconder os botões pra outros perfis
-  // em vez de deixar clicar e falhar com 403 sem explicação.
+  // Mudar status do orçamento é restrito a ADMIN/MANAGER no backend
+  // (@Roles em PATCH /quotes/:id/status) — esconder os botões pra outros
+  // perfis em vez de deixar clicar e falhar com 403 sem explicação.
   const canManageStatus = userRole === UserRole.ADMIN || userRole === UserRole.MANAGER;
-  const availableTransitions = canManageStatus ? SERVICE_ORDER_STATUS_TRANSITIONS[currentStatus] || [] : [];
+  const availableTransitions = canManageStatus ? QUOTE_STATUS_TRANSITIONS[currentStatus] || [] : [];
   const canCancel = canManageStatus &&
-                    currentStatus !== ServiceOrderStatus.COMPLETED &&
-                    currentStatus !== ServiceOrderStatus.CANCELLED &&
-                    !availableTransitions.includes(ServiceOrderStatus.CANCELLED);
+                    currentStatus !== QuoteStatus.ACCEPTED &&
+                    currentStatus !== QuoteStatus.CANCELLED &&
+                    !availableTransitions.includes(QuoteStatus.CANCELLED);
 
-  const handleTransition = (newStatus: ServiceOrderStatus) => {
+  const handleTransition = (newStatus: QuoteStatus) => {
     setSelectedStatus(newStatus);
     setShowModal(true);
   };
@@ -49,7 +49,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
       console.error('Error changing status:', error);
       toast({
         title: 'Erro ao alterar status',
-        description: error.response?.data?.message || 'Não foi possível alterar o status da OS.',
+        description: error.response?.data?.message || 'Não foi possível alterar o status do orçamento.',
         variant: 'destructive',
       });
     } finally {
@@ -72,7 +72,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
         </CardHeader>
         <CardContent className="p-6 space-y-3">
           {availableTransitions.map((status) => {
-            const config = SERVICE_ORDER_STATUS_CONFIG[status];
+            const config = QUOTE_STATUS_CONFIG[status];
             const Icon = config.icon;
             const hex = statusColorHex(config.color);
 
@@ -92,12 +92,12 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
           {canCancel && (
             <Button
-              onClick={() => handleTransition(ServiceOrderStatus.CANCELLED)}
+              onClick={() => handleTransition(QuoteStatus.CANCELLED)}
               className="w-full justify-start gap-3 h-12 rounded-xl font-bold transition-all hover:scale-[1.02] bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
               variant="outline"
             >
               <Ban className="h-5 w-5" />
-              Cancelar OS
+              Cancelar Orçamento
             </Button>
           )}
         </CardContent>
@@ -114,7 +114,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                 <div>
                   <h3 className="text-lg font-bold">Confirmar Mudança de Status</h3>
                   <p className="text-orange-100 text-sm mt-1">
-                    {SERVICE_ORDER_STATUS_CONFIG[currentStatus].label} → {SERVICE_ORDER_STATUS_CONFIG[selectedStatus].label}
+                    {QUOTE_STATUS_CONFIG[currentStatus].label} → {QUOTE_STATUS_CONFIG[selectedStatus].label}
                   </p>
                 </div>
               </div>
@@ -122,14 +122,26 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Observações</label>
+                <label className="block text-sm font-semibold text-foreground mb-2">
+                  Observações {selectedStatus === QuoteStatus.REJECTED && <span className="text-red-500">*</span>}
+                </label>
                 <textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
                   rows={4}
-                  placeholder="Adicione observações sobre esta mudança (opcional)..."
+                  placeholder={
+                    selectedStatus === QuoteStatus.REJECTED
+                      ? 'Informe o motivo da rejeição...'
+                      : 'Adicione observações sobre esta mudança (opcional)...'
+                  }
                   className="w-full rounded-xl border border-input p-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+                  required={selectedStatus === QuoteStatus.REJECTED}
                 />
+                {selectedStatus === QuoteStatus.REJECTED && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Se este orçamento veio de uma visita técnica, ela será marcada como cobrável automaticamente.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -147,7 +159,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                 </Button>
                 <Button
                   onClick={confirmTransition}
-                  disabled={loading}
+                  disabled={loading || (selectedStatus === QuoteStatus.REJECTED && !comments.trim())}
                   className="flex-1 h-11 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-bold shadow-lg"
                 >
                   {loading ? 'Processando...' : 'Confirmar'}

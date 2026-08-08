@@ -1,5 +1,15 @@
 import api from './client';
-import { ServiceOrder, QuoteLine, ServiceOrderAuditLogEntry } from '@/types';
+import { ServiceOrder, ServiceOrderStatus, ServiceOrderAuditLogEntry } from '@/types';
+
+export interface CreateServiceOrderPayload {
+  quoteId: string;
+  items?: Array<{ productId: string; quantity: number; unitPrice: number }>;
+  requiredResources?: { team?: string[] };
+  deadline?: string;
+  responsibleIds?: string[];
+  checklist?: Array<{ item: string; completed: boolean }>;
+  checklistTemplateId?: string;
+}
 
 export const ordersApi = {
   async uploadAttachments(id: string, files: File[]): Promise<ServiceOrder> {
@@ -11,12 +21,12 @@ export const ordersApi = {
     return data;
   },
 
-  async getAll(): Promise<ServiceOrder[]> {
+  async getAll(filters?: { clientId?: string; status?: ServiceOrderStatus; createdById?: string }): Promise<ServiceOrder[]> {
     try {
-      const { data } = await api.get('/service-orders');
+      const { data } = await api.get('/service-orders', { params: filters });
       return data;
     } catch (error) {
-      console.error('Erro ao buscar ordens:', error);
+      console.error('Erro ao buscar ordens de serviço:', error);
       return [];
     }
   },
@@ -26,8 +36,9 @@ export const ordersApi = {
     return data;
   },
 
-  async create(orderData: Partial<ServiceOrder>): Promise<ServiceOrder> {
-    const { data } = await api.post('/service-orders', orderData);
+  /** Gera a OS de execução a partir de um orçamento aceito (status ACCEPTED). */
+  async createFromQuote(payload: CreateServiceOrderPayload): Promise<ServiceOrder> {
+    const { data } = await api.post('/service-orders', payload);
     return data;
   },
 
@@ -40,36 +51,22 @@ export const ordersApi = {
     await api.delete(`/service-orders/${id}`);
   },
 
-  async updateStatus(id: string, newStatus: string, comments?: string): Promise<ServiceOrder> {
-    const { data } = await api.patch(`/service-orders/${id}/status`, { 
+  async updateStatus(id: string, newStatus: ServiceOrderStatus, comments?: string): Promise<ServiceOrder> {
+    const { data } = await api.patch(`/service-orders/${id}/status`, {
       status: newStatus,
-      comments 
+      comments,
     });
     return data;
   },
 
-  async getStatusHistory(id: string): Promise<any[]> {
-    try {
-      const { data } = await api.get(`/service-orders/${id}/status-history`);
-      return data;
-    } catch (error) {
-      console.error('Erro ao buscar histórico de status:', error);
-      return [];
-    }
-  },
-
-  async addQuoteLine(id: string, line: Partial<QuoteLine>): Promise<QuoteLine> {
-    const { data } = await api.post(`/service-orders/${id}/lines`, line);
+  async updateProgress(id: string, progress: number): Promise<ServiceOrder> {
+    const { data } = await api.patch(`/service-orders/${id}/progress/${progress}`);
     return data;
   },
 
-  async updateQuoteLine(id: string, lineId: string, line: Partial<QuoteLine>): Promise<QuoteLine> {
-    const { data } = await api.patch(`/service-orders/${id}/lines/${lineId}`, line);
+  async updatePaymentStatus(id: string, paymentStatus: 'PENDING' | 'RECEIVED'): Promise<ServiceOrder> {
+    const { data } = await api.patch(`/service-orders/${id}/payment-status`, { paymentStatus });
     return data;
-  },
-
-  async removeQuoteLine(id: string, lineId: string): Promise<void> {
-    await api.delete(`/service-orders/${id}/lines/${lineId}`);
   },
 
   async linkVisit(id: string, visitId: string): Promise<void> {

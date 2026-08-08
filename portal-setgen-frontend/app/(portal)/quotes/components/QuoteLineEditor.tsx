@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { QuoteLine, QuoteLineType } from '@/types';
-import { ordersApi } from '@/lib/api/orders';
+import { quotesApi } from '@/lib/api/quotes';
 import { Plus, Trash2, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ const QUOTE_LINE_TYPE_LABELS: Record<QuoteLineType, string> = {
 };
 
 interface QuoteLineEditorProps {
-  serviceOrderId: string;
+  quoteId: string;
   lines: QuoteLine[];
   editable: boolean;
   onChange: (lines: QuoteLine[]) => void;
@@ -25,7 +25,7 @@ interface QuoteLineEditorProps {
 
 const currency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export function QuoteLineEditor({ serviceOrderId, lines, editable, onChange }: QuoteLineEditorProps) {
+export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLineEditorProps) {
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -45,7 +45,7 @@ export function QuoteLineEditor({ serviceOrderId, lines, editable, onChange }: Q
     }
     setSaving(true);
     try {
-      const created = await ordersApi.addQuoteLine(serviceOrderId, {
+      const created = await quotesApi.addQuoteLine(quoteId, {
         type: form.type,
         description: form.description,
         quantity: Number(form.quantity),
@@ -65,7 +65,7 @@ export function QuoteLineEditor({ serviceOrderId, lines, editable, onChange }: Q
   const handleRemove = async (lineId: string) => {
     if (!window.confirm('Remover esta linha do orçamento?')) return;
     try {
-      await ordersApi.removeQuoteLine(serviceOrderId, lineId);
+      await quotesApi.removeQuoteLine(quoteId, lineId);
       onChange(lines.filter((l) => l.id !== lineId));
     } catch (error: any) {
       alert(error.response?.data?.message || 'Erro ao remover linha');

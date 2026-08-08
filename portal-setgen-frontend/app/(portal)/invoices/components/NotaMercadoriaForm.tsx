@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { clientsApi } from '@/lib/api/clients';
 import { inventoryApi } from '@/lib/api/inventory';
-import { serviceOrdersApi } from '@/lib/api/service-orders';
+import { ordersApi } from '@/lib/api/orders';
 import { fiscalApi, EmitirNotaMercadoriaDto } from '@/lib/api/fiscal';
 import { ServiceOrderStatus } from '@/types';
 import {
@@ -62,9 +62,9 @@ export function NotaMercadoriaForm({ onSuccess, onCancel }: NotaMercadoriaFormPr
     clientsApi.getAll().then(setClients).catch(() => setClients([]));
     inventoryApi.getAll().then(setProducts).catch(() => setProducts([]));
     Promise.all([
-      serviceOrdersApi.getAll(ServiceOrderStatus.APPROVED),
-      serviceOrdersApi.getAll(ServiceOrderStatus.IN_PROGRESS),
-      serviceOrdersApi.getAll(ServiceOrderStatus.COMPLETED),
+      ordersApi.getAll({ status: ServiceOrderStatus.AWAITING_MATERIALS }),
+      ordersApi.getAll({ status: ServiceOrderStatus.IN_PROGRESS }),
+      ordersApi.getAll({ status: ServiceOrderStatus.COMPLETED }),
     ]).then((results) => setServiceOrders(results.flat())).catch(() => setServiceOrders([]));
   }, []);
 

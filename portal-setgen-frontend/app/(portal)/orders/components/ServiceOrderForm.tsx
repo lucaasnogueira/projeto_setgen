@@ -2,13 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { clientsApi } from '@/lib/api/clients';
-import { FileText, Save, X, User, Briefcase, Calendar, Info, Layers, Tag, Trash2, Plus, DollarSign, Loader2, ClipboardCheck, Camera } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { ServiceOrderType, ServiceOrder, ChecklistTemplate, ChecklistAnswerItem, ChecklistFieldType, PaymentMethod } from '@/types';
+import { Calendar, Layers, Trash2, Plus, Loader2, ClipboardCheck, Camera, Users as UsersIcon } from 'lucide-react';
+import { ServiceOrder, ChecklistTemplate, ChecklistAnswerItem, ChecklistFieldType } from '@/types';
 import { usersApi, User as ApiUser } from '@/lib/api/users';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +19,7 @@ import {
 import { inventoryApi } from '@/lib/api/inventory';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
 import { ordersApi } from '@/lib/api/orders';
+import { cn } from '@/lib/utils';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 const SignaturePad = dynamic(
@@ -32,16 +28,6 @@ const SignaturePad = dynamic(
 );
 
 const NONE = '__none__';
-
-const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
-  [PaymentMethod.CASH]: 'Dinheiro',
-  [PaymentMethod.DEBIT_CARD]: 'Cartão de Débito',
-  [PaymentMethod.CREDIT_CARD]: 'Cartão de Crédito',
-  [PaymentMethod.BANK_TRANSFER]: 'Transferência Bancária',
-  [PaymentMethod.PIX]: 'PIX',
-  [PaymentMethod.BANK_SLIP]: 'Boleto',
-  [PaymentMethod.CHECK]: 'Cheque',
-};
 
 const fieldTypeLabels: Record<ChecklistFieldType, string> = {
   [ChecklistFieldType.TEXT]: 'Texto',
@@ -52,25 +38,9 @@ const fieldTypeLabels: Record<ChecklistFieldType, string> = {
   [ChecklistFieldType.MULTIPLE_CHOICE]: 'Múltipla Escolha',
 };
 
-const serviceOrderSchema = z.object({
-  clientId: z.string().min(1, "Selecione um cliente"),
-  type: z.nativeEnum(ServiceOrderType),
-  scope: z.string().min(10, "Descreva o escopo com no mínimo 10 caracteres"),
-  reportedDefects: z.string().optional(),
-  requestedServices: z.string().optional(),
-  notes: z.string().optional(),
-  deadline: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Data inválida"),
-  validUntil: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Data inválida"),
-  checklistTemplateId: z.string().optional(),
-  paymentMethod: z.string().optional(),
-  paymentTerms: z.string().optional(),
-  warrantyMonths: z.string().optional(),
-  salesRepId: z.string().optional(),
-});
-
-type ServiceOrderFormValues = z.infer<typeof serviceOrderSchema>;
-
 interface ServiceOrderFormProps {
+  /** Obrigatório ao gerar uma OS nova — o orçamento (ACCEPTED) de origem. */
+  quoteId?: string;
   initialData?: Partial<ServiceOrder>;
   onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
@@ -79,13 +49,13 @@ interface ServiceOrderFormProps {
 }
 
 export function ServiceOrderForm({
+  quoteId,
   initialData,
   onSubmit,
   onCancel,
   loading,
   submitLabel
 }: ServiceOrderFormProps) {
-  const [clients, setClients] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [items, setItems] = useState<any[]>(initialData?.items?.map(i => ({
@@ -99,61 +69,33 @@ export function ServiceOrderForm({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [itemQuantity, setItemQuantity] = useState('1');
 
-  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
-  const [checklistAnswers, setChecklistAnswers] = useState<ChecklistAnswerItem[]>(
-    initialData?.checklist || []
+  const [deadline, setDeadline] = useState(
+    initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : ''
   );
+  const [responsibleIds, setResponsibleIds] = useState<string[]>(initialData?.responsibleIds || []);
+  const [team, setTeam] = useState<string>((initialData?.requiredResources?.team || []).join(', '));
+
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [checklistTemplateId, setChecklistTemplateId] = useState(initialData?.checklistTemplateId || NONE);
+  const [checklistAnswers, setChecklistAnswers] = useState<ChecklistAnswerItem[]>(initialData?.checklist || []);
   const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null);
   const [knownAttachments, setKnownAttachments] = useState<string[]>(initialData?.attachments || []);
 
-  type StepKey = 'geral' | 'pagamento' | 'materiais' | 'checklist';
+  type StepKey = 'geral' | 'materiais' | 'checklist';
   const [activeStep, setActiveStep] = useState<StepKey>('geral');
-
-  const form = useForm<ServiceOrderFormValues>({
-    resolver: zodResolver(serviceOrderSchema),
-    defaultValues: {
-      clientId: initialData?.clientId || '',
-      type: initialData?.type || ServiceOrderType.VISIT_REPORT,
-      scope: initialData?.scope || '',
-      reportedDefects: initialData?.reportedDefects || '',
-      requestedServices: initialData?.requestedServices || '',
-      notes: initialData?.notes || '',
-      deadline: initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
-      validUntil: initialData?.validUntil ? new Date(initialData.validUntil).toISOString().split('T')[0] : '',
-      checklistTemplateId: initialData?.checklistTemplateId || NONE,
-      paymentMethod: initialData?.paymentMethod || NONE,
-      paymentTerms: initialData?.paymentTerms || '',
-      warrantyMonths: initialData?.warrantyMonths ? String(initialData.warrantyMonths) : '',
-      salesRepId: initialData?.salesRepId || NONE,
-    }
-  });
-
-  const { register, handleSubmit, control, watch, formState: { errors } } = form;
-  const watchedType = watch('type');
-
   const stepDefs: WizardStep[] = [
     { key: 'geral', label: 'Geral' },
-    { key: 'pagamento', label: 'Pagamento' },
     { key: 'materiais', label: 'Materiais' },
-    ...(checklistAnswers.length > 0 ? [{ key: 'checklist', label: 'Checklist' }] : []),
+    ...(checklistAnswers.length > 0 || (!initialData && templates.length > 0) ? [{ key: 'checklist', label: 'Checklist' }] : []),
   ];
 
   useEffect(() => {
-    loadClients();
     loadProducts();
     usersApi.getAll().then(setUsers).catch(() => setUsers([]));
+    if (!initialData) {
+      checklistTemplatesApi.getAll(undefined, true).then(setTemplates).catch(() => setTemplates([]));
+    }
   }, []);
-
-  useEffect(() => {
-    // Campos com validação (clientId, type, scope, deadline, validUntil) vivem na etapa "Geral" —
-    // sem isso o usuário vê "Salvando..." falhar sem entender por que, preso numa etapa sem erros visíveis.
-    if (Object.keys(errors).length > 0) setActiveStep('geral');
-  }, [errors]);
-
-  useEffect(() => {
-    if (initialData) return; // seleção de template só faz sentido na criação
-    checklistTemplatesApi.getAll(watchedType, true).then(setTemplates).catch(() => setTemplates([]));
-  }, [watchedType, initialData]);
 
   const updateAnswer = (index: number, patch: Partial<ChecklistAnswerItem>) => {
     setChecklistAnswers((prev) => {
@@ -189,24 +131,15 @@ export function ServiceOrderForm({
     }
   };
 
-  const loadClients = async () => {
-    try {
-      const data = await clientsApi.getAll();
-      setClients(data);
-    } catch (error) {
-      console.error('Error loading clients:', error);
-    }
-  };
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
 
-  const onFormSubmit = (data: ServiceOrderFormValues) => {
     const payload: any = {
-      ...data,
-      deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
-      validUntil: data.validUntil ? new Date(data.validUntil).toISOString() : undefined,
-      paymentMethod: data.paymentMethod && data.paymentMethod !== NONE ? data.paymentMethod : undefined,
-      paymentTerms: data.paymentTerms || undefined,
-      warrantyMonths: data.warrantyMonths ? Number(data.warrantyMonths) : undefined,
-      salesRepId: data.salesRepId && data.salesRepId !== NONE ? data.salesRepId : undefined,
+      deadline: deadline ? new Date(deadline).toISOString() : undefined,
+      responsibleIds,
+      requiredResources: {
+        team: team.split(',').map((t) => t.trim()).filter(Boolean),
+      },
       items: items.map(i => ({
         productId: i.productId,
         quantity: i.quantity,
@@ -215,11 +148,9 @@ export function ServiceOrderForm({
     };
 
     if (!initialData) {
-      payload.checklistTemplateId = data.checklistTemplateId && data.checklistTemplateId !== NONE
-        ? data.checklistTemplateId
-        : undefined;
+      payload.quoteId = quoteId;
+      payload.checklistTemplateId = checklistTemplateId !== NONE ? checklistTemplateId : undefined;
     } else {
-      delete payload.checklistTemplateId;
       payload.checklist = checklistAnswers;
     }
 
@@ -252,61 +183,66 @@ export function ServiceOrderForm({
     setItems(items.filter(i => i.productId !== productId));
   };
 
+  const toggleResponsible = (userId: string) => {
+    setResponsibleIds((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]);
+  };
+
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+    <form onSubmit={onFormSubmit} className="space-y-6">
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
       <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
         <CardHeader className="bg-muted/30 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
-            <Info className="h-5 w-5 text-blue-600" />
-            Informações da Ordem
+            <Calendar className="h-5 w-5 text-blue-600" />
+            Planejamento da Execução
           </CardTitle>
-          <CardDescription>Defina o tipo de serviço e o cliente responsável</CardDescription>
+          <CardDescription>Prazo, equipe e ferramentas necessárias</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Tipo de OS *</Label>
-              <Controller
-                name="type"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita</SelectItem>
-                      <SelectItem value={ServiceOrderType.EXECUTION}>Execução de Serviço</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.type && <p className="text-xs font-bold text-red-500">{errors.type.message}</p>}
+              <Label className="font-bold text-sm">Prazo de Execução</Label>
+              <div className="relative group">
+                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
+                <Input
+                  type="date"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Cliente *</Label>
-              <Controller
-                name="clientId"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                      <SelectValue placeholder="Selecione um cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.companyName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              <Label className="font-bold text-sm">Ferramentas Necessárias</Label>
+              <Input
+                value={team}
+                onChange={(e) => setTeam(e.target.value)}
+                placeholder="Ex: escada, multímetro, chave de torque"
+                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
               />
-              {errors.clientId && <p className="text-xs font-bold text-red-500">{errors.clientId.message}</p>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="font-bold text-sm flex items-center gap-2"><UsersIcon className="h-4 w-4" />Equipe Responsável</Label>
+            <div className="flex flex-wrap gap-2">
+              {users.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggleResponsible(u.id)}
+                  className={cn(
+                    'px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
+                    responsibleIds.includes(u.id)
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-background border-border text-muted-foreground hover:border-blue-300'
+                  )}
+                >
+                  {u.name}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -316,178 +252,19 @@ export function ServiceOrderForm({
                 <ClipboardCheck className="h-4 w-4 text-blue-600" />
                 Template de Checklist
               </Label>
-              <Controller
-                name="checklistTemplateId"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Nenhum</SelectItem>
-                      {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+              <Select value={checklistTemplateId} onValueChange={setChecklistTemplateId}>
+                <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>Nenhum</SelectItem>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Briefcase className="h-5 w-5 text-blue-600" />
-            Escopo e Detalhamento
-          </CardTitle>
-          <CardDescription>Descreva tecnicamente o que será realizado</CardDescription>
-        </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Defeitos Relatados</Label>
-              <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                placeholder="Problemas informados pelo cliente..."
-                {...register('reportedDefects')}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Serviços Solicitados</Label>
-              <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-                placeholder="Ações específicas solicitadas..."
-                {...register('requestedServices')}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Escopo do Serviço *</Label>
-            <textarea
-              className="w-full flex min-h-[120px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
-              placeholder="Descrição técnica detalhada do trabalho..."
-              {...register('scope')}
-            />
-            {errors.scope && <p className="text-xs font-bold text-red-500">{errors.scope.message}</p>}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Prazo de Execução</Label>
-              <div className="relative group">
-                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
-                <Input
-                  type="date"
-                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
-                  {...register('deadline')}
-                />
-              </div>
-              {errors.deadline && <p className="text-xs font-bold text-red-500">{errors.deadline.message}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Validade do Orçamento</Label>
-              <div className="relative group">
-                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
-                <Input
-                  type="date"
-                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
-                  {...register('validUntil')}
-                />
-              </div>
-              {errors.validUntil && <p className="text-xs font-bold text-red-500">{errors.validUntil.message}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Observações Internas</Label>
-              <Input
-                placeholder="Notas para a equipe técnica..."
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
-                {...register('notes')}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'pagamento' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <DollarSign className="h-5 w-5 text-blue-600" />
-            Pagamento e Garantia
-          </CardTitle>
-          <CardDescription>Condições comerciais do orçamento</CardDescription>
-        </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Forma de Pagamento</Label>
-              <Controller
-                name="paymentMethod"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                      <SelectValue placeholder="Não definida" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Não definida</SelectItem>
-                      {Object.values(PaymentMethod).map((pm) => (
-                        <SelectItem key={pm} value={pm}>{PAYMENT_METHOD_LABELS[pm]}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Garantia (meses)</Label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="12"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
-                {...register('warrantyMonths')}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Responsável Comercial</Label>
-              <Controller
-                name="salesRepId"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                      <SelectValue placeholder="Não definido" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>Não definido</SelectItem>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Condição de Pagamento</Label>
-              <Input
-                placeholder="Ex: 50% entrada e 50% na conclusão"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
-                {...register('paymentTerms')}
-              />
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -497,7 +274,7 @@ export function ServiceOrderForm({
             <Layers className="h-5 w-5 text-blue-600" />
             Materiais e Estoque
           </CardTitle>
-          <CardDescription>Produtos que serão utilizados na OS</CardDescription>
+          <CardDescription>Produtos previstos para a execução — alimenta a solicitação ao almoxarifado</CardDescription>
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           <div className="flex flex-col md:flex-row gap-4 items-end bg-muted/50 p-6 rounded-2xl border border-dashed">
@@ -526,8 +303,8 @@ export function ServiceOrderForm({
                 className="h-12 rounded-2xl bg-card"
               />
             </div>
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={addItem}
               className="h-12 bg-blue-600 hover:bg-blue-700 rounded-2xl font-bold flex items-center gap-2 px-8 transition-all active:scale-95"
             >
@@ -568,8 +345,8 @@ export function ServiceOrderForm({
                         {(item.quantity * item.unitPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
                       <td className="py-4 px-6 text-right">
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => removeItem(item.productId)}
                           className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         >
@@ -611,7 +388,6 @@ export function ServiceOrderForm({
           </CardHeader>
           <CardContent className="p-8 space-y-4">
             {checklistAnswers.map((item, index) => {
-              // Shape legado (pré-templates): { item, completed }, sem type
               if (!item.type) {
                 return (
                   <label key={item.id ?? index} className="flex items-center gap-3 p-3 rounded-xl border bg-muted/50">
