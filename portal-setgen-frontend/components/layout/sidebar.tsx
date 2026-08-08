@@ -29,6 +29,7 @@ import {
   Building,
   ChevronDown,
   Car,
+  Receipt,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { usersApi } from '@/lib/api/users';
@@ -47,7 +48,8 @@ const navigation: {
   { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE'], permissions: ['equipment:view'] },
   { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'], permissions: ['visits:view'] },
 
-  { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'], section: 'OPERAÇÕES' },
+  { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view', 'orders:create'], section: 'OPERAÇÕES' },
+  { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
   { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'], permissions: ['orders:approve', 'expenses:approve'] },
   { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
 

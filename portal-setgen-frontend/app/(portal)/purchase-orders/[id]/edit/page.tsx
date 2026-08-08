@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { purchaseOrdersApi } from '@/lib/api/purchase-orders';
-import { ordersApi } from '@/lib/api/orders';
+import { quotesApi } from '@/lib/api/quotes';
+import { QuoteStatus } from '@/types';
 import { ShoppingCart, Save, X, FileText, DollarSign, Calendar, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,14 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DetailHeader } from "@/components/layout/DetailHeader";
 
+const OC_ELIGIBLE_STATUSES: QuoteStatus[] = [QuoteStatus.APPROVED, QuoteStatus.SENT_TO_CLIENT, QuoteStatus.AWAITING_RESPONSE];
+
 export default function EditPurchaseOrderPage() {
   const params = useParams();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [serviceOrders, setServiceOrders] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    serviceOrderId: '',
+    quoteId: '',
     clientId: '',
     orderNumber: '',
     value: '',
@@ -32,15 +35,15 @@ export default function EditPurchaseOrderPage() {
 
   const loadData = async () => {
     try {
-      const [order, soData] = await Promise.all([
+      const [order, quoteData] = await Promise.all([
         purchaseOrdersApi.getById(params.id as string),
-        ordersApi.getAll()
+        quotesApi.getAll()
       ]);
 
-      setServiceOrders(soData.filter(o => o.status === 'APPROVED' || o.id === order.serviceOrderId));
-      
+      setQuotes(quoteData.filter(q => OC_ELIGIBLE_STATUSES.includes(q.status) || q.id === order.quoteId));
+
       setFormData({
-        serviceOrderId: order.serviceOrderId,
+        quoteId: order.quoteId,
         clientId: order.clientId,
         orderNumber: order.orderNumber,
         value: order.value.toString(),
@@ -49,21 +52,21 @@ export default function EditPurchaseOrderPage() {
       });
     } catch (error) {
       console.error('Error loading data:', error);
-      alert('Erro ao carregar dados da OC');
+      alert('Erro ao carregar dados da OC/OP');
       router.push('/purchase-orders');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSOSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const soId = e.target.value;
-    const so = serviceOrders.find(o => o.id === soId);
-    
-    setFormData(prev => ({ 
-      ...prev, 
-      serviceOrderId: soId,
-      clientId: so ? so.clientId : ''
+  const handleQuoteSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const quoteId = e.target.value;
+    const quote = quotes.find(q => q.id === quoteId);
+
+    setFormData(prev => ({
+      ...prev,
+      quoteId,
+      clientId: quote ? quote.clientId : ''
     }));
   };
 
@@ -73,7 +76,7 @@ export default function EditPurchaseOrderPage() {
 
     try {
       const payload = {
-        serviceOrderId: formData.serviceOrderId,
+        quoteId: formData.quoteId,
         clientId: formData.clientId,
         orderNumber: formData.orderNumber,
         value: parseFloat(formData.value),
@@ -81,10 +84,10 @@ export default function EditPurchaseOrderPage() {
         expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : '',
       };
       await purchaseOrdersApi.update(params.id as string, payload);
-      alert('OC atualizada com sucesso!');
+      alert('OC/OP atualizada com sucesso!');
       router.push(`/purchase-orders/${params.id}`);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Erro ao atualizar OC');
+      alert(error.response?.data?.message || 'Erro ao atualizar OC/OP');
     } finally {
       setSaving(false);
     }
@@ -109,27 +112,26 @@ export default function EditPurchaseOrderPage() {
       />
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Vínculo com OS */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
           <CardHeader className="bg-muted/50 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-foreground">
               <FileText className="h-5 w-5 text-green-600" />
-              Vínculo com Ordem de Serviço
+              Vínculo com Orçamento
             </CardTitle>
           </CardHeader>
           <CardContent className="p-8">
             <div className="space-y-2">
-              <Label className="text-foreground font-semibold">OS Aprovada <span className="text-red-500">*</span></Label>
+              <Label className="text-foreground font-semibold">Orçamento Aprovado <span className="text-red-500">*</span></Label>
               <select
                 required
-                value={formData.serviceOrderId}
-                onChange={handleSOSelect}
+                value={formData.quoteId}
+                onChange={handleQuoteSelect}
                 className="w-full flex h-11 rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
               >
-                <option value="">Selecione uma OS aprovada</option>
-                {serviceOrders.map(order => (
-                  <option key={order.id} value={order.id}>
-                    {order.orderNumber} - {order.client?.companyName}
+                <option value="">Selecione um orçamento aprovado</option>
+                {quotes.map(quote => (
+                  <option key={quote.id} value={quote.id}>
+                    {quote.quoteNumber} - {quote.client?.companyName}
                   </option>
                 ))}
               </select>
@@ -137,7 +139,6 @@ export default function EditPurchaseOrderPage() {
           </CardContent>
         </Card>
 
-        {/* Detalhes da OC */}
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
           <CardHeader className="bg-muted/50 border-b border-border">
             <CardTitle className="flex items-center gap-2 text-foreground">
@@ -148,7 +149,7 @@ export default function EditPurchaseOrderPage() {
           <CardContent className="p-8 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label className="text-foreground font-semibold">Número da OC <span className="text-red-500">*</span></Label>
+                <Label className="text-foreground font-semibold">Número da OC/OP <span className="text-red-500">*</span></Label>
                 <Input
                   required
                   value={formData.orderNumber}
@@ -208,7 +209,6 @@ export default function EditPurchaseOrderPage() {
           </CardContent>
         </Card>
 
-        {/* Ações */}
         <div className="flex gap-4 pt-4">
           <Button
             type="button"

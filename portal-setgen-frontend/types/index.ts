@@ -61,16 +61,23 @@ export enum ChecklistFieldType {
   MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
 }
 
-export enum ServiceOrderStatus {
+// Fase comercial (orçamento). Vira ServiceOrder só quando ACCEPTED.
+export enum QuoteStatus {
   DRAFT = 'DRAFT',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
   APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
   SENT_TO_CLIENT = 'SENT_TO_CLIENT',
   AWAITING_RESPONSE = 'AWAITING_RESPONSE',
   EXPIRED = 'EXPIRED',
-  REJECTED = 'REJECTED',
-  IN_PROGRESS = 'IN_PROGRESS',
+  ACCEPTED = 'ACCEPTED',
+  CANCELLED = 'CANCELLED',
+}
+
+// Fase de execução — nasce só de um Quote ACCEPTED.
+export enum ServiceOrderStatus {
   AWAITING_MATERIALS = 'AWAITING_MATERIALS',
+  IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
 }
@@ -421,20 +428,49 @@ export interface Equipment {
   technicalVisits?: Pick<TechnicalVisit, 'id' | 'visitDate' | 'status' | 'chargeable' | 'failureCategoryId'>[];
 }
 
-export interface ServiceOrder {
+// Fase comercial: elaboração, envio e aprovação do orçamento pelo cliente.
+// Vira ServiceOrder só quando aceito (OC/OP verificada) — ver Quote.serviceOrder.
+export interface Quote {
   id: string;
-  orderNumber: string;
+  quoteNumber: string;
   type: ServiceOrderType;
   clientId: string;
   technicalVisitId?: string;
-  status: ServiceOrderStatus;
+  status: QuoteStatus;
   scope: string;
   reportedDefects?: string;
   requestedServices?: string;
   notes?: string;
+  validUntil?: string;
+  paymentMethod?: PaymentMethod;
+  paymentTerms?: string;
+  paymentTermDays?: number;
+  warrantyMonths?: number;
+  salesRepId?: string;
+  salesRep?: Pick<User, 'id' | 'name'>;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  client?: Client;
+  technicalVisit?: TechnicalVisit;
+  createdBy?: User;
+  approvals?: Approval[];
+  purchaseOrders?: PurchaseOrder[];
+  quoteLines?: QuoteLine[];
+  serviceOrder?: Pick<ServiceOrder, 'id' | 'orderNumber' | 'status' | 'progress'>;
+}
+
+// Fase de execução: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
+// Escopo vem congelado (cópia) do Quote de origem.
+export interface ServiceOrder {
+  id: string;
+  orderNumber: string;
+  quoteId: string;
+  clientId: string;
+  status: ServiceOrderStatus;
+  scope: string;
   requiredResources?: any;
   deadline?: string;
-  validUntil?: string;
   responsibleIds: string[];
   checklist: ChecklistAnswerItem[];
   checklistTemplateId?: string;
@@ -442,21 +478,20 @@ export interface ServiceOrder {
   progress: number;
   attachments: string[];
   createdById: string;
-  paymentMethod?: PaymentMethod;
-  paymentTerms?: string;
-  warrantyMonths?: number;
-  salesRepId?: string;
-  salesRep?: Pick<User, 'id' | 'name'>;
+  paymentStatus?: 'PENDING' | 'RECEIVED';
+  completedAt?: string;
   linkedVisits?: ServiceOrderVisitLink[];
   createdAt: string;
   updatedAt: string;
   client?: Client;
-  technicalVisit?: TechnicalVisit;
+  quote?: Quote;
   createdBy?: User;
   items?: ServiceOrderProduct[];
   statusHistory?: ServiceOrderStatusHistory[];
-  quoteLines?: QuoteLine[];
   art?: ART;
+  delivery?: Delivery;
+  materialRequests?: MaterialRequest[];
+  notasFiscais?: Invoice[];
 }
 
 export interface ServiceOrderVisitLink {
@@ -468,7 +503,7 @@ export interface ServiceOrderVisitLink {
 
 export interface QuoteLine {
   id: string;
-  serviceOrderId: string;
+  quoteId: string;
   type: QuoteLineType;
   description: string;
   quantity: number;
@@ -559,19 +594,19 @@ export interface ServiceOrderProduct {
 
 export interface Approval {
   id: string;
-  serviceOrderId: string;
+  quoteId: string;
   approverId: string;
   status: ApprovalStatus;
   comments?: string;
   approvedAt: string;
   createdAt: string;
-  serviceOrder?: ServiceOrder;
+  quote?: Quote;
   approver?: User;
 }
 
 export interface PurchaseOrder {
   id: string;
-  serviceOrderId: string;
+  quoteId: string;
   clientId: string;
   orderNumber: string;
   value: number;
@@ -582,7 +617,7 @@ export interface PurchaseOrder {
   uploadedById: string;
   createdAt: string;
   updatedAt: string;
-  serviceOrder?: ServiceOrder;
+  quote?: Quote;
   client?: Client;
   uploadedBy?: User;
 }

@@ -6,7 +6,7 @@ import { ExpenseForm } from '@/components/financial/ExpenseForm';
 import { expensesApi } from '@/lib/api/expenses';
 import { clientsApi } from '@/lib/api/clients';
 import { visitsApi } from '@/lib/api/visits';
-import { serviceOrdersApi } from '@/lib/api/service-orders';
+import { ordersApi } from '@/lib/api/orders';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -38,7 +38,7 @@ export default function EditExpensePage() {
             expensesApi.getCategories(),
             clientsApi.getAll(),
             visitsApi.getAll(),
-            serviceOrdersApi.getAll(),
+            ordersApi.getAll(),
             expensesApi.getBankAccounts()
         ]);
 

@@ -75,7 +75,7 @@ export default function PurchaseOrdersPage() {
                     OC {order.orderNumber}
                   </TableCell>
                   <TableCell className="text-[12.5px] text-text-secondary">
-                    {order.serviceOrder?.client?.name || order.serviceOrder?.client?.companyName || '—'}
+                    {order.quote?.client?.name || order.quote?.client?.companyName || '—'}
                   </TableCell>
                   <TableCell className="text-[12.5px] font-bold text-foreground">
                     R$ {order.value?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}

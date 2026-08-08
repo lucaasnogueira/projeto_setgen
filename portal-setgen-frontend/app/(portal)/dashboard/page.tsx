@@ -180,7 +180,7 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2.5">
             <QuickActionButton label="Novo Cliente" icon={Users} tone="amber" href="/clients/new" visible={canCreateClient} router={router} />
             <QuickActionButton label="Nova Visita" icon={FileText} tone="purple" href="/visits/new" visible={canCreateVisit} router={router} />
-            <QuickActionButton label="Nova OS" icon={FileText} tone="blue" href="/orders/new" visible router={router} />
+            <QuickActionButton label="Novo Orçamento" icon={FileText} tone="blue" href="/quotes/new" visible router={router} />
             <QuickActionButton label="Nova Fatura" icon={DollarSign} tone="green" href="/invoices/new" visible={canSeeFinancials} router={router} />
           </div>
         </Card>

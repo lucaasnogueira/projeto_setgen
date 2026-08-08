@@ -150,13 +150,13 @@ export default function PurchaseOrderDetailsPage() {
                 Vínculos
               </div>
               <div className="space-y-4">
-                {order.serviceOrderId && (
+                {order.quoteId && (
                   <div>
-                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Ordem de Serviço</p>
-                    <Link href={`/orders/${order.serviceOrderId}`}>
+                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Orçamento</p>
+                    <Link href={`/quotes/${order.quoteId}`}>
                       <Button variant="outline" className="w-full justify-start gap-2 rounded-xl">
                         <FileText className="h-4 w-4" />
-                        Ver OS #{order.serviceOrder?.orderNumber}
+                        Ver Orçamento #{order.quote?.quoteNumber}
                       </Button>
                     </Link>
                   </div>

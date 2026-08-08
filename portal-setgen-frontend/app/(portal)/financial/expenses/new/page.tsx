@@ -6,7 +6,7 @@ import { ExpenseForm } from '@/components/financial/ExpenseForm';
 import { expensesApi } from '@/lib/api/expenses';
 import { clientsApi } from '@/lib/api/clients';
 import { visitsApi } from '@/lib/api/visits';
-import { serviceOrdersApi } from '@/lib/api/service-orders';
+import { ordersApi } from '@/lib/api/orders';
 import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -29,14 +29,14 @@ export default function NewExpensePage() {
           expensesApi.getCategories(),
           clientsApi.getAll(),
           visitsApi.getAll(),
-          serviceOrdersApi.getAll()
+          ordersApi.getAll()
         ]);
 
         setData({
           categories,
           clients,
           visits,
-          serviceOrders // Ensure serviceOrdersApi.getAll returns data as expected
+          serviceOrders
         });
       } catch (error) {
         console.error('Erro ao carregar dados:', error);

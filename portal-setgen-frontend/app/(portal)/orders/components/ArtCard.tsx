@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react';
-import { ART, ServiceOrderStatus } from '@/types';
+import { ART } from '@/types';
 import { artApi } from '@/lib/api/art';
 import { ShieldCheck, FileDown, HardHat } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,23 +10,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { openAuthedFile } from '@/lib/utils/auth-file';
 
-const ART_ELIGIBLE_STATUSES: ServiceOrderStatus[] = [
-  ServiceOrderStatus.APPROVED,
-  ServiceOrderStatus.SENT_TO_CLIENT,
-  ServiceOrderStatus.AWAITING_RESPONSE,
-  ServiceOrderStatus.IN_PROGRESS,
-  ServiceOrderStatus.AWAITING_MATERIALS,
-  ServiceOrderStatus.COMPLETED,
-];
-
 interface ArtCardProps {
   serviceOrderId: string;
-  serviceOrderStatus: ServiceOrderStatus;
   art?: ART;
   onIssued: (art: ART) => void;
 }
 
-export function ArtCard({ serviceOrderId, serviceOrderStatus, art, onIssued }: ArtCardProps) {
+// Toda ServiceOrder já nasce de um orçamento aceito — a ART pode ser emitida
+// assim que a OS existe, sem checagem de status (ver ArtService no backend).
+export function ArtCard({ serviceOrderId, art, onIssued }: ArtCardProps) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -36,8 +28,6 @@ export function ArtCard({ serviceOrderId, serviceOrderStatus, art, onIssued }: A
     issueDate: new Date().toISOString().slice(0, 10),
   });
   const [file, setFile] = useState<File | undefined>();
-
-  const eligible = ART_ELIGIBLE_STATUSES.includes(serviceOrderStatus);
 
   const handleSubmit = async () => {
     if (!form.number || !form.engineerName || !form.creaNumber) {
@@ -98,10 +88,6 @@ export function ArtCard({ serviceOrderId, serviceOrderStatus, art, onIssued }: A
         </CardContent>
       </Card>
     );
-  }
-
-  if (!eligible) {
-    return null;
   }
 
   return (

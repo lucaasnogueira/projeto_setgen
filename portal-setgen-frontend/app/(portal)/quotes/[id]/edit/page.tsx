@@ -2,32 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ordersApi } from '@/lib/api/orders';
-import { ServiceOrder } from '@/types';
-import { ServiceOrderForm } from '../../components/ServiceOrderForm';
+import { quotesApi } from '@/lib/api/quotes';
+import { Quote } from '@/types';
+import { QuoteForm } from '../../components/QuoteForm';
 import { PageHeader } from '@/components/layout/PageHeader';
 
-export default function EditOrderPage() {
+export default function EditQuotePage() {
   const params = useParams();
   const router = useRouter();
-  const [order, setOrder] = useState<ServiceOrder | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (params.id) {
-      loadOrder();
+      loadQuote();
     }
   }, [params.id]);
 
-  const loadOrder = async () => {
+  const loadQuote = async () => {
     try {
-      const data = await ordersApi.getById(params.id as string);
-      setOrder(data);
+      const data = await quotesApi.getById(params.id as string);
+      setQuote(data);
     } catch (error) {
-      console.error('Error loading order:', error);
-      alert('Erro ao carregar OS para edição');
-      router.push('/orders');
+      console.error('Error loading quote:', error);
+      alert('Erro ao carregar orçamento para edição');
+      router.push('/quotes');
     } finally {
       setLoading(false);
     }
@@ -36,11 +36,11 @@ export default function EditOrderPage() {
   const handleSubmit = async (payload: any) => {
     setSubmitting(true);
     try {
-      await ordersApi.update(params.id as string, payload);
-      alert('OS atualizada com sucesso!');
-      router.push(`/orders/${params.id}`);
+      await quotesApi.update(params.id as string, payload);
+      alert('Orçamento atualizado com sucesso!');
+      router.push(`/quotes/${params.id}`);
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Erro ao atualizar OS');
+      alert(error.response?.data?.message || 'Erro ao atualizar orçamento');
     } finally {
       setSubmitting(false);
     }
@@ -54,14 +54,14 @@ export default function EditOrderPage() {
     );
   }
 
-  if (!order) return null;
+  if (!quote) return null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-12">
-      <PageHeader title={`Editar OS #${order.orderNumber}`} subtitle="Atualize equipe, prazo, materiais e checklist" />
+      <PageHeader title={`Editar Orçamento #${quote.quoteNumber}`} subtitle="Atualize o escopo e as condições comerciais" />
 
-      <ServiceOrderForm
-        initialData={order}
+      <QuoteForm
+        initialData={quote}
         onSubmit={handleSubmit}
         onCancel={() => router.back()}
         loading={submitting}

@@ -71,7 +71,7 @@ export function CommandMenu() {
               <Command.Empty className="py-12 text-center text-sm text-muted-foreground">Nenhum resultado encontrado.</Command.Empty>
               
               <Command.Group heading="Atalhos Rápidos" className="px-2 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                <CommandItem icon={FileText} label="Nova Ordem de Serviço" onSelect={() => runCommand(() => router.push('/orders/new'))} />
+                <CommandItem icon={FileText} label="Novo Orçamento" onSelect={() => runCommand(() => router.push('/quotes/new'))} />
                 <CommandItem icon={Users} label="Cadastrar Cliente" onSelect={() => runCommand(() => router.push('/clients/new'))} />
                 <CommandItem icon={DollarSign} label="Lançar Despesa" onSelect={() => runCommand(() => router.push('/financial/expenses/new'))} />
               </Command.Group>

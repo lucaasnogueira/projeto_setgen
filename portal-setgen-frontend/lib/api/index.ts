@@ -5,7 +5,7 @@ export { teamsApi } from './teams';
 export { clientTaxonomiesApi } from './client-taxonomies';
 export { checklistTemplatesApi } from './checklist-templates';
 export { visitsApi } from './visits';
-export { serviceOrdersApi } from './service-orders';
+export { quotesApi } from './quotes';
 export { approvalsApi } from './approvals';
 export { purchaseOrdersApi } from './purchase-orders';
 export { fiscalApi } from './fiscal';
