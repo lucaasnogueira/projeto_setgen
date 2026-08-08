@@ -29,10 +29,15 @@ export class DeliveriesService {
       where: { id: createDeliveryDto.serviceOrderId },
       include: {
         delivery: true,
-        technicalVisit: { select: { equipmentId: true } },
+        quote: {
+          select: {
+            warrantyMonths: true,
+            technicalVisit: { select: { equipmentId: true } },
+          },
+        },
       },
     });
-    const warrantyMonths = serviceOrder?.warrantyMonths ?? 12;
+    const warrantyMonths = serviceOrder?.quote?.warrantyMonths ?? 12;
 
     if (!serviceOrder) throw new NotFoundException('OS não encontrada');
     if (serviceOrder.delivery)
@@ -71,7 +76,6 @@ export class DeliveriesService {
           select: {
             id: true,
             orderNumber: true,
-            type: true,
             client: { select: { companyName: true, tradeName: true } },
           },
         },
@@ -97,8 +101,8 @@ export class DeliveriesService {
     await this.prisma.warranty.create({
       data: {
         delivery: { connect: { id: delivery.id } },
-        ...(serviceOrder.technicalVisit?.equipmentId && {
-          equipment: { connect: { id: serviceOrder.technicalVisit.equipmentId } },
+        ...(serviceOrder.quote?.technicalVisit?.equipmentId && {
+          equipment: { connect: { id: serviceOrder.quote.technicalVisit.equipmentId } },
         }),
         coverageMonths: warrantyMonths,
         startDate,
@@ -172,7 +176,6 @@ export class DeliveriesService {
           select: {
             id: true,
             orderNumber: true,
-            type: true,
             client: { select: { companyName: true, tradeName: true } },
           },
         },
@@ -199,8 +202,12 @@ export class DeliveriesService {
                 email: true,
               },
             },
-            technicalVisit: {
-              select: { id: true, visitDate: true, description: true },
+            quote: {
+              select: {
+                technicalVisit: {
+                  select: { id: true, visitDate: true, description: true },
+                },
+              },
             },
             createdBy: { select: { name: true, email: true } },
           },
@@ -221,7 +228,7 @@ export class DeliveriesService {
     const delivery = await this.prisma.delivery.findUnique({
       where: { serviceOrderId },
       include: {
-        serviceOrder: { select: { orderNumber: true, type: true } },
+        serviceOrder: { select: { orderNumber: true } },
         deliveredBy: { select: { name: true, email: true } },
       },
     });

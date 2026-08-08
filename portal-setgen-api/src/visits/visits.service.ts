@@ -423,13 +423,14 @@ export class VisitsService {
         failureCategory: true,
         taskType: true,
         checklistTemplate: { select: { id: true, name: true } },
-        serviceOrders: {
+        quotes: {
           select: {
             id: true,
-            orderNumber: true,
+            quoteNumber: true,
             type: true,
             status: true,
             createdAt: true,
+            serviceOrder: { select: { id: true, orderNumber: true, status: true } },
           },
         },
       },
@@ -717,10 +718,10 @@ export class VisitsService {
       );
     }
 
-    // Verificar se não tem OS vinculada
-    if (visit.serviceOrders && visit.serviceOrders.length > 0) {
+    // Verificar se não tem orçamento/OS vinculada
+    if (visit.quotes && visit.quotes.length > 0) {
       throw new ForbiddenException(
-        'Não é possível deletar visita com Ordens de Serviço vinculadas',
+        'Não é possível deletar visita com orçamentos ou Ordens de Serviço vinculadas',
       );
     }
 

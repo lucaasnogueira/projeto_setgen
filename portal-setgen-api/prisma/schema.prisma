@@ -21,23 +21,24 @@ enum UserRole {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      UserRole
-  roleId    String?
-  roleRef   Role?    @relation(fields: [roleId], references: [id])
-  active    Boolean  @default(true)
+  id          String   @id @default(uuid())
+  name        String
+  email       String   @unique
+  password    String
+  role        UserRole
+  roleId      String?
+  roleRef     Role?    @relation(fields: [roleId], references: [id])
+  active      Boolean  @default(true)
   notifyPrefs Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // RelaÃ§Ãµes
   createdVisits          TechnicalVisit[] @relation("CreatedVisits")
   requestedVisits        TechnicalVisit[] @relation("VisitRequestedBy")
+  createdQuotes          Quote[]          @relation("CreatedQuotes")
+  salesQuotes            Quote[]          @relation("QuoteSalesRep")
   createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
-  salesOrders            ServiceOrder[]   @relation("ServiceOrderSalesRep")
   approvals              Approval[]
   uploadedPurchaseOrders PurchaseOrder[]  @relation("UploadedPurchaseOrders")
   createdNotasFiscais    NotaFiscal[]     @relation("CreatedNotasFiscais")
@@ -170,6 +171,7 @@ model Client {
 
   // RelaÃ§Ãµes Existentes
   technicalVisits TechnicalVisit[]
+  quotes          Quote[]
   serviceOrders   ServiceOrder[]
   purchaseOrders  PurchaseOrder[]
   equipments      Equipment[]
@@ -343,7 +345,7 @@ model TechnicalVisit {
   failureCategory   FailureCategory?    @relation(fields: [failureCategoryId], references: [id])
   taskType          VisitTaskType?      @relation(fields: [taskTypeId], references: [id])
   checklistTemplate ChecklistTemplate?  @relation(fields: [checklistTemplateId], references: [id])
-  serviceOrders     ServiceOrder[]
+  quotes            Quote[]
   linkedOrders      ServiceOrderVisit[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
@@ -376,16 +378,21 @@ enum ServiceOrderType {
   EXECUTION
 }
 
-enum ServiceOrderStatus {
+enum QuoteStatus {
   DRAFT
   PENDING_APPROVAL
   APPROVED
+  REJECTED
   SENT_TO_CLIENT
   AWAITING_RESPONSE
   EXPIRED
-  REJECTED
-  IN_PROGRESS
+  ACCEPTED
+  CANCELLED
+}
+
+enum ServiceOrderStatus {
   AWAITING_MATERIALS
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }
@@ -429,48 +436,90 @@ model ChecklistTemplate {
   @@map("checklist_templates")
 }
 
+// Fase comercial: elaboraÃ§Ã£o, envio e aprovaÃ§Ã£o do orÃ§amento pelo cliente.
+// Vira ServiceOrder somente quando aceita (OC/OP verificada) - ver ServiceOrder.quoteId.
+model Quote {
+  id                String           @id @default(uuid())
+  quoteNumber       String           @unique
+  type              ServiceOrderType
+  clientId          String
+  technicalVisitId  String?
+  status            QuoteStatus      @default(DRAFT)
+  scope             String           @db.Text
+  reportedDefects   String?          @db.Text
+  requestedServices String?          @db.Text
+  notes             String?          @db.Text
+  validUntil        DateTime?
+  paymentMethod     PaymentMethod?
+  paymentTerms      String?          @db.Text
+  paymentTermDays   Int?
+  warrantyMonths    Int?
+  salesRepId        String?
+  createdById       String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  // RelaÃ§Ãµes
+  client         Client          @relation(fields: [clientId], references: [id])
+  technicalVisit TechnicalVisit? @relation(fields: [technicalVisitId], references: [id])
+  createdBy      User            @relation("CreatedQuotes", fields: [createdById], references: [id])
+  salesRep       User?           @relation("QuoteSalesRep", fields: [salesRepId], references: [id])
+  approvals      Approval[]
+  purchaseOrders PurchaseOrder[]
+  quoteLines     QuoteLine[]
+  serviceOrder   ServiceOrder?
+
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id          String        @id @default(uuid())
+  quoteId     String
+  type        QuoteLineType
+  description String
+  quantity    Decimal       @db.Decimal(10, 2)
+  unitValue   Decimal       @db.Decimal(10, 2)
+  discount    Decimal       @default(0) @db.Decimal(10, 2)
+  totalValue  Decimal       @db.Decimal(10, 2)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+// Fase de execuÃ§Ã£o: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
+// Escopo/campos comerciais ficam congelados aqui como cÃ³pia do Quote de origem.
 model ServiceOrder {
   id                  String             @id @default(uuid())
   orderNumber         String             @unique
-  type                ServiceOrderType
+  quoteId             String             @unique
   clientId            String
-  technicalVisitId    String?
-  status              ServiceOrderStatus @default(DRAFT)
+  status              ServiceOrderStatus @default(AWAITING_MATERIALS)
   scope               String             @db.Text
-  reportedDefects     String?            @db.Text
-  requestedServices   String?            @db.Text
-  notes               String?            @db.Text
   requiredResources   Json?
   deadline            DateTime?
-  validUntil          DateTime?
   responsibleIds      String[]
   checklist           Json[]
   checklistTemplateId String?
   progress            Int                @default(0)
   attachments         String[]
   createdById         String
-  paymentMethod       PaymentMethod?
-  paymentTerms        String?            @db.Text
-  paymentTermDays     Int?
   paymentStatus       PaymentStatus      @default(PENDING)
   completedAt         DateTime?
-  warrantyMonths      Int?
-  salesRepId          String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
   // RelaÃ§Ãµes
+  quote             Quote                 @relation(fields: [quoteId], references: [id])
   client            Client                @relation(fields: [clientId], references: [id])
-  technicalVisit    TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
   createdBy         User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
-  salesRep          User?                 @relation("ServiceOrderSalesRep", fields: [salesRepId], references: [id])
   checklistTemplate ChecklistTemplate?    @relation(fields: [checklistTemplateId], references: [id])
-  approvals         Approval[]
-  purchaseOrders    PurchaseOrder[]
   notasFiscais      NotaFiscal[]
   delivery          Delivery?
   items             ServiceOrderProduct[]
-  quoteLines        QuoteLine[]
   art               ART?
   materialRequests  MaterialRequest[]
   linkedVisits      ServiceOrderVisit[]
@@ -479,24 +528,6 @@ model ServiceOrder {
   expenses Expense[]
 
   @@map("service_orders")
-}
-
-model QuoteLine {
-  id             String        @id @default(uuid())
-  serviceOrderId String
-  type           QuoteLineType
-  description    String
-  quantity       Decimal       @db.Decimal(10, 2)
-  unitValue      Decimal       @db.Decimal(10, 2)
-  discount       Decimal       @default(0) @db.Decimal(10, 2)
-  totalValue     Decimal       @db.Decimal(10, 2)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-
-  @@index([serviceOrderId])
-  @@map("quote_lines")
 }
 
 model ServiceOrderVisit {
@@ -836,16 +867,16 @@ enum ApprovalStatus {
 }
 
 model Approval {
-  id             String         @id @default(uuid())
-  serviceOrderId String
-  approverId     String
-  status         ApprovalStatus
-  comments       String?        @db.Text
-  approvedAt     DateTime       @default(now())
-  createdAt      DateTime       @default(now())
+  id         String         @id @default(uuid())
+  quoteId    String
+  approverId String
+  status     ApprovalStatus
+  comments   String?        @db.Text
+  approvedAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
 
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  approver     User         @relation(fields: [approverId], references: [id])
+  quote    Quote @relation(fields: [quoteId], references: [id])
+  approver User  @relation(fields: [approverId], references: [id])
 
   @@map("approvals")
 }
@@ -861,22 +892,22 @@ enum PurchaseOrderStatus {
 }
 
 model PurchaseOrder {
-  id             String              @id @default(uuid())
-  serviceOrderId String
-  clientId       String
-  orderNumber    String
-  value          Decimal             @db.Decimal(10, 2)
-  issueDate      DateTime
-  expiryDate     DateTime
-  status         PurchaseOrderStatus @default(PENDING)
-  fileUrl        String
-  uploadedById   String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id           String              @id @default(uuid())
+  quoteId      String
+  clientId     String
+  orderNumber  String
+  value        Decimal             @db.Decimal(10, 2)
+  issueDate    DateTime
+  expiryDate   DateTime
+  status       PurchaseOrderStatus @default(PENDING)
+  fileUrl      String
+  uploadedById String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  client       Client       @relation(fields: [clientId], references: [id])
-  uploadedBy   User         @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
+  quote      Quote  @relation(fields: [quoteId], references: [id])
+  client     Client @relation(fields: [clientId], references: [id])
+  uploadedBy User   @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
 
   @@map("purchase_orders")
 }
@@ -942,22 +973,22 @@ model StockLocation {
 }
 
 model Product {
-  id           String   @id @default(uuid())
-  code         String   @unique
+  id           String         @id @default(uuid())
+  code         String         @unique
   name         String
-  description  String?  @db.Text
+  description  String?        @db.Text
   unit         String
   ncm          String?
-  minStock     Int      @default(0)
-  currentStock Int      @default(0)
-  unitCost     Decimal? @db.Decimal(10, 2)
-  active       Boolean  @default(true)
+  minStock     Int            @default(0)
+  currentStock Int            @default(0)
+  unitCost     Decimal?       @db.Decimal(10, 2)
+  active       Boolean        @default(true)
   photoUrl     String?
-  barcode      String?  @unique
+  barcode      String?        @unique
   locationId   String?
   location     StockLocation? @relation(fields: [locationId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   movements             StockMovement[]
   serviceOrders         ServiceOrderProduct[]
@@ -1125,16 +1156,16 @@ enum FuelRequestStatus {
 }
 
 model Vehicle {
-  id                   String   @id @default(uuid())
-  name                 String
-  plate                String   @unique
-  photoUrl             String?
-  currentKm            Int      @default(0)
-  lastOilChangeKm      Int      @default(0)
-  oilChangeIntervalKm  Int      @default(10000)
-  active               Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  name                String
+  plate               String   @unique
+  photoUrl            String?
+  currentKm           Int      @default(0)
+  lastOilChangeKm     Int      @default(0)
+  oilChangeIntervalKm Int      @default(10000)
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   trips        VehicleTrip[]
   fuelRequests FuelRequest[]
@@ -1164,25 +1195,25 @@ model VehicleTrip {
 }
 
 model FuelRequest {
-  id              String             @id @default(uuid())
+  id              String            @id @default(uuid())
   vehicleId       String
-  vehicle         Vehicle            @relation(fields: [vehicleId], references: [id])
+  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id])
   requestedById   String
-  requestedBy     User               @relation("FuelRequestedBy", fields: [requestedById], references: [id])
-  requestedAt     DateTime           @default(now())
-  liters          Decimal            @db.Decimal(10, 2)
-  unitPrice       Decimal            @db.Decimal(10, 2)
-  totalValue      Decimal            @db.Decimal(10, 2)
+  requestedBy     User              @relation("FuelRequestedBy", fields: [requestedById], references: [id])
+  requestedAt     DateTime          @default(now())
+  liters          Decimal           @db.Decimal(10, 2)
+  unitPrice       Decimal           @db.Decimal(10, 2)
+  totalValue      Decimal           @db.Decimal(10, 2)
   currentKm       Int?
   fuelStation     String?
-  status          FuelRequestStatus  @default(PENDING)
+  status          FuelRequestStatus @default(PENDING)
   approverId      String?
-  approver        User?              @relation("FuelApprovedBy", fields: [approverId], references: [id])
+  approver        User?             @relation("FuelApprovedBy", fields: [approverId], references: [id])
   approvedAt      DateTime?
   rejectionReason String?
-  expenseId       String?            @unique
-  expense         Expense?           @relation(fields: [expenseId], references: [id])
-  createdAt       DateTime           @default(now())
+  expenseId       String?           @unique
+  expense         Expense?          @relation(fields: [expenseId], references: [id])
+  createdAt       DateTime          @default(now())
 
   @@index([vehicleId])
   @@index([status])
@@ -1445,28 +1476,28 @@ enum WebhookEventoTipo {
 
 // Tabela principal da NF-e (mercadoria)
 model NotaFiscal {
-  id                 String         @id @default(uuid())
-  numero             String         @unique
+  id                 String       @id @default(uuid())
+  numero             String       @unique
   serie              String
-  chaveAcesso        String?        @unique
+  chaveAcesso        String?      @unique
   protocolo          String?
   serviceOrderId     String?
   clientId           String
   createdById        String
   emitenteCnpj       String
   destinatarioCnpj   String
-  valorBruto         Decimal        @db.Decimal(14, 2)
-  valorLiquido       Decimal        @db.Decimal(14, 2)
-  xmlAssinado        String?        @db.Text
-  xmlAutorizado      String?        @db.Text
+  valorBruto         Decimal      @db.Decimal(14, 2)
+  valorLiquido       Decimal      @db.Decimal(14, 2)
+  xmlAssinado        String?      @db.Text
+  xmlAutorizado      String?      @db.Text
   pdfDanfeUrl        String?
-  status             StatusNota     @default(PENDENTE)
-  ambiente           AmbienteNota   @default(HOMOLOGACAO)
+  status             StatusNota   @default(PENDENTE)
+  ambiente           AmbienteNota @default(HOMOLOGACAO)
   // Split Payment: { valorRetido, aliquotaTotal, banco, chavePix }
   splitPayment       Json?
   motivoCancelamento String?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
   serviceOrder ServiceOrder?     @relation(fields: [serviceOrderId], references: [id])
   client       Client            @relation(fields: [clientId], references: [id])

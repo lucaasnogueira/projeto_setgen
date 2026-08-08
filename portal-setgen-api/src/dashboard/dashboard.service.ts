@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ServiceOrderStatus,
+  QuoteStatus,
   StatusNota,
   PurchaseOrderStatus,
   MaterialRequestStatus,
@@ -12,6 +13,26 @@ import {
 @Injectable()
 export class DashboardService {
   constructor(private prisma: PrismaService) {}
+
+  // Combina a distribuição de status do orçamento (fase comercial) com a da
+  // OS de execução (fase operacional) num único funil — orçamentos ACCEPTED
+  // são excluídos daqui porque nesse ponto o estado "de verdade" já passou
+  // a viver na ServiceOrder vinculada.
+  private async getCombinedStatusBreakdown() {
+    const [quoteStatuses, soStatuses] = await Promise.all([
+      this.prisma.quote.groupBy({
+        by: ['status'],
+        _count: true,
+        where: { status: { not: QuoteStatus.ACCEPTED } },
+      }),
+      this.prisma.serviceOrder.groupBy({ by: ['status'], _count: true }),
+    ]);
+
+    return [
+      ...quoteStatuses.map((s) => ({ status: s.status as string, count: s._count })),
+      ...soStatuses.map((s) => ({ status: s.status as string, count: s._count })),
+    ];
+  }
 
   /* =========================
      OVERVIEW
@@ -35,15 +56,12 @@ export class DashboardService {
     ] = await Promise.all([
       this.prisma.client.count({ where: { status: 'ACTIVE' } }),
       this.prisma.technicalVisit.count(),
-      this.prisma.serviceOrder.count(),
+      this.prisma.quote.count(),
       this.prisma.delivery.count(),
       this.prisma.technicalVisit.count({
         where: { visitDate: { gte: firstDayOfMonth } },
       }),
-      this.prisma.serviceOrder.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
+      this.getCombinedStatusBreakdown(),
       this.prisma.notaFiscal.groupBy({
         by: ['status'],
         _count: true,
@@ -75,10 +93,7 @@ export class DashboardService {
       serviceOrders: {
         total: totalServiceOrders,
         completedThisMonth,
-        byStatus: serviceOrdersByStatus.map((s) => ({
-          status: s.status,
-          count: s._count,
-        })),
+        byStatus: serviceOrdersByStatus,
       },
       deliveries: { total: totalDeliveries },
       financial: {
@@ -102,14 +117,14 @@ export class DashboardService {
   async getSalesPipeline() {
     const pipeline = {
       visits: await this.prisma.technicalVisit.count(),
-      osCreated: await this.prisma.serviceOrder.count({
+      osCreated: await this.prisma.quote.count({
         where: { type: 'VISIT_REPORT' },
       }),
-      pendingApproval: await this.prisma.serviceOrder.count({
-        where: { status: ServiceOrderStatus.PENDING_APPROVAL },
+      pendingApproval: await this.prisma.quote.count({
+        where: { status: QuoteStatus.PENDING_APPROVAL },
       }),
-      approved: await this.prisma.serviceOrder.count({
-        where: { status: ServiceOrderStatus.APPROVED },
+      approved: await this.prisma.quote.count({
+        where: { status: QuoteStatus.APPROVED },
       }),
       inProgress: await this.prisma.serviceOrder.count({
         where: { status: ServiceOrderStatus.IN_PROGRESS },
@@ -117,8 +132,8 @@ export class DashboardService {
       completed: await this.prisma.serviceOrder.count({
         where: { status: ServiceOrderStatus.COMPLETED },
       }),
-      rejected: await this.prisma.serviceOrder.count({
-        where: { status: ServiceOrderStatus.REJECTED },
+      rejected: await this.prisma.quote.count({
+        where: { status: QuoteStatus.REJECTED },
       }),
     };
 
@@ -293,8 +308,8 @@ export class DashboardService {
       overdueInvoices,
       expiredPurchaseOrders,
     ] = await Promise.all([
-      this.prisma.serviceOrder.count({
-        where: { status: ServiceOrderStatus.PENDING_APPROVAL },
+      this.prisma.quote.count({
+        where: { status: QuoteStatus.PENDING_APPROVAL },
       }),
       // "overdueInvoices" passou a significar notas fiscais rejeitadas pela
       // SEFAZ (precisam de correção/reemissão) — não existe mais conceito
@@ -398,13 +413,13 @@ export class DashboardService {
       visitsByMonth,
       recentActivities,
     ] = await Promise.all([
-      this.prisma.serviceOrder.count({
-        where: { status: ServiceOrderStatus.PENDING_APPROVAL },
+      this.prisma.quote.count({
+        where: { status: QuoteStatus.PENDING_APPROVAL },
       }),
       this.prisma.serviceOrder.count({
         where: {
           status: {
-            in: [ServiceOrderStatus.IN_PROGRESS, ServiceOrderStatus.APPROVED],
+            in: [ServiceOrderStatus.IN_PROGRESS, ServiceOrderStatus.AWAITING_MATERIALS],
           },
         },
       }),
@@ -429,10 +444,7 @@ export class DashboardService {
       this.prisma.notaFiscal.count({
         where: { status: StatusNota.REJEITADA },
       }),
-      this.prisma.serviceOrder.groupBy({
-        by: ['status'],
-        _count: true,
-      }),
+      this.getCombinedStatusBreakdown(),
       this.getRevenueTrend(6),
       this.getVisitsTrend(6),
       this.getRecentActivities(),
@@ -462,7 +474,7 @@ export class DashboardService {
       recentActivities,
       ordersByStatus: ordersByStatus.map((s) => ({
         label: statusLabels[s.status] || s.status,
-        value: s._count,
+        value: s.count,
       })),
       monthlyRevenue: monthlyRevenue.map((r) => ({
         month: r.month,
@@ -524,34 +536,26 @@ export class DashboardService {
     };
   }
 
-  // Orçamentos aprovados / orçamentos enviados ao cliente (excluindo os
-  // que expiraram sem resposta, que não representam decisão do cliente).
+  // Orçamentos aceitos (viraram OS) / orçamentos enviados ao cliente
+  // (excluindo os que expiraram sem resposta, que não representam decisão
+  // do cliente). Agora que Quote/ServiceOrder são entidades separadas, essa
+  // é literalmente a taxa de aceite do orçamento.
   private async getQuoteApprovalRate() {
-    const sentNotExpired = await this.prisma.serviceOrder.count({
+    const sentNotExpired = await this.prisma.quote.count({
       where: {
         status: {
           in: [
-            ServiceOrderStatus.SENT_TO_CLIENT,
-            ServiceOrderStatus.AWAITING_RESPONSE,
-            ServiceOrderStatus.IN_PROGRESS,
-            ServiceOrderStatus.AWAITING_MATERIALS,
-            ServiceOrderStatus.COMPLETED,
-            ServiceOrderStatus.REJECTED,
+            QuoteStatus.SENT_TO_CLIENT,
+            QuoteStatus.AWAITING_RESPONSE,
+            QuoteStatus.ACCEPTED,
+            QuoteStatus.REJECTED,
           ],
         },
       },
     });
 
-    const approved = await this.prisma.serviceOrder.count({
-      where: {
-        status: {
-          in: [
-            ServiceOrderStatus.IN_PROGRESS,
-            ServiceOrderStatus.AWAITING_MATERIALS,
-            ServiceOrderStatus.COMPLETED,
-          ],
-        },
-      },
+    const approved = await this.prisma.quote.count({
+      where: { status: QuoteStatus.ACCEPTED },
     });
 
     return {
@@ -626,24 +630,28 @@ export class DashboardService {
       where: {
         status: ServiceOrderStatus.COMPLETED,
         completedAt: { not: null },
-        paymentTermDays: { not: null },
+        quote: { paymentTermDays: { not: null } },
       },
       select: {
         id: true,
         orderNumber: true,
         completedAt: true,
-        paymentTermDays: true,
         paymentStatus: true,
         client: { select: { id: true, companyName: true, tradeName: true } },
-        quoteLines: { select: { totalValue: true } },
+        quote: {
+          select: {
+            paymentTermDays: true,
+            quoteLines: { select: { totalValue: true } },
+          },
+        },
       },
     });
 
     const dueThisMonth = orders
       .map((order) => {
         const dueDate = new Date(order.completedAt!);
-        dueDate.setDate(dueDate.getDate() + order.paymentTermDays!);
-        const totalValue = order.quoteLines.reduce(
+        dueDate.setDate(dueDate.getDate() + order.quote.paymentTermDays!);
+        const totalValue = order.quote.quoteLines.reduce(
           (sum, line) => sum + Number(line.totalValue),
           0,
         );
@@ -679,22 +687,20 @@ export class DashboardService {
   async getRecentActivities() {
     const activities: any[] = [];
 
-    // OS Aprovadas recentemente
-    const recentOrders = await this.prisma.serviceOrder.findMany({
-      where: {
-        status: ServiceOrderStatus.APPROVED,
-      },
+    // Orçamentos aceitos recentemente (viraram Ordem de Serviço)
+    const recentQuotes = await this.prisma.quote.findMany({
+      where: { status: QuoteStatus.ACCEPTED },
       take: 5,
       orderBy: { updatedAt: 'desc' },
       include: { client: true },
     });
 
-    for (const order of recentOrders) {
+    for (const quote of recentQuotes) {
       activities.push({
-        id: order.id,
+        id: quote.id,
         type: 'ORDER_APPROVED',
-        description: `OS ${order.orderNumber} aprovada para ${order.client.tradeName || order.client.companyName}`,
-        timestamp: order.updatedAt.toISOString(),
+        description: `Orçamento ${quote.quoteNumber} aceito para ${quote.client.tradeName || quote.client.companyName}`,
+        timestamp: quote.updatedAt.toISOString(),
       });
     }
 

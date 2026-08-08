@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ApprovalsService } from './approvals.service';
 import { ApprovalsController } from './approvals.controller';
-import { MaterialRequestsModule } from '../material-requests/material-requests.module';
+import { QuotesModule } from '../quotes/quotes.module';
 
 @Module({
-  imports: [MaterialRequestsModule],
+  imports: [QuotesModule],
   controllers: [ApprovalsController],
   providers: [ApprovalsService],
   exports: [ApprovalsService],

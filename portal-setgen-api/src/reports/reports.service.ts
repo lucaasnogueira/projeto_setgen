@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, QuoteStatus } from '@prisma/client';
 import { ReportFiltersDto } from './dto/report-filters.dto';
 
 @Injectable()
@@ -45,16 +45,27 @@ export class ReportsService {
   }
 
   async getOrdersByStatus(filters: ReportFiltersDto) {
-    const where: Prisma.ServiceOrderWhereInput = {
+    const dateRange = this.dateRange(filters);
+
+    const soWhere: Prisma.ServiceOrderWhereInput = {
       ...(filters.clientId && { clientId: filters.clientId }),
-      ...(this.dateRange(filters) && { createdAt: this.dateRange(filters) }),
+      ...(dateRange && { createdAt: dateRange }),
+    };
+    const quoteWhere: Prisma.QuoteWhereInput = {
+      ...(filters.clientId && { clientId: filters.clientId }),
+      ...(dateRange && { createdAt: dateRange }),
+      status: { not: QuoteStatus.ACCEPTED },
     };
 
-    const orders = await this.prisma.serviceOrder.groupBy({
-      by: ['status'],
-      where,
-      _count: true,
-    });
+    const [quoteOrders, soOrders] = await Promise.all([
+      this.prisma.quote.groupBy({ by: ['status'], where: quoteWhere, _count: true }),
+      this.prisma.serviceOrder.groupBy({ by: ['status'], where: soWhere, _count: true }),
+    ]);
+
+    const orders = [
+      ...quoteOrders.map((o) => ({ status: o.status as string, _count: o._count })),
+      ...soOrders.map((o) => ({ status: o.status as string, _count: o._count })),
+    ];
 
     const statusLabels = {
       DRAFT: 'Rascunho',
