@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { StepRail, StepFooter, type WizardStep } from "@/components/ui/step-wizard";
+import { toDateInputValue } from '@/lib/date';
 
 type StepKey = "personal" | "contact" | "labor" | "financial" | "org" | "status";
 const stepDefs: WizardStep[] = [
@@ -162,7 +163,7 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       socialName: initialData?.socialName || '',
       cpf: initialData?.cpf || '',
       rg: initialData?.rg || '',
-      birthDate: initialData?.birthDate ? new Date(initialData.birthDate).toISOString().split('T')[0] : '',
+      birthDate: toDateInputValue(initialData?.birthDate),
       gender: initialData?.gender || Gender.PREFER_NOT_TO_SAY,
       civilStatus: initialData?.civilStatus || CivilStatus.SINGLE,
       nationality: initialData?.nationality || 'Brasileira',
@@ -186,7 +187,7 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       pisPasep: initialData?.pisPasep || '',
       voterId: initialData?.voterId || '',
       militaryCertificate: initialData?.militaryCertificate || '',
-      admissionDate: initialData?.admissionDate ? new Date(initialData.admissionDate).toISOString().split('T')[0] : '',
+      admissionDate: toDateInputValue(initialData?.admissionDate),
       contractType: initialData?.contractType || ContractType.CLT,
       workHours: initialData?.workHours || '',
       position: initialData?.position || '',
@@ -209,7 +210,7 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       hierarchicalLevel: initialData?.hierarchicalLevel || HierarchicalLevel.JUNIOR,
       status: initialData?.status || EmployeeStatus.ACTIVE,
       terminationReason: initialData?.terminationReason || '',
-      terminationDate: initialData?.terminationDate ? new Date(initialData.terminationDate).toISOString().split('T')[0] : '',
+      terminationDate: toDateInputValue(initialData?.terminationDate),
       login: initialData?.login || '',
     }
   });

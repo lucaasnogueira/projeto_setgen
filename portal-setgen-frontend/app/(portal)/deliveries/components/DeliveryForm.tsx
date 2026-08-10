@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { StepFooter, type WizardStep } from '@/components/ui/step-wizard';
+import { toDateInputValue, startOfBusinessDayISO } from '@/lib/date';
 
 const stepDefs: WizardStep[] = [{ key: 'dados', label: 'Dados da Baixa' }];
 
@@ -29,7 +30,7 @@ export function DeliveryForm({
   const [serviceOrders, setServiceOrders] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     serviceOrderId: initialData?.serviceOrderId || '',
-    deliveryDate: initialData?.deliveryDate ? new Date(initialData.deliveryDate).toISOString().split('T')[0] : '',
+    deliveryDate: toDateInputValue(initialData?.deliveryDate),
     receivedBy: initialData?.receivedBy || '',
     notes: initialData?.notes || '',
   });
@@ -50,11 +51,19 @@ export function DeliveryForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
+    const payload: any = {
       ...formData,
-      deliveryDate: formData.deliveryDate ? new Date(formData.deliveryDate).toISOString() : '',
+      // A entrega aconteceu NAQUELE dia no fuso da operação — sem isso a data
+      // gravada cai no dia anterior e a garantia começa um dia antes.
+      deliveryDate: startOfBusinessDayISO(formData.deliveryDate) || '',
       checklist: (initialData as any)?.checklist || [],
     };
+
+    // A entrega é 1:1 com a OS e não muda de dono — a API recusa o campo aqui.
+    if (initialData) {
+      delete payload.serviceOrderId;
+    }
+
     onSubmit(payload);
   };
 
@@ -72,9 +81,10 @@ export function DeliveryForm({
             <Label className="font-bold text-sm">OS Concluída *</Label>
             <select
               required
+              disabled={!!initialData}
               value={formData.serviceOrderId}
               onChange={(e) => setFormData({ ...formData, serviceOrderId: e.target.value })}
-              className="w-full h-12 px-4 rounded-2xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full h-12 px-4 rounded-2xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <option value="">Selecione uma OS</option>
               {serviceOrders.map(order => (
@@ -83,6 +93,11 @@ export function DeliveryForm({
                 </option>
               ))}
             </select>
+            {initialData && (
+              <p className="text-xs text-muted-foreground">
+                A entrega pertence a esta OS e não pode ser transferida.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

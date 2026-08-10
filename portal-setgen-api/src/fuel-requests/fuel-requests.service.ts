@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import {
+  parseBusinessDate,
+  businessYearMonth,
+} from '../common/date/business-date.util';
 import { CreateFuelRequestDto } from './dto/create-fuel-request.dto';
 import { RejectFuelRequestDto } from './dto/reject-fuel-request.dto';
 import {
@@ -76,21 +80,35 @@ export class FuelRequestsService {
   }
 
   async approve(id: string, approverId: string) {
-    const fuelRequest = await this.prisma.fuelRequest.findUnique({
-      where: { id },
-      include: { vehicle: true },
+    // Reserva a requisição antes de gastar dinheiro: a checagem de PENDING era
+    // read-then-write, e duas aprovações simultâneas criavam DUAS despesas
+    // para o mesmo abastecimento. O updateMany condicional só afeta linhas que
+    // ainda estão PENDING — quem perder a corrida altera 0 linhas.
+    const claimed = await this.prisma.fuelRequest.updateMany({
+      where: { id, status: FuelRequestStatus.PENDING },
+      data: { status: FuelRequestStatus.APPROVED, approverId, approvedAt: new Date() },
     });
-    if (!fuelRequest) {
-      throw new NotFoundException('Requisição de abastecimento não encontrada');
-    }
-    if (fuelRequest.status !== FuelRequestStatus.PENDING) {
+
+    if (claimed.count === 0) {
+      const exists = await this.prisma.fuelRequest.findUnique({ where: { id } });
+      if (!exists) {
+        throw new NotFoundException('Requisição de abastecimento não encontrada');
+      }
       throw new BadRequestException('Esta requisição já foi analisada');
     }
+
+    const fuelRequest = (await this.prisma.fuelRequest.findUnique({
+      where: { id },
+      include: { vehicle: true },
+    }))!;
 
     const category = await this.ensureFuelCategory();
 
     const now = new Date();
-    const competenceDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Primeiro dia do mês no fuso da OPERAÇÃO. `new Date(ano, mês, 1)` usa o
+    // fuso do servidor (UTC em produção) e cairia no último dia do mês
+    // anterior em Manaus — competência lançada no mês errado.
+    const competenceDate = parseBusinessDate(`${businessYearMonth(now)}-01`);
 
     const expense = await this.expensesService.create(
       {
@@ -106,14 +124,10 @@ export class FuelRequestsService {
       fuelRequest.requestedById,
     );
 
+    // status/approver já foram gravados no claim acima — aqui só amarra a despesa
     return this.prisma.fuelRequest.update({
       where: { id },
-      data: {
-        status: FuelRequestStatus.APPROVED,
-        approverId,
-        approvedAt: now,
-        expenseId: expense.id,
-      },
+      data: { expenseId: expense.id },
       include: {
         vehicle: { select: { id: true, name: true, plate: true } },
         requestedBy: { select: { id: true, name: true } },

@@ -11,6 +11,7 @@ import {
   Request,
   UseInterceptors,
   UploadedFiles,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import {
@@ -100,8 +101,17 @@ export class ServiceOrdersController {
   @Patch(':id/progress/:progress')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
   @ApiOperation({ summary: 'Atualizar progresso da OS (0-100)' })
-  updateProgress(@Param('id') id: string, @Param('progress') progress: string) {
-    return this.serviceOrdersService.updateProgress(id, parseInt(progress));
+  updateProgress(
+    @Param('id') id: string,
+    @Param('progress', ParseIntPipe) progress: number,
+    @Request() req,
+  ) {
+    return this.serviceOrdersService.updateProgress(
+      id,
+      progress,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Post(':id/attachments')

@@ -14,6 +14,10 @@ import { CheckinVisitDto, CheckoutVisitDto } from './dto/checkin-visit.dto';
 import { Prisma, UserRole, VisitStatus, AuditAction } from '@prisma/client';
 import { RoutePoint, nearestNeighborRoute, haversineDistanceKm } from './route.util';
 import { snapshotChecklistFields } from '../common/checklist/snapshot-checklist-fields.util';
+import {
+  parseBusinessDate,
+  parseBusinessDateEndOfDay,
+} from '../common/date/business-date.util';
 
 // Acima disso (metros), o GPS do check-in/checkout é considerado impreciso —
 // mesma ideia do aviso "Alta precisão do GPS" do Auvo, derivada do accuracy
@@ -147,10 +151,10 @@ export class VisitsService {
     }
 
     const scheduledStart = createVisitDto.scheduledStart
-      ? new Date(createVisitDto.scheduledStart)
+      ? parseBusinessDate(createVisitDto.scheduledStart)
       : undefined;
     const scheduledEnd = createVisitDto.scheduledEnd
-      ? new Date(createVisitDto.scheduledEnd)
+      ? parseBusinessDate(createVisitDto.scheduledEnd)
       : undefined;
 
     if (createVisitDto.technicianId && scheduledStart && scheduledEnd) {
@@ -235,7 +239,7 @@ export class VisitsService {
       scheduledStart,
       scheduledEnd,
       chargeable,
-      visitDate: new Date(createVisitDto.visitDate),
+      visitDate: parseBusinessDate(createVisitDto.visitDate),
       visitType: createVisitDto.visitType,
       location: createVisitDto.location,
       description: createVisitDto.description,
@@ -297,8 +301,8 @@ export class VisitsService {
       ...(filters?.startDate &&
         filters?.endDate && {
           visitDate: {
-            gte: new Date(filters.startDate),
-            lte: new Date(filters.endDate),
+            gte: parseBusinessDate(filters.startDate),
+            lte: parseBusinessDateEndOfDay(filters.endDate),
           },
         }),
     };
@@ -341,8 +345,11 @@ export class VisitsService {
       );
     }
 
-    const dayStart = new Date(`${filters.date}T00:00:00.000Z`);
-    const dayEnd = new Date(`${filters.date}T23:59:59.999Z`);
+    // O dia da rota é o dia da OPERAÇÃO, não UTC. Com o "Z" fixo, a agenda de
+    // 08/08 pegava das 20h do dia 7 às 19h59 do dia 8 em Manaus: mostrava
+    // visitas do dia seguinte e escondia as do começo do dia.
+    const dayStart = parseBusinessDate(filters.date);
+    const dayEnd = parseBusinessDateEndOfDay(filters.date);
 
     const where: Prisma.TechnicalVisitWhereInput = {
       visitDate: { gte: dayStart, lte: dayEnd },
@@ -525,7 +532,7 @@ export class VisitsService {
 
     const updateData: Prisma.TechnicalVisitUpdateInput = {
       ...(updateVisitDto.visitDate && {
-        visitDate: new Date(updateVisitDto.visitDate),
+        visitDate: parseBusinessDate(updateVisitDto.visitDate),
       }),
       ...(updateVisitDto.visitType && { visitType: updateVisitDto.visitType }),
       ...(updateVisitDto.location && { location: updateVisitDto.location }),

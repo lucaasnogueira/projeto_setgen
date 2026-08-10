@@ -84,7 +84,6 @@ export class PurchaseOrdersController {
       createPurchaseOrderDto,
       file.path,
       req.user.id,
-      req.user.role,
     );
   }
 

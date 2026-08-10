@@ -9,6 +9,7 @@ import { Briefcase, Calendar, Info, DollarSign, AlertTriangle, Wrench } from 'lu
 import { cn } from '@/lib/utils';
 import { ServiceOrderType, Quote, PaymentMethod } from '@/types';
 import { usersApi, User as ApiUser } from '@/lib/api/users';
+import { toDateInputValue, endOfBusinessDayISO } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -78,7 +79,7 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
       reportedDefects: initialData?.reportedDefects || '',
       requestedServices: initialData?.requestedServices || '',
       notes: initialData?.notes || '',
-      validUntil: initialData?.validUntil ? new Date(initialData.validUntil).toISOString().split('T')[0] : '',
+      validUntil: toDateInputValue(initialData?.validUntil),
       paymentMethod: initialData?.paymentMethod || NONE,
       paymentTerms: initialData?.paymentTerms || '',
       paymentTermDays: initialData?.paymentTermDays ? String(initialData.paymentTermDays) : '',
@@ -101,13 +102,24 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
   const onFormSubmit = (data: QuoteFormValues) => {
     const payload: any = {
       ...data,
-      validUntil: data.validUntil ? new Date(data.validUntil).toISOString() : undefined,
+      // Validade vale até o FIM do dia escolhido, no fuso da operação — senão o
+      // orçamento expira antes do que o comercial combinou com o cliente, e
+      // muda de data conforme o fuso de quem abriu o portal.
+      validUntil: endOfBusinessDayISO(data.validUntil),
       paymentMethod: data.paymentMethod && data.paymentMethod !== NONE ? data.paymentMethod : undefined,
       paymentTerms: data.paymentTerms || undefined,
       paymentTermDays: data.paymentTermDays ? Number(data.paymentTermDays) : undefined,
       warrantyMonths: data.warrantyMonths ? Number(data.warrantyMonths) : undefined,
       salesRepId: data.salesRepId && data.salesRepId !== NONE ? data.salesRepId : undefined,
     };
+
+    // Cliente e tipo são a identidade do orçamento e não mudam depois de
+    // criado — a API recusa recebê-los na edição.
+    if (initialData) {
+      delete payload.clientId;
+      delete payload.type;
+    }
+
     onSubmit(payload);
   };
 

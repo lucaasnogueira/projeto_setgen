@@ -1,6 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { QuoteLineType, PaymentMethod } from '@prisma/client';
+import { QuoteLineType, PaymentMethod, QuoteStatus } from '@prisma/client';
+import { formatBusinessDate } from '../common/date/business-date.util';
+
+// A página pública só existe para orçamentos que já saíram para o cliente —
+// é ele quem tem o link. Rascunho, pendente de aprovação, aprovado só
+// internamente e cancelado são documentos internos: expô-los vazaria preço e
+// escopo antes da decisão comercial, e a rota não tem autenticação nenhuma.
+const PUBLICLY_VISIBLE_STATUSES: QuoteStatus[] = [
+  QuoteStatus.SENT_TO_CLIENT,
+  QuoteStatus.AWAITING_RESPONSE,
+  QuoteStatus.ACCEPTED,
+  QuoteStatus.REJECTED,
+  QuoteStatus.EXPIRED,
+];
 
 const QUOTE_LINE_TYPE_LABELS: Record<QuoteLineType, string> = {
   [QuoteLineType.SERVICE]: 'Serviço',
@@ -24,16 +37,20 @@ function formatCurrency(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function formatDate(date: Date | string | null | undefined): string {
-  if (!date) return '-';
-  return new Date(date).toLocaleDateString('pt-BR');
-}
+// Esta página é renderizada no servidor, que em produção roda em UTC — daí
+// formatar sempre no fuso do negócio (ver business-date.util). Sem isso, a
+// validade que vence às 23h59 aparecia para o cliente com a data seguinte.
+const formatDate = formatBusinessDate;
 
+// Escapa aspas também: hoje nada é interpolado dentro de atributo, mas o dia
+// que for, sem isso vira XSS — e o conteúdo vem de campo livre do cadastro.
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 @Injectable()
@@ -50,7 +67,9 @@ export class PublicQuotesService {
       },
     });
 
-    if (!order) {
+    // NotFound (e não Forbidden) de propósito: sem autenticação, distinguir
+    // "não existe" de "existe mas você não pode ver" já entregaria informação.
+    if (!order || !PUBLICLY_VISIBLE_STATUSES.includes(order.status)) {
       throw new NotFoundException('Orçamento não encontrado');
     }
 

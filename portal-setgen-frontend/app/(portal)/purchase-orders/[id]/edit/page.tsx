@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DetailHeader } from "@/components/layout/DetailHeader";
+import { toDateInputValue, startOfBusinessDayISO, endOfBusinessDayISO } from '@/lib/date';
 
 const OC_ELIGIBLE_STATUSES: QuoteStatus[] = [QuoteStatus.APPROVED, QuoteStatus.SENT_TO_CLIENT, QuoteStatus.AWAITING_RESPONSE];
 
@@ -47,8 +48,8 @@ export default function EditPurchaseOrderPage() {
         clientId: order.clientId,
         orderNumber: order.orderNumber,
         value: order.value.toString(),
-        issueDate: order.issueDate ? new Date(order.issueDate).toISOString().split('T')[0] : '',
-        expiryDate: order.expiryDate ? new Date(order.expiryDate).toISOString().split('T')[0] : '',
+        issueDate: toDateInputValue(order.issueDate),
+        expiryDate: toDateInputValue(order.expiryDate),
       });
     } catch (error) {
       console.error('Error loading data:', error);
@@ -80,8 +81,8 @@ export default function EditPurchaseOrderPage() {
         clientId: formData.clientId,
         orderNumber: formData.orderNumber,
         value: parseFloat(formData.value),
-        issueDate: formData.issueDate ? new Date(formData.issueDate).toISOString() : '',
-        expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : '',
+        issueDate: startOfBusinessDayISO(formData.issueDate) || '',
+        expiryDate: endOfBusinessDayISO(formData.expiryDate) || '',
       };
       await purchaseOrdersApi.update(params.id as string, payload);
       alert('OC/OP atualizada com sucesso!');

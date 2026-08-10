@@ -8,6 +8,12 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { FilterExpenseDto } from './dto/filter-expense.dto';
 import { ExpenseStatus, CashFlowType, PaymentMethod, Prisma } from '@prisma/client';
+import {
+  parseBusinessDate,
+  parseBusinessDateEndOfDay,
+  addMonthsUtc,
+  addDaysUtc,
+} from '../common/date/business-date.util';
 
 @Injectable()
 export class ExpensesService {
@@ -31,12 +37,12 @@ export class ExpensesService {
         code,
         userId,
         status: ExpenseStatus.PENDING,
-        date: new Date(createExpenseDto.date),
-        dueDate: new Date(createExpenseDto.dueDate),
+        date: parseBusinessDate(createExpenseDto.date),
+        dueDate: parseBusinessDate(createExpenseDto.dueDate),
         paymentDate: createExpenseDto.paymentDate
-          ? new Date(createExpenseDto.paymentDate)
+          ? parseBusinessDate(createExpenseDto.paymentDate)
           : null,
-        competenceDate: new Date(createExpenseDto.competenceDate),
+        competenceDate: parseBusinessDate(createExpenseDto.competenceDate),
       },
       include: {
         category: true,
@@ -59,7 +65,7 @@ export class ExpensesService {
     if (createExpenseDto.paymentMethod === PaymentMethod.CASH) {
       return this.applyPayment(
         expense.id,
-        new Date(createExpenseDto.date),
+        parseBusinessDate(createExpenseDto.date),
         Number(expense.amount),
       );
     }
@@ -178,16 +184,16 @@ export class ExpensesService {
 
     // Converter datas
     if (updateExpenseDto.date) {
-      updateData.date = new Date(updateExpenseDto.date);
+      updateData.date = parseBusinessDate(updateExpenseDto.date);
     }
     if (updateExpenseDto.dueDate) {
-      updateData.dueDate = new Date(updateExpenseDto.dueDate);
+      updateData.dueDate = parseBusinessDate(updateExpenseDto.dueDate);
     }
     if (updateExpenseDto.paymentDate) {
-      updateData.paymentDate = new Date(updateExpenseDto.paymentDate);
+      updateData.paymentDate = parseBusinessDate(updateExpenseDto.paymentDate);
     }
     if (updateExpenseDto.competenceDate) {
-      updateData.competenceDate = new Date(updateExpenseDto.competenceDate);
+      updateData.competenceDate = parseBusinessDate(updateExpenseDto.competenceDate);
     }
 
     return this.prisma.expense.update({
@@ -262,16 +268,21 @@ export class ExpensesService {
     });
   }
 
-  async markAsPaid(id: string, paymentDate: Date, paidAmount?: number) {
+  async markAsPaid(id: string, paymentDate: string | Date, paidAmount?: number) {
     const expense = await this.findOne(id);
 
-    if (expense.status !== ExpenseStatus.APPROVED) {
+    // PARTIALLY_PAID também aceita baixa: é assim que se quita o restante.
+    // Sem isso a despesa ficava presa nesse status para sempre.
+    if (
+      expense.status !== ExpenseStatus.APPROVED &&
+      expense.status !== ExpenseStatus.PARTIALLY_PAID
+    ) {
       throw new BadRequestException(
-        'Apenas despesas aprovadas podem ser marcadas como pagas',
+        'Apenas despesas aprovadas ou parcialmente pagas podem receber baixa',
       );
     }
 
-    return this.applyPayment(id, paymentDate, paidAmount);
+    return this.applyPayment(id, parseBusinessDate(paymentDate), paidAmount);
   }
 
   /** Marca a despesa como paga (total ou parcial), debita a conta bancária e
@@ -284,17 +295,31 @@ export class ExpensesService {
   ) {
     const expense = await this.findOne(id);
 
-    const finalPaidAmount = paidAmount
-      ? new Prisma.Decimal(paidAmount)
-      : expense.amount;
+    // `paidAmount ?? amount` e não `paidAmount ? ... :` — 0 é um valor pago
+    // válido (e falsy), e caía no fallback "valor cheio", quitando a despesa.
+    const parcel =
+      paidAmount === undefined || paidAmount === null
+        ? expense.amount.minus(expense.paidAmount ?? 0)
+        : new Prisma.Decimal(paidAmount);
 
-    if (finalPaidAmount.greaterThan(expense.amount)) {
+    if (parcel.lessThanOrEqualTo(0)) {
+      throw new BadRequestException('Valor pago deve ser maior que zero');
+    }
+
+    // Pagamentos parciais ACUMULAM. Antes, cada baixa sobrescrevia paidAmount
+    // mas debitava a conta de novo: pagar 100 duas vezes tirava 200 do banco e
+    // registrava 100 na despesa.
+    const alreadyPaid = expense.paidAmount ?? new Prisma.Decimal(0);
+    const totalPaid = alreadyPaid.plus(parcel);
+
+    if (totalPaid.greaterThan(expense.amount)) {
       throw new BadRequestException(
-        `Valor pago (${finalPaidAmount.toFixed(2)}) não pode ser maior que o valor da despesa (${expense.amount.toFixed(2)})`,
+        `Valor pago (${totalPaid.toFixed(2)}) não pode ser maior que o valor da despesa (${expense.amount.toFixed(2)})`,
       );
     }
 
-    const status = finalPaidAmount.equals(expense.amount)
+    const finalPaidAmount = totalPaid;
+    const status = totalPaid.equals(expense.amount)
       ? ExpenseStatus.PAID
       : ExpenseStatus.PARTIALLY_PAID;
 
@@ -311,10 +336,11 @@ export class ExpensesService {
       });
 
       if (expense.bankAccountId) {
+        // debita só a PARCELA desta baixa, não o acumulado
         const updatedAccount = await tx.bankAccount.update({
           where: { id: expense.bankAccountId },
           data: {
-            balance: { decrement: finalPaidAmount },
+            balance: { decrement: parcel },
           },
         });
 
@@ -323,7 +349,7 @@ export class ExpensesService {
             date: paymentDate,
             type: CashFlowType.OUTFLOW,
             category: expense.type,
-            amount: finalPaidAmount,
+            amount: parcel,
             balance: updatedAccount.balance,
             description: expense.description,
             expenseId: expense.id,
@@ -549,18 +575,26 @@ export class ExpensesService {
 
     const daysOffsets = dto.installmentDaysOffsets;
 
-    const installmentAmount = Number(dto.amount) / dto.totalInstallments;
+    // Divisão em centavos: 100/3 daria 33,33 em cada e a compra somaria 99,99.
+    // O resto vai para a PRIMEIRA parcela (praxe de carnê/boleto).
+    const totalCents = Math.round(Number(dto.amount) * 100);
+    const baseCents = Math.floor(totalCents / dto.totalInstallments);
+    const remainderCents = totalCents - baseCents * dto.totalInstallments;
+
+    const firstAmount = (baseCents + remainderCents) / 100;
+    const installmentAmount = baseCents / 100;
+
     const installments: Prisma.ExpenseCreateManyInput[] = [];
 
     for (let i = 2; i <= dto.totalInstallments; i++) {
       let dueDate: Date;
       if (daysOffsets) {
         // Offset em dias corridos a partir da data da compra (boleto 15/30/45/60 dias).
-        dueDate = new Date(dto.date);
-        dueDate.setDate(dueDate.getDate() + daysOffsets[i - 2]);
+        dueDate = addDaysUtc(parseBusinessDate(dto.date), daysOffsets[i - 2]);
       } else {
-        dueDate = new Date(dto.dueDate);
-        dueDate.setMonth(dueDate.getMonth() + (i - 1));
+        // addMonthsUtc em vez de setMonth: compra em 31/01 gerava parcela em
+        // 03/03 (estouro do fim do mês) em vez de 28/02.
+        dueDate = addMonthsUtc(parseBusinessDate(dto.dueDate), i - 1);
       }
 
       // Mesma sequence usada na despesa pai (generateExpenseCode) — não usar
@@ -571,7 +605,7 @@ export class ExpensesService {
         description: `${dto.description} - Parcela ${i}/${dto.totalInstallments}`,
         type: dto.type,
         amount: new Prisma.Decimal(installmentAmount),
-        date: new Date(dto.date),
+        date: parseBusinessDate(dto.date),
         dueDate,
         competenceDate: dueDate,
         categoryId: dto.categoryId,
@@ -594,12 +628,13 @@ export class ExpensesService {
       data: installments,
     });
 
-    // Atualizar despesa pai
+    // Despesa pai vira a parcela 1 e absorve o resto da divisão, para que a
+    // soma das parcelas feche exatamente com o valor da compra.
     await this.prisma.expense.update({
       where: { id: parentExpense.id },
       data: {
         installment: 1,
-        amount: new Prisma.Decimal(installmentAmount),
+        amount: new Prisma.Decimal(firstAmount),
       },
     });
   }
@@ -609,8 +644,8 @@ export class ExpensesService {
 
     if (filters.startDate || filters.endDate) {
       where.date = {};
-      if (filters.startDate) where.date.gte = new Date(filters.startDate);
-      if (filters.endDate) where.date.lte = new Date(filters.endDate);
+      if (filters.startDate) where.date.gte = parseBusinessDate(filters.startDate);
+      if (filters.endDate) where.date.lte = parseBusinessDateEndOfDay(filters.endDate);
     }
 
     if (filters.competenceMonth) {

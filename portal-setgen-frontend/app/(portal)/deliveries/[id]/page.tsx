@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
 import { FieldBlock } from "@/components/ui/field-block";
 import Link from 'next/link';
+import { formatDateBR, formatDateTimeBR } from '@/lib/date';
 
 export default function DeliveryDetailsPage() {
   const params = useParams();
@@ -118,7 +119,7 @@ export default function DeliveryDetailsPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
               <FieldBlock label="Recebido por" value={delivery.receivedBy} />
-              <FieldBlock label="Data de Conclusão" value={new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')} />
+              <FieldBlock label="Data de Conclusão" value={formatDateBR(delivery.deliveryDate)} />
             </div>
             <div>
               <div className="text-[10.5px] font-bold tracking-wider text-text-muted uppercase mb-2">Comentários / Observações</div>
@@ -158,7 +159,7 @@ export default function DeliveryDetailsPage() {
                 <span className="text-[13px] font-bold">Serviço Concluído</span>
               </div>
               <p className="text-[11.5px] text-text-muted mt-4 text-center">
-                Registrado em {new Date(delivery.createdAt).toLocaleString('pt-BR')}
+                Registrado em {formatDateTimeBR(delivery.createdAt)}
               </p>
             </Card>
           </div>

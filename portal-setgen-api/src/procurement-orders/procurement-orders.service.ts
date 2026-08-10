@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseBusinessDate } from '../common/date/business-date.util';
 import { InventoryService } from '../inventory/inventory.service';
 import { MaterialRequestsService } from '../material-requests/material-requests.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -48,6 +49,24 @@ export class ProcurementOrdersService {
     private auditService: AuditService,
   ) {}
 
+  /** Sem isso, um productId inexistente vira erro de FK (500) em vez de 400. */
+  private async assertProductsExist(items: { productId: string }[]) {
+    if (!items?.length) return;
+
+    const ids = [...new Set(items.map((i) => i.productId))];
+    const found = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+
+    if (found.length !== ids.length) {
+      const foundIds = new Set(found.map((p) => p.id));
+      throw new BadRequestException(
+        `Produto(s) não encontrado(s): ${ids.filter((id) => !foundIds.has(id)).join(', ')}`,
+      );
+    }
+  }
+
   async create(dto: CreateProcurementOrderDto) {
     if (dto.supplierId) {
       const supplier = await this.prisma.supplier.findUnique({
@@ -58,13 +77,15 @@ export class ProcurementOrdersService {
       }
     }
 
+    await this.assertProductsExist(dto.items);
+
     const data: Prisma.ProcurementOrderCreateInput = {
       ...(dto.supplierId && { supplier: { connect: { id: dto.supplierId } } }),
       ...(dto.materialRequestId && {
         materialRequest: { connect: { id: dto.materialRequestId } },
       }),
       ...(dto.expectedDeliveryDate && {
-        expectedDeliveryDate: new Date(dto.expectedDeliveryDate),
+        expectedDeliveryDate: parseBusinessDate(dto.expectedDeliveryDate),
       }),
       items: {
         create: dto.items.map((item) => ({
@@ -144,6 +165,10 @@ export class ProcurementOrdersService {
       }
     }
 
+    if (dto.items) {
+      await this.assertProductsExist(dto.items);
+    }
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.items) {
         await tx.procurementOrderItem.deleteMany({
@@ -156,7 +181,7 @@ export class ProcurementOrdersService {
         data: {
           ...(dto.supplierId && { supplier: { connect: { id: dto.supplierId } } }),
           ...(dto.expectedDeliveryDate && {
-            expectedDeliveryDate: new Date(dto.expectedDeliveryDate),
+            expectedDeliveryDate: parseBusinessDate(dto.expectedDeliveryDate),
           }),
           ...(dto.items && {
             items: {
@@ -180,42 +205,60 @@ export class ProcurementOrdersService {
   ) {
     const order = await this.findOne(id);
 
-    const allowedNextStatuses = VALID_STATUS_TRANSITIONS[order.status];
-    if (!allowedNextStatuses.includes(dto.status)) {
-      throw new BadRequestException(
-        `Transição de status inválida: ${order.status} -> ${dto.status}`,
-      );
-    }
+    // Entrada de estoque e mudança de status numa transação só, com o pedido
+    // travado (FOR UPDATE) e o status revalidado dentro do lock. Antes, dois
+    // "receber" simultâneos passavam os dois pela validação e davam entrada em
+    // dobro no estoque; e uma falha no meio do laço deixava parte do material
+    // já lançado com o pedido ainda aguardando entrega.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM procurement_orders WHERE id = ${id} FOR UPDATE`;
 
-    if (
-      dto.status === ProcurementOrderStatus.ORDER_ISSUED &&
-      !order.supplierId
-    ) {
-      throw new BadRequestException(
-        'Escolha um fornecedor antes de emitir o pedido',
-      );
-    }
+      const current = await tx.procurementOrder.findUnique({
+        where: { id },
+        include: { items: true },
+      });
 
-    if (dto.status === ProcurementOrderStatus.RECEIVED) {
-      for (const item of order.items) {
-        await this.inventoryService.createMovement(
-          {
-            productId: item.productId,
-            type: MovementType.ENTRY,
-            quantity: item.quantity,
-            unitCost: Number(item.unitCost),
-            reason: `Recebimento — Pedido de Compra ${order.id}`,
-            referenceId: order.id,
-          },
-          userId,
+      if (!current) {
+        throw new NotFoundException('Pedido de compra não encontrado');
+      }
+
+      if (!VALID_STATUS_TRANSITIONS[current.status].includes(dto.status)) {
+        throw new BadRequestException(
+          `Transição de status inválida: ${current.status} -> ${dto.status}`,
         );
       }
-    }
 
-    const updated = await this.prisma.procurementOrder.update({
-      where: { id },
-      data: { status: dto.status },
-      include: { items: { include: { product: true } }, supplier: true },
+      if (
+        dto.status === ProcurementOrderStatus.ORDER_ISSUED &&
+        !current.supplierId
+      ) {
+        throw new BadRequestException(
+          'Escolha um fornecedor antes de emitir o pedido',
+        );
+      }
+
+      if (dto.status === ProcurementOrderStatus.RECEIVED) {
+        for (const item of current.items) {
+          await this.inventoryService.createMovement(
+            {
+              productId: item.productId,
+              type: MovementType.ENTRY,
+              quantity: item.quantity,
+              unitCost: Number(item.unitCost),
+              reason: `Recebimento — Pedido de Compra ${current.id}`,
+              referenceId: current.id,
+            },
+            userId,
+            tx,
+          );
+        }
+      }
+
+      return tx.procurementOrder.update({
+        where: { id },
+        data: { status: dto.status },
+        include: { items: { include: { product: true } }, supplier: true },
+      });
     });
 
     await this.auditService.record(
@@ -250,6 +293,15 @@ export class ProcurementOrdersService {
     ) {
       throw new BadRequestException(
         'Só é possível remover pedidos em cotação ou cancelados',
+      );
+    }
+
+    // Apagar a compra deixava a solicitação de material presa em
+    // AWAITING_PURCHASE, esperando um pedido que não existe mais — e sem
+    // pedido ativo o almoxarife não tinha como destravar a OS.
+    if (order.materialRequest) {
+      throw new BadRequestException(
+        'Este pedido atende uma solicitação de material do almoxarifado. Cancele o pedido (status CANCELLED) em vez de removê-lo, para que uma nova compra possa ser aberta.',
       );
     }
 

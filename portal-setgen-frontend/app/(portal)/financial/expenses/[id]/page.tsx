@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ExpenseCategory } from '@/types/financial';
+import { toDateInputValue } from '@/lib/date';
 
 export default function EditExpensePage() {
   const router = useRouter();
@@ -100,9 +101,9 @@ export default function EditExpensePage() {
   // Format initial data dates
   const formattedInitialData = expense ? {
       ...expense,
-      date: expense.date ? new Date(expense.date).toISOString().split('T')[0] : '',
-      dueDate: expense.dueDate ? new Date(expense.dueDate).toISOString().split('T')[0] : '',
-      competenceDate: expense.competenceDate ? new Date(expense.competenceDate).toISOString().split('T')[0] : '',
+      date: toDateInputValue(expense.date),
+      dueDate: toDateInputValue(expense.dueDate),
+      competenceDate: toDateInputValue(expense.competenceDate),
   } : undefined;
 
   return (

@@ -9,6 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UserRole } from '@prisma/client';
 import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -123,7 +124,17 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
+
+    // Rebaixar o último ADMIN, ou desativá-lo por aqui, tranca o sistema igual
+    // ao toggle-active.
+    const losesAdmin =
+      (updateUserDto.role !== undefined && updateUserDto.role !== UserRole.ADMIN) ||
+      updateUserDto.active === false;
+
+    if (losesAdmin) {
+      await this.assertNotLastActiveAdmin(current);
+    }
 
     if (updateUserDto.password) {
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
@@ -157,7 +168,8 @@ export class UsersService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const user = await this.findOne(id);
+    await this.assertNotLastActiveAdmin(user);
 
     return this.prisma.user.update({
       where: { id },
@@ -170,8 +182,35 @@ export class UsersService {
     });
   }
 
+  /**
+   * Impede que o sistema fique sem nenhum administrador ativo — daí não
+   * haveria mais como cadastrar usuários, cargos ou permissões, e a única
+   * saída seria mexer no banco na unha.
+   */
+  private async assertNotLastActiveAdmin(user: {
+    id: string;
+    role: UserRole;
+    active: boolean;
+  }) {
+    if (user.role !== UserRole.ADMIN || !user.active) return;
+
+    const otherActiveAdmins = await this.prisma.user.count({
+      where: { role: UserRole.ADMIN, active: true, id: { not: user.id } },
+    });
+
+    if (otherActiveAdmins === 0) {
+      throw new BadRequestException(
+        'Este é o último administrador ativo — promova outro usuário a ADMIN antes de desativá-lo ou alterar seu perfil.',
+      );
+    }
+  }
+
   async toggleActive(id: string) {
     const user = await this.findOne(id);
+
+    if (user.active) {
+      await this.assertNotLastActiveAdmin(user);
+    }
 
     return this.prisma.user.update({
       where: { id },

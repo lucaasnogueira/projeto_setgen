@@ -65,6 +65,28 @@ export class ServiceOrdersService {
     }
   }
 
+  /**
+   * Sem isso, um productId inexistente vira erro de FK do Prisma (500) em vez
+   * de um 400 dizendo qual produto não existe.
+   */
+  private async assertProductsExist(items: { productId: string }[]) {
+    if (items.length === 0) return;
+
+    const ids = [...new Set(items.map((item) => item.productId))];
+    const found = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+
+    if (found.length !== ids.length) {
+      const foundIds = new Set(found.map((p) => p.id));
+      const missing = ids.filter((productId) => !foundIds.has(productId));
+      throw new BadRequestException(
+        `Produto(s) não encontrado(s): ${missing.join(', ')}`,
+      );
+    }
+  }
+
   // Materializa a OS de execução a partir de um orçamento aceito. Chamado
   // manualmente (POST /service-orders) ou automaticamente pela confirmação
   // de OC/OP (ver PurchaseOrdersService.create).
@@ -86,6 +108,10 @@ export class ServiceOrdersService {
 
     if (quote.serviceOrder) {
       throw new BadRequestException('Este orçamento já possui uma Ordem de Serviço');
+    }
+
+    if (dto.items) {
+      await this.assertProductsExist(dto.items);
     }
 
     const orderNumber = await this.generateOrderNumber();
@@ -226,6 +252,19 @@ export class ServiceOrdersService {
       throw new ForbiddenException('Você não tem permissão para editar esta OS');
     }
 
+    // Mesma ideia do congelamento do orçamento no aceite: OS concluída tem
+    // entrega, aceite do cliente e garantia emitida em cima do que está aqui.
+    // Cancelada é encerramento. Editar depois faz o registro divergir do fato.
+    if (order.status === ServiceOrderStatus.COMPLETED) {
+      throw new BadRequestException(
+        'OS concluída não pode ser editada — a entrega e a garantia já foram emitidas sobre estes dados',
+      );
+    }
+
+    if (order.status === ServiceOrderStatus.CANCELLED) {
+      throw new BadRequestException('OS cancelada não pode ser editada');
+    }
+
     const updateData: Prisma.ServiceOrderUpdateInput = {
       ...(dto.requiredResources && { requiredResources: dto.requiredResources }),
       ...(dto.deadline && { deadline: new Date(dto.deadline) }),
@@ -235,8 +274,59 @@ export class ServiceOrdersService {
 
     if (dto.items) {
       const itemsToCreate = dto.items;
+      await this.assertProductsExist(itemsToCreate);
+
+      // Depois que o almoxarifado reservou estoque ou abriu pedido de compra,
+      // a lista de materiais deixa de ser um plano e vira execução: trocá-la
+      // aqui deixaria a solicitação do almoxarife divergindo da OS em silêncio.
+      const materialRequests = await this.prisma.materialRequest.findMany({
+        where: { serviceOrderId: id },
+        include: {
+          items: { select: { quantityReserved: true } },
+          procurementOrders: { select: { id: true } },
+        },
+      });
+
+      const locked = materialRequests.find(
+        (mr) =>
+          mr.procurementOrders.length > 0 ||
+          mr.items.some((item) => item.quantityReserved > 0),
+      );
+      if (locked) {
+        throw new BadRequestException(
+          'Não é possível alterar os materiais: o almoxarifado já reservou estoque ou abriu pedido de compra para esta OS.',
+        );
+      }
+
       return this.prisma.$transaction(async (tx) => {
         await tx.serviceOrderProduct.deleteMany({ where: { serviceOrderId: id } });
+
+        // A solicitação do almoxarifado acompanha a lista de materiais da OS:
+        // é recriada do zero a cada troca (e some junto, se a lista ficar vazia).
+        const previous = materialRequests[0];
+        const requestIds = materialRequests.map((mr) => mr.id);
+        if (requestIds.length > 0) {
+          await tx.materialRequestItem.deleteMany({
+            where: { materialRequestId: { in: requestIds } },
+          });
+          await tx.materialRequest.deleteMany({ where: { id: { in: requestIds } } });
+        }
+
+        if (itemsToCreate.length > 0) {
+          await tx.materialRequest.create({
+            data: {
+              serviceOrder: { connect: { id } },
+              priority: previous?.priority ?? 0,
+              expectedExecutionDate: previous?.expectedExecutionDate ?? null,
+              items: {
+                create: itemsToCreate.map((item) => ({
+                  product: { connect: { id: item.productId } },
+                  quantityNeeded: item.quantity,
+                })),
+              },
+            },
+          });
+        }
 
         return tx.serviceOrder.update({
           where: { id },
@@ -288,16 +378,26 @@ export class ServiceOrdersService {
       const materialRequest = await this.prisma.materialRequest.findFirst({
         where: { serviceOrderId: id },
       });
-      const isReady =
-        materialRequest &&
-        (materialRequest.status === MaterialRequestStatus.SEPARATED ||
-          materialRequest.status === MaterialRequestStatus.RELEASED);
 
-      if (materialRequest && !isReady) {
+      if (materialRequest) {
+        const isReady =
+          materialRequest.status === MaterialRequestStatus.SEPARATED ||
+          materialRequest.status === MaterialRequestStatus.RELEASED;
+
+        if (!isReady) {
+          throw new BadRequestException(
+            'Materiais desta OS ainda não foram separados pelo almoxarifado',
+          );
+        }
+      } else if (order.items.length > 0) {
+        // OS tem materiais previstos mas nenhuma solicitação no almoxarifado:
+        // estado inconsistente. Sem esta checagem, a OS entrava em execução
+        // pulando a separação inteira só porque a solicitação sumiu.
         throw new BadRequestException(
-          'Materiais desta OS ainda não foram separados pelo almoxarifado',
+          'Esta OS tem materiais previstos mas nenhuma solicitação no almoxarifado. Reabra a edição de materiais para regerá-la.',
         );
       }
+      // Sem materiais previstos não há o que separar — segue direto.
     }
 
     const updated = await this.prisma.serviceOrder.update({
@@ -321,19 +421,67 @@ export class ServiceOrdersService {
     return updated;
   }
 
-  async updateProgress(id: string, progress: number) {
-    await this.findOne(id);
+  async updateProgress(
+    id: string,
+    progress: number,
+    userId: string,
+    userRole: UserRole,
+  ) {
+    if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
+      throw new BadRequestException('Progresso deve ser um inteiro entre 0 e 100');
+    }
 
-    return this.prisma.serviceOrder.update({
+    const order = await this.findOne(id);
+
+    // Técnico só reporta progresso da OS em que ele está escalado — senão
+    // qualquer técnico podia concluir a OS de qualquer equipe.
+    if (
+      userRole !== UserRole.ADMIN &&
+      userRole !== UserRole.MANAGER &&
+      !order.responsibleIds.includes(userId)
+    ) {
+      throw new ForbiddenException(
+        'Você não faz parte da equipe responsável por esta OS',
+      );
+    }
+
+    if (
+      order.status === ServiceOrderStatus.COMPLETED ||
+      order.status === ServiceOrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        `Não é possível alterar o progresso de uma OS ${order.status === ServiceOrderStatus.COMPLETED ? 'concluída' : 'cancelada'}`,
+      );
+    }
+
+    // Progresso 100% só conclui a OS a partir de IN_PROGRESS — a conclusão é
+    // uma transição de status e tem que respeitar a mesma máquina de estados
+    // de updateStatus. Em AWAITING_MATERIALS o progresso é gravado sem
+    // concluir: os materiais ainda não foram separados.
+    const completes =
+      progress === 100 &&
+      VALID_STATUS_TRANSITIONS[order.status].includes(ServiceOrderStatus.COMPLETED);
+
+    const updated = await this.prisma.serviceOrder.update({
       where: { id },
       data: {
         progress,
-        ...(progress === 100 && {
+        ...(completes && {
           status: ServiceOrderStatus.COMPLETED,
           completedAt: new Date(),
         }),
       },
     });
+
+    if (completes) {
+      await this.auditService.record(userId, AuditAction.UPDATE, 'ServiceOrder', id, {
+        from: order.status,
+        to: ServiceOrderStatus.COMPLETED,
+        comments: 'Concluída automaticamente ao atingir 100% de progresso',
+      });
+    }
+
+    return updated;
   }
 
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus) {
@@ -370,9 +518,55 @@ export class ServiceOrdersService {
       );
     }
 
+    // A entrega é o aceite do cliente (com evidências, assinatura e garantia).
+    // Apagar junto com a OS destruiria esse registro em silêncio.
+    if (order.delivery) {
+      throw new BadRequestException(
+        'Não é possível deletar esta OS pois existe uma Entrega registrada. Remova-a primeiro.',
+      );
+    }
+
+    const expenseCount = await this.prisma.expense.count({
+      where: { serviceOrderId: id },
+    });
+    if (expenseCount > 0) {
+      throw new BadRequestException(
+        'Não é possível deletar esta OS pois existem Despesas apropriadas a ela. Remova-as primeiro.',
+      );
+    }
+
+    // Solicitação de material só pode ir junto se nada foi reservado do
+    // estoque nem virou pedido de compra — senão a exclusão sumiria com o
+    // rastro de uma baixa de estoque que já aconteceu de verdade.
+    const materialRequests = await this.prisma.materialRequest.findMany({
+      where: { serviceOrderId: id },
+      include: {
+        items: { select: { quantityReserved: true } },
+        procurementOrders: { select: { id: true } },
+      },
+    });
+
+    const blocking = materialRequests.find(
+      (mr) =>
+        mr.procurementOrders.length > 0 ||
+        mr.items.some((item) => item.quantityReserved > 0),
+    );
+    if (blocking) {
+      throw new BadRequestException(
+        'Não é possível deletar esta OS pois o almoxarifado já reservou material ou abriu pedido de compra para ela.',
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
+      const requestIds = materialRequests.map((mr) => mr.id);
+      if (requestIds.length > 0) {
+        await tx.materialRequestItem.deleteMany({
+          where: { materialRequestId: { in: requestIds } },
+        });
+        await tx.materialRequest.deleteMany({ where: { id: { in: requestIds } } });
+      }
       await tx.serviceOrderProduct.deleteMany({ where: { serviceOrderId: id } });
-      await tx.delivery.deleteMany({ where: { serviceOrderId: id } });
+      await tx.serviceOrderVisit.deleteMany({ where: { serviceOrderId: id } });
       return tx.serviceOrder.delete({ where: { id } });
     });
   }

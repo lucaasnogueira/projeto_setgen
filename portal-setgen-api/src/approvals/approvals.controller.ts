@@ -32,14 +32,14 @@ export class ApprovalsController {
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Aprovar orçamento' })
   approve(@Param('quoteId') quoteId: string, @Body() dto: ApproveDto, @Request() req) {
-    return this.approvalsService.approve(quoteId, dto, req.user.id, req.user.role);
+    return this.approvalsService.approve(quoteId, dto, req.user.id);
   }
 
   @Post('reject/:quoteId')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Rejeitar orçamento' })
   reject(@Param('quoteId') quoteId: string, @Body() dto: RejectDto, @Request() req) {
-    return this.approvalsService.reject(quoteId, dto, req.user.id, req.user.role);
+    return this.approvalsService.reject(quoteId, dto, req.user.id);
   }
 
   @Get()

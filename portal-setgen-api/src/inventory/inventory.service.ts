@@ -163,9 +163,16 @@ export class InventoryService {
 
   // ==================== MOVIMENTAÇÕES ====================
 
+  /**
+   * `externalTx` permite que a movimentação participe de uma transação maior
+   * (ex: separação de material, que dá baixa em vários produtos e só então
+   * muda o status da solicitação). Sem isso, cada baixa commitava sozinha e
+   * uma falha no meio deixava estoque baixado sem a solicitação separada.
+   */
   async createMovement(
     createMovementDto: CreateStockMovementDto,
     createdById: string,
+    externalTx?: Prisma.TransactionClient,
   ) {
     if (createMovementDto.type === MovementType.TRANSFER) {
       throw new BadRequestException(
@@ -177,7 +184,7 @@ export class InventoryService {
       createMovementDto.type === MovementType.ENTRY ||
       createMovementDto.type === MovementType.ADJUSTMENT_IN;
 
-    return this.prisma.$transaction(async (tx) => {
+    const run = async (tx: Prisma.TransactionClient) => {
       const product = await tx.product.findUnique({
         where: { id: createMovementDto.productId },
       });
@@ -256,7 +263,11 @@ export class InventoryService {
         previousStock: product.currentStock,
         newStock: updatedProduct.currentStock,
       };
-    });
+    };
+
+    // Prisma não suporta transação aninhada — se já estamos dentro de uma,
+    // reaproveita o client em vez de abrir outra.
+    return externalTx ? run(externalTx) : this.prisma.$transaction(run);
   }
 
   // Igual createMovement, mas cria N movimentações do mesmo tipo numa única

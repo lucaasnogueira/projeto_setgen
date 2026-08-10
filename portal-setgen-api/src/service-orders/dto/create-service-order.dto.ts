@@ -4,7 +4,10 @@ import {
   IsOptional,
   IsArray,
   IsDateString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ServiceOrderItemDto } from './service-order-item.dto';
 
 export class CreateServiceOrderDto {
   @ApiProperty({
@@ -20,12 +23,10 @@ export class CreateServiceOrderDto {
     description: 'Materiais previstos para a execução — alimenta a solicitação ao almoxarifado',
   })
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ServiceOrderItemDto)
   @IsOptional()
-  items?: Array<{
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-  }>;
+  items?: ServiceOrderItemDto[];
 
   @ApiProperty({
     example: { team: ['João Silva', 'Maria Santos'] },

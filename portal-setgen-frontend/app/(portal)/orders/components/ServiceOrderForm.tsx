@@ -20,6 +20,7 @@ import { inventoryApi } from '@/lib/api/inventory';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
 import { ordersApi } from '@/lib/api/orders';
 import { cn } from '@/lib/utils';
+import { toDateInputValue, endOfBusinessDayISO } from '@/lib/date';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
 
 const SignaturePad = dynamic(
@@ -58,10 +59,13 @@ export function ServiceOrderForm({
 }: ServiceOrderFormProps) {
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
+  // Campos Decimal do Prisma chegam como string no JSON — sem o Number() a
+  // formatação de moeda vira no-op (String.toLocaleString ignora as opções) e
+  // o preço aparece cru, tipo "12.5" em vez de "R$ 12,50".
   const [items, setItems] = useState<any[]>(initialData?.items?.map(i => ({
     productId: i.productId,
-    quantity: i.quantity,
-    unitPrice: i.unitPrice,
+    quantity: Number(i.quantity),
+    unitPrice: Number(i.unitPrice),
     name: i.product?.name,
     code: i.product?.code
   })) || []);
@@ -69,9 +73,7 @@ export function ServiceOrderForm({
   const [selectedProductId, setSelectedProductId] = useState('');
   const [itemQuantity, setItemQuantity] = useState('1');
 
-  const [deadline, setDeadline] = useState(
-    initialData?.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : ''
-  );
+  const [deadline, setDeadline] = useState(toDateInputValue(initialData?.deadline));
   const [responsibleIds, setResponsibleIds] = useState<string[]>(initialData?.responsibleIds || []);
   const [team, setTeam] = useState<string>((initialData?.requiredResources?.team || []).join(', '));
 
@@ -135,7 +137,8 @@ export function ServiceOrderForm({
     e.preventDefault();
 
     const payload: any = {
-      deadline: deadline ? new Date(deadline).toISOString() : undefined,
+      // Prazo vale até o fim do dia escolhido, no fuso da operação.
+      deadline: endOfBusinessDayISO(deadline),
       responsibleIds,
       requiredResources: {
         team: team.split(',').map((t) => t.trim()).filter(Boolean),
@@ -167,12 +170,19 @@ export function ServiceOrderForm({
       return;
     }
 
+    // Campo vazio vira NaN no parseInt e o backend recebe null — barra aqui.
+    const quantity = parseInt(itemQuantity, 10);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      alert('Informe uma quantidade inteira maior que zero');
+      return;
+    }
+
     setItems([...items, {
       productId: product.id,
       name: product.name,
       code: product.code,
-      quantity: parseInt(itemQuantity),
-      unitPrice: product.unitCost || 0
+      quantity,
+      unitPrice: Number(product.unitCost) || 0
     }]);
 
     setSelectedProductId('');

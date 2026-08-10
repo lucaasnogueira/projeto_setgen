@@ -27,3 +27,7 @@ services:
         value: 5242880
       - key: UPLOAD_PATH
         value: ./uploads
+      # Fuso da operação. O servidor roda em UTC; sem isso as datas da página
+      # pública do orçamento saem com um dia a mais para o cliente.
+      - key: BUSINESS_TIME_ZONE
+        value: America/Manaus

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto } from './dto/create-client.dto';
@@ -194,6 +195,31 @@ export class ClientsService {
 
   async remove(id: string): Promise<Client> {
     await this.findOne(id);
+
+    // Sem estas checagens o delete estourava violação de FK (500) sem dizer o
+    // que estava preso. Cliente com histórico não se apaga: inative.
+    const [quotes, serviceOrders, visits, expenses, purchaseOrders] =
+      await Promise.all([
+        this.prisma.quote.count({ where: { clientId: id } }),
+        this.prisma.serviceOrder.count({ where: { clientId: id } }),
+        this.prisma.technicalVisit.count({ where: { clientId: id } }),
+        this.prisma.expense.count({ where: { clientId: id } }),
+        this.prisma.purchaseOrder.count({ where: { clientId: id } }),
+      ]);
+
+    const blocking = [
+      quotes && `${quotes} orçamento(s)`,
+      serviceOrders && `${serviceOrders} ordem(ns) de serviço`,
+      visits && `${visits} visita(s) técnica(s)`,
+      purchaseOrders && `${purchaseOrders} ordem(ns) de compra`,
+      expenses && `${expenses} despesa(s)`,
+    ].filter(Boolean);
+
+    if (blocking.length > 0) {
+      throw new BadRequestException(
+        `Não é possível excluir este cliente: existe(m) ${blocking.join(', ')} vinculado(s). Marque o cliente como inativo.`,
+      );
+    }
 
     return this.prisma.client.delete({
       where: { id },

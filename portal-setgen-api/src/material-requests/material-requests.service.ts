@@ -4,6 +4,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { AuditService } from '../common/audit/audit.service';
 import { UpdateMaterialRequestDto } from './dto/update-material-request.dto';
 import {
+  Prisma,
   MaterialRequestStatus,
   ProcurementOrderStatus,
   MovementType,
@@ -122,51 +123,77 @@ export class MaterialRequestsService {
       throw new BadRequestException('Esta solicitação já está separada');
     }
 
-    const shortages: { productId: string; missing: number }[] = [];
+    // Baixa de estoque, reserva dos itens e status da solicitação numa
+    // transação só, com a solicitação travada (FOR UPDATE): dois almoxarifes
+    // clicando junto reservavam o mesmo estoque duas vezes, e uma falha no
+    // meio do laço deixava produto baixado com a solicitação ainda PENDING.
+    const { shortages, newStatus } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM material_requests WHERE id = ${id} FOR UPDATE`;
 
-    for (const item of materialRequest.items) {
-      const missingBefore = item.quantityNeeded - item.quantityReserved;
-      if (missingBefore <= 0) continue;
+      const current = await tx.materialRequest.findUnique({
+        where: { id },
+        include: { items: { include: { product: true } } },
+      });
 
-      const reserveNow = Math.min(missingBefore, item.product.currentStock);
-
-      if (reserveNow > 0) {
-        await this.inventoryService.createMovement(
-          {
-            productId: item.productId,
-            type: MovementType.EXIT,
-            quantity: reserveNow,
-            reason: `Separação de material — Solicitação ${materialRequest.id}`,
-            referenceId: materialRequest.id,
-          },
-          userId,
-        );
-
-        await this.prisma.materialRequestItem.update({
-          where: { id: item.id },
-          data: { quantityReserved: { increment: reserveNow } },
-        });
+      if (!current) {
+        throw new NotFoundException('Solicitação de material não encontrada');
       }
 
-      const stillMissing = missingBefore - reserveNow;
-      if (stillMissing > 0) {
-        shortages.push({ productId: item.productId, missing: stillMissing });
+      // Revalida dentro do lock: a concorrente pode ter separado enquanto
+      // esperávamos.
+      if (
+        current.status === MaterialRequestStatus.SEPARATED ||
+        current.status === MaterialRequestStatus.RELEASED
+      ) {
+        throw new BadRequestException('Esta solicitação já está separada');
       }
-    }
 
-    const newStatus =
-      shortages.length > 0
-        ? MaterialRequestStatus.AWAITING_PURCHASE
-        : MaterialRequestStatus.SEPARATED;
+      const pending: { productId: string; missing: number }[] = [];
 
-    await this.prisma.materialRequest.update({
-      where: { id },
-      data: { status: newStatus },
+      for (const item of current.items) {
+        const missingBefore = item.quantityNeeded - item.quantityReserved;
+        if (missingBefore <= 0) continue;
+
+        const reserveNow = Math.min(missingBefore, item.product.currentStock);
+
+        if (reserveNow > 0) {
+          await this.inventoryService.createMovement(
+            {
+              productId: item.productId,
+              type: MovementType.EXIT,
+              quantity: reserveNow,
+              reason: `Separação de material — Solicitação ${current.id}`,
+              referenceId: current.id,
+            },
+            userId,
+            tx,
+          );
+
+          await tx.materialRequestItem.update({
+            where: { id: item.id },
+            data: { quantityReserved: { increment: reserveNow } },
+          });
+        }
+
+        const stillMissing = missingBefore - reserveNow;
+        if (stillMissing > 0) {
+          pending.push({ productId: item.productId, missing: stillMissing });
+        }
+      }
+
+      const status =
+        pending.length > 0
+          ? MaterialRequestStatus.AWAITING_PURCHASE
+          : MaterialRequestStatus.SEPARATED;
+
+      await tx.materialRequest.update({ where: { id }, data: { status } });
+
+      if (pending.length > 0) {
+        await this.ensureProcurementDraft(current.id, pending, tx);
+      }
+
+      return { shortages: pending, newStatus: status };
     });
-
-    if (shortages.length > 0) {
-      await this.ensureProcurementDraft(materialRequest.id, shortages);
-    }
 
     await this.auditService.record(
       userId,
@@ -207,8 +234,9 @@ export class MaterialRequestsService {
   private async ensureProcurementDraft(
     materialRequestId: string,
     shortages: { productId: string; missing: number }[],
+    tx: Prisma.TransactionClient,
   ) {
-    const existingActive = await this.prisma.procurementOrder.findFirst({
+    const existingActive = await tx.procurementOrder.findFirst({
       where: {
         materialRequestId,
         status: {
@@ -225,14 +253,14 @@ export class MaterialRequestsService {
       return existingActive;
     }
 
-    const products = await this.prisma.product.findMany({
+    const products = await tx.product.findMany({
       where: { id: { in: shortages.map((s) => s.productId) } },
     });
     const unitCostByProduct = new Map(
       products.map((p) => [p.id, p.unitCost ? Number(p.unitCost) : 0]),
     );
 
-    return this.prisma.procurementOrder.create({
+    return tx.procurementOrder.create({
       data: {
         materialRequest: { connect: { id: materialRequestId } },
         status: ProcurementOrderStatus.QUOTING,

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { openAuthedFile } from '@/lib/utils/auth-file';
+import { formatDateBR } from '@/lib/date';
 
 interface ArtCardProps {
   serviceOrderId: string;
@@ -73,7 +74,7 @@ export function ArtCard({ serviceOrderId, art, onIssued }: ArtCardProps) {
           </div>
           <div>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Emissão</p>
-            <p className="text-sm text-foreground">{new Date(art.issueDate).toLocaleDateString('pt-BR')}</p>
+            <p className="text-sm text-foreground">{formatDateBR(art.issueDate)}</p>
           </div>
           {art.fileUrl && (
             <button
