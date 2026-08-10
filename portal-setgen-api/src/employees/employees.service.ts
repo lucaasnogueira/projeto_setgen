@@ -9,6 +9,11 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { CreateASODto } from './dto/create-aso.dto';
 import { CreateEmployeeDocumentDto } from './dto/create-document.dto';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
+import {
+  parseBusinessDate,
+  parseOptionalBusinessDate,
+  addYearsUtc,
+} from '../common/date/business-date.util';
 
 @Injectable()
 export class EmployeesService {
@@ -55,9 +60,9 @@ export class EmployeesService {
     return this.prisma.employee.create({
       data: {
         ...rest,
-        birthDate: birthDate ? new Date(birthDate) : null,
-        admissionDate: admissionDate ? new Date(admissionDate) : null,
-        terminationDate: terminationDate ? new Date(terminationDate) : null,
+        birthDate: parseOptionalBusinessDate(birthDate) ?? null,
+        admissionDate: parseOptionalBusinessDate(admissionDate) ?? null,
+        terminationDate: parseOptionalBusinessDate(terminationDate) ?? null,
       },
     });
   }
@@ -147,9 +152,9 @@ export class EmployeesService {
       where: { id },
       data: {
         ...rest,
-        birthDate: birthDate ? new Date(birthDate) : undefined,
-        admissionDate: admissionDate ? new Date(admissionDate) : undefined,
-        terminationDate: terminationDate ? new Date(terminationDate) : undefined,
+        birthDate: parseOptionalBusinessDate(birthDate),
+        admissionDate: parseOptionalBusinessDate(admissionDate),
+        terminationDate: parseOptionalBusinessDate(terminationDate),
       },
     });
   }
@@ -165,15 +170,17 @@ export class EmployeesService {
   async createASO(createASODto: CreateASODto, fileUrl?: string) {
     const { employeeId, examDate, expiryDate, ...rest } = createASODto;
 
-    // Se expiryDate não for fornecida, calcula 1 ano após examDate
-    const calculatedExpiry = expiryDate
-      ? new Date(expiryDate)
-      : new Date(new Date(examDate).setFullYear(new Date(examDate).getFullYear() + 1));
+    // Se expiryDate não for fornecida, calcula 1 ano após examDate.
+    // addYearsUtc em vez de setFullYear: exame em 29/02 viraria 01/03 no ano
+    // seguinte, dando um dia a mais de validade ao ASO.
+    const calculatedExpiry =
+      parseOptionalBusinessDate(expiryDate) ??
+      addYearsUtc(parseBusinessDate(examDate), 1);
 
     return this.prisma.aSO.create({
       data: {
         ...rest,
-        examDate: new Date(examDate),
+        examDate: parseBusinessDate(examDate),
         expiryDate: calculatedExpiry,
         fileUrl,
         employee: { connect: { id: employeeId } },

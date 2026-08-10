@@ -5,13 +5,21 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
 import { CreateDeliveryDto } from './dto/create-delivery.dto';
 import { UpdateDeliveryDto } from './dto/update-delivery.dto';
-import { Prisma, UserRole, ServiceOrderStatus } from '@prisma/client';
+import { Prisma, UserRole, ServiceOrderStatus, AuditAction } from '@prisma/client';
+import {
+  parseBusinessDate,
+  addMonthsUtc,
+} from '../common/date/business-date.util';
 
 @Injectable()
 export class DeliveriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   /** Converte DTO para array JSON que o Prisma aceita */
   private toPrismaJsonArray(dtoArray: unknown[]): Prisma.InputJsonValue[] {
@@ -60,7 +68,7 @@ export class DeliveriesService {
 
     const deliveryData: Prisma.DeliveryCreateInput = {
       serviceOrder: { connect: { id: createDeliveryDto.serviceOrderId } },
-      deliveryDate: new Date(createDeliveryDto.deliveryDate),
+      deliveryDate: parseBusinessDate(createDeliveryDto.deliveryDate),
       deliveredBy: { connect: { id: deliveredById } },
       receivedBy: createDeliveryDto.receivedBy,
       checklist: this.toPrismaJsonArray(createDeliveryDto.checklist),
@@ -69,46 +77,70 @@ export class DeliveriesService {
       notes: createDeliveryDto.notes,
     };
 
-    const delivery = await this.prisma.delivery.create({
-      data: deliveryData,
-      include: {
-        serviceOrder: {
-          select: {
-            id: true,
-            orderNumber: true,
-            client: { select: { companyName: true, tradeName: true } },
+    const startDate = parseBusinessDate(createDeliveryDto.deliveryDate);
+    const endDate = addMonthsUtc(startDate, warrantyMonths);
+
+    // Entrega, conclusão da OS e garantia numa transação só: uma entrega sem
+    // garantia (ou uma OS concluída sem entrega) é um estado que o resto do
+    // sistema não sabe interpretar.
+    const delivery = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.delivery.create({
+        data: deliveryData,
+        include: {
+          serviceOrder: {
+            select: {
+              id: true,
+              orderNumber: true,
+              client: { select: { companyName: true, tradeName: true } },
+            },
+          },
+          deliveredBy: {
+            select: { id: true, name: true, email: true, role: true },
           },
         },
-        deliveredBy: {
-          select: { id: true, name: true, email: true, role: true },
+      });
+
+      await tx.serviceOrder.update({
+        where: { id: createDeliveryDto.serviceOrderId },
+        data: {
+          status: ServiceOrderStatus.COMPLETED,
+          progress: 100,
+          completedAt: new Date(),
         },
+      });
+
+      // Gera garantia automaticamente a partir da entrega. Vincula ao
+      // equipamento quando a OS veio de uma visita técnica com equipamento
+      // identificado; caso contrário a garantia fica sem equipamento associado.
+      await tx.warranty.create({
+        data: {
+          delivery: { connect: { id: created.id } },
+          ...(serviceOrder.quote?.technicalVisit?.equipmentId && {
+            equipment: { connect: { id: serviceOrder.quote.technicalVisit.equipmentId } },
+          }),
+          coverageMonths: warrantyMonths,
+          startDate,
+          endDate,
+        },
+      });
+
+      return created;
+    });
+
+    // A conclusão da OS pela entrega é uma mudança de status como qualquer
+    // outra e precisa aparecer no histórico — sem isso o audit log da OS
+    // ficava com um buraco justamente no evento mais importante.
+    await this.auditService.record(
+      deliveredById!,
+      AuditAction.UPDATE,
+      'ServiceOrder',
+      createDeliveryDto.serviceOrderId,
+      {
+        from: serviceOrder.status,
+        to: ServiceOrderStatus.COMPLETED,
+        comments: `Concluída pelo registro da entrega (recebido por ${createDeliveryDto.receivedBy})`,
       },
-    });
-
-    // Atualiza OS para COMPLETED
-    await this.prisma.serviceOrder.update({
-      where: { id: createDeliveryDto.serviceOrderId },
-      data: { status: ServiceOrderStatus.COMPLETED, progress: 100 },
-    });
-
-    // Gera garantia automaticamente a partir da entrega. Vincula ao
-    // equipamento quando a OS veio de uma visita técnica com equipamento
-    // identificado; caso contrário a garantia fica sem equipamento associado.
-    const startDate = new Date(createDeliveryDto.deliveryDate);
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + warrantyMonths);
-
-    await this.prisma.warranty.create({
-      data: {
-        delivery: { connect: { id: delivery.id } },
-        ...(serviceOrder.quote?.technicalVisit?.equipmentId && {
-          equipment: { connect: { id: serviceOrder.quote.technicalVisit.equipmentId } },
-        }),
-        coverageMonths: warrantyMonths,
-        startDate,
-        endDate,
-      },
-    });
+    );
 
     return delivery;
   }
@@ -144,7 +176,7 @@ export class DeliveriesService {
 
     const updateData: Prisma.DeliveryUpdateInput = {
       ...(updateDeliveryDto.deliveryDate && {
-        deliveryDate: new Date(updateDeliveryDto.deliveryDate),
+        deliveryDate: parseBusinessDate(updateDeliveryDto.deliveryDate),
       }),
       ...(updateDeliveryDto.receivedBy && {
         receivedBy: updateDeliveryDto.receivedBy,
@@ -269,14 +301,25 @@ export class DeliveriesService {
         'Apenas administradores podem deletar entregas',
       );
 
-    if (delivery.serviceOrderId) {
-      await this.prisma.serviceOrder.update({
-        where: { id: delivery.serviceOrderId },
-        data: { status: ServiceOrderStatus.IN_PROGRESS },
-      });
-    }
+    // Garantia, entrega e reabertura da OS numa transação só: a garantia tem
+    // FK sem cascade, então apagar a entrega antes dela quebrava por FK
+    // deixando a OS já reaberta e a entrega intacta.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.warranty.deleteMany({ where: { deliveryId: id } });
+      const deleted = await tx.delivery.delete({ where: { id } });
 
-    return this.prisma.delivery.delete({ where: { id } });
+      // Só reabre a OS se ela estiver concluída por causa desta entrega —
+      // uma OS cancelada não pode voltar a IN_PROGRESS por aqui.
+      await tx.serviceOrder.updateMany({
+        where: {
+          id: delivery.serviceOrderId,
+          status: ServiceOrderStatus.COMPLETED,
+        },
+        data: { status: ServiceOrderStatus.IN_PROGRESS, completedAt: null },
+      });
+
+      return deleted;
+    });
   }
 
   /** Estatísticas */

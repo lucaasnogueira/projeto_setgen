@@ -32,7 +32,8 @@ import Link from 'next/link';
 import { StatusTimeline } from '../components/StatusTimeline';
 import { StatusManager } from '../components/StatusManager';
 import { ArtCard } from '../components/ArtCard';
-import { SERVICE_ORDER_STATUS_CONFIG, QUOTE_STATUS_CONFIG, serviceOrderStatusBadgeClass } from '@/lib/status-config';
+import { SERVICE_ORDER_STATUS_CONFIG, QUOTE_STATUS_CONFIG, serviceOrderStatusBadgeClass, isServiceOrderEditable } from '@/lib/status-config';
+import { formatDateBR, formatDateTimeBR } from '@/lib/date';
 
 const PUBLIC_QUOTE_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -165,12 +166,14 @@ export default function OrderDetailsPage() {
                 Visualizar Orçamento
               </Button>
             </a>
-            <Link href={`/orders/${order.id}/edit`}>
-              <Button variant="outline" className="rounded-[9px] font-bold gap-2">
-                <Edit className="h-4 w-4" />
-                Editar
-              </Button>
-            </Link>
+            {isServiceOrderEditable(order.status) && (
+              <Link href={`/orders/${order.id}/edit`}>
+                <Button variant="outline" className="rounded-[9px] font-bold gap-2">
+                  <Edit className="h-4 w-4" />
+                  Editar
+                </Button>
+              </Link>
+            )}
             {canDelete && (
               <Button
                 variant="destructive"
@@ -322,10 +325,10 @@ export default function OrderDetailsPage() {
 
               <div className="space-y-4">
                 <InfoRow icon={Clock} label="Prazo">
-                  {order.deadline ? new Date(order.deadline).toLocaleDateString('pt-BR') : 'Não definido'}
+                  {order.deadline ? formatDateBR(order.deadline) : 'Não definido'}
                 </InfoRow>
                 <InfoRow icon={User} label="Criado por">{order.createdBy?.name || 'Sistema'}</InfoRow>
-                <InfoRow icon={Calendar} label="Data de Criação">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</InfoRow>
+                <InfoRow icon={Calendar} label="Data de Criação">{formatDateBR(order.createdAt)}</InfoRow>
                 {order.responsibleIds && order.responsibleIds.length > 0 && (
                   <InfoRow icon={User} label="Equipe Responsável">{order.responsibleIds.length} técnico(s)</InfoRow>
                 )}
@@ -390,7 +393,7 @@ export default function OrderDetailsPage() {
                     <div key={link.id} className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border">
                       <div className="text-[13px]">
                         <p className="font-semibold text-foreground">
-                          {link.technicalVisit?.visitDate ? new Date(link.technicalVisit.visitDate).toLocaleDateString('pt-BR') : '-'}
+                          {link.technicalVisit?.visitDate ? formatDateBR(link.technicalVisit.visitDate) : '-'}
                         </p>
                         <p className="text-[11.5px] text-text-muted">{link.technicalVisit?.status}</p>
                       </div>
@@ -416,7 +419,7 @@ export default function OrderDetailsPage() {
                     .filter((v) => !(order.linkedVisits || []).some((l) => l.technicalVisitId === v.id))
                     .map((v) => (
                       <option key={v.id} value={v.id}>
-                        {new Date(v.visitDate).toLocaleDateString('pt-BR')} — {v.visitType}
+                        {formatDateBR(v.visitDate)} — {v.visitType}
                       </option>
                     ))}
                 </select>
@@ -449,7 +452,7 @@ export default function OrderDetailsPage() {
                       {entry.user?.name || 'Sistema'}
                       <span>·</span>
                       <Calendar className="h-3 w-3" />
-                      {new Date(entry.createdAt).toLocaleString('pt-BR')}
+                      {formatDateTimeBR(entry.createdAt)}
                     </div>
                   </div>
                 </div>

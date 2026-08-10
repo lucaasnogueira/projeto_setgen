@@ -12,7 +12,7 @@ import {
   PackageX,
   type LucideIcon,
 } from 'lucide-react';
-import { QuoteStatus, ServiceOrderStatus } from '@/types';
+import { QuoteStatus, ServiceOrderStatus, UserRole } from '@/types';
 
 export interface StatusConfigEntry {
   label: string;
@@ -47,17 +47,71 @@ export const QUOTE_MAIN_FLOW: QuoteStatus[] = [
 ];
 
 // Máquina de estados do orçamento espelhando QuotesService (backend).
+// EXPIRED é omitido de propósito como botão manual: quem expira orçamento é o
+// cron de validade (QuotesService.expireOverdueQuotes), não o usuário.
 export const QUOTE_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
   [QuoteStatus.DRAFT]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   [QuoteStatus.PENDING_APPROVAL]: [QuoteStatus.APPROVED, QuoteStatus.REJECTED, QuoteStatus.CANCELLED],
   [QuoteStatus.APPROVED]: [QuoteStatus.SENT_TO_CLIENT, QuoteStatus.ACCEPTED, QuoteStatus.CANCELLED],
-  [QuoteStatus.SENT_TO_CLIENT]: [QuoteStatus.AWAITING_RESPONSE, QuoteStatus.CANCELLED],
-  [QuoteStatus.AWAITING_RESPONSE]: [QuoteStatus.ACCEPTED, QuoteStatus.REJECTED, QuoteStatus.EXPIRED, QuoteStatus.CANCELLED],
-  [QuoteStatus.EXPIRED]: [QuoteStatus.PENDING_APPROVAL],
+  // O cliente pode responder direto ao orçamento enviado — aceitando (OC/OP)
+  // ou recusando — sem passar por "aguardando resposta".
+  [QuoteStatus.SENT_TO_CLIENT]: [QuoteStatus.AWAITING_RESPONSE, QuoteStatus.ACCEPTED, QuoteStatus.REJECTED, QuoteStatus.CANCELLED],
+  [QuoteStatus.AWAITING_RESPONSE]: [QuoteStatus.ACCEPTED, QuoteStatus.REJECTED, QuoteStatus.CANCELLED],
+  [QuoteStatus.EXPIRED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   [QuoteStatus.REJECTED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   [QuoteStatus.ACCEPTED]: [],
   [QuoteStatus.CANCELLED]: [],
 };
+
+/**
+ * Espelha QuotesService.update (backend). Aceito e cancelado são congelados —
+ * o escopo já virou Ordem de Serviço. Antes disso, gerência ajusta em qualquer
+ * estágio (é assim que se preenche a validade de um orçamento já aprovado, sem
+ * a qual ele não pode ser enviado ao cliente); o autor só mexe enquanto o
+ * orçamento ainda está na mão dele.
+ */
+export function isQuoteEditable(
+  status: QuoteStatus,
+  role: UserRole | undefined,
+  isOwner: boolean,
+): boolean {
+  if (status === QuoteStatus.ACCEPTED || status === QuoteStatus.CANCELLED) return false;
+
+  if (role === UserRole.ADMIN || role === UserRole.MANAGER) return true;
+
+  return (
+    isOwner &&
+    (status === QuoteStatus.DRAFT ||
+      status === QuoteStatus.PENDING_APPROVAL ||
+      status === QuoteStatus.REJECTED)
+  );
+}
+
+/**
+ * Espelha assertLinesEditable (backend): aceito/cancelado congelam o valor.
+ * Antes disso as linhas seguem a mesma permissão de edição do orçamento.
+ */
+export function areQuoteLinesEditable(
+  status: QuoteStatus,
+  role: UserRole | undefined,
+  isOwner: boolean,
+): boolean {
+  return isQuoteEditable(status, role, isOwner);
+}
+
+/**
+ * Espelha PUBLICLY_VISIBLE_STATUSES (backend). Fora desses status a rota
+ * pública responde 404 — não adianta oferecer o link.
+ */
+export function isQuotePubliclyVisible(status: QuoteStatus): boolean {
+  return (
+    status === QuoteStatus.SENT_TO_CLIENT ||
+    status === QuoteStatus.AWAITING_RESPONSE ||
+    status === QuoteStatus.ACCEPTED ||
+    status === QuoteStatus.REJECTED ||
+    status === QuoteStatus.EXPIRED
+  );
+}
 
 // Único mapa de status→label/cor/ícone pra Ordem de Serviço (execução).
 export const SERVICE_ORDER_STATUS_CONFIG: Record<ServiceOrderStatus, StatusConfigEntry> = {
@@ -72,6 +126,16 @@ export const SERVICE_ORDER_MAIN_FLOW: ServiceOrderStatus[] = [
   ServiceOrderStatus.IN_PROGRESS,
   ServiceOrderStatus.COMPLETED,
 ];
+
+/**
+ * Espelha ServiceOrdersService.update (backend). Concluída tem entrega, aceite
+ * do cliente e garantia emitidos sobre estes dados; cancelada é encerramento.
+ */
+export function isServiceOrderEditable(status: ServiceOrderStatus): boolean {
+  return (
+    status !== ServiceOrderStatus.COMPLETED && status !== ServiceOrderStatus.CANCELLED
+  );
+}
 
 // Máquina de estados da OS de execução espelhando ServiceOrdersService (backend).
 export const SERVICE_ORDER_STATUS_TRANSITIONS: Record<ServiceOrderStatus, ServiceOrderStatus[]> = {

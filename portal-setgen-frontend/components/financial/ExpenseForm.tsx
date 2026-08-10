@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ExpenseType, PaymentMethod, ExpenseCategory } from '@/types/financial';
 import { Loader2, DollarSign, Calendar, Tag, FileText, User, Receipt, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toDateInputValue } from '@/lib/date';
 
 const expenseSchema = z.object({
   description: z.string().min(3, 'Descrição deve ter no mínimo 3 caracteres'),
@@ -65,9 +66,9 @@ export function ExpenseForm({
     resolver: zodResolver(expenseSchema),
     defaultValues: {
       type: initialData?.type || ExpenseType.SERVICE,
-      date: initialData?.date || new Date().toISOString().split('T')[0],
-      dueDate: initialData?.dueDate || new Date().toISOString().split('T')[0],
-      competenceDate: initialData?.competenceDate || new Date().toISOString().split('T')[0],
+      date: initialData?.date || toDateInputValue(new Date()),
+      dueDate: initialData?.dueDate || toDateInputValue(new Date()),
+      competenceDate: initialData?.competenceDate || toDateInputValue(new Date()),
       isFixed: initialData?.isFixed === undefined ? false : initialData.isFixed,
       amount: initialData?.amount || 0,
       description: initialData?.description || '',

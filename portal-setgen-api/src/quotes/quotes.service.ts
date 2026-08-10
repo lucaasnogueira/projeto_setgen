@@ -24,6 +24,11 @@ import {
 // a Ordem de Serviço de execução é criada separadamente — ver
 // ServiceOrdersService.createFromQuote (disparado manual ou automaticamente
 // pela confirmação de OC/OP em PurchaseOrdersService).
+/** Arredonda para 2 casas (o mesmo Decimal(10,2) da coluna) sem sobra binária. */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 const VALID_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
   [QuoteStatus.DRAFT]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   [QuoteStatus.PENDING_APPROVAL]: [
@@ -39,8 +44,14 @@ const VALID_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
     QuoteStatus.ACCEPTED,
     QuoteStatus.CANCELLED,
   ],
+  // O cliente pode responder com a OC/OP assim que recebe o orçamento, sem
+  // passar por AWAITING_RESPONSE — daí ACCEPTED ser alcançável direto daqui
+  // (ver PurchaseOrdersService.create, que registra a OC nesse estado).
   [QuoteStatus.SENT_TO_CLIENT]: [
     QuoteStatus.AWAITING_RESPONSE,
+    QuoteStatus.ACCEPTED,
+    QuoteStatus.REJECTED,
+    QuoteStatus.EXPIRED,
     QuoteStatus.CANCELLED,
   ],
   [QuoteStatus.AWAITING_RESPONSE]: [
@@ -50,7 +61,7 @@ const VALID_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
     QuoteStatus.CANCELLED,
   ],
   // Orçamento vencido sem resposta: só volta ao fluxo revisando o escopo/valor.
-  [QuoteStatus.EXPIRED]: [QuoteStatus.PENDING_APPROVAL],
+  [QuoteStatus.EXPIRED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   [QuoteStatus.REJECTED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
   // ACCEPTED é terminal do lado do orçamento: a partir daqui quem assume o
   // ciclo de vida é a ServiceOrder (execução) vinculada.
@@ -232,6 +243,22 @@ export class QuotesService {
       throw new ForbiddenException('Você não tem permissão para editar este orçamento');
     }
 
+    // Aceite do cliente congela o orçamento: a partir daqui o escopo e as
+    // condições comerciais viraram contrato e foram copiados para a OS de
+    // execução. Editar aqui faria o orçamento divergir da OS em silêncio.
+    if (quote.status === QuoteStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'Orçamento aceito não pode ser editado — o escopo já virou Ordem de Serviço',
+      );
+    }
+
+    if (quote.status === QuoteStatus.CANCELLED) {
+      throw new BadRequestException('Orçamento cancelado não pode ser editado');
+    }
+
+    // Antes do aceite, gerência pode ajustar em qualquer estágio (inclusive
+    // preencher a validade de um orçamento já aprovado, sem a qual ele não
+    // pode ser enviado ao cliente). O autor só mexe enquanto está na mão dele.
     if (
       quote.status !== QuoteStatus.DRAFT &&
       quote.status !== QuoteStatus.PENDING_APPROVAL &&
@@ -271,6 +298,32 @@ export class QuotesService {
     });
   }
 
+  /**
+   * Aprovar é assinar embaixo de um valor. Sem nenhuma linha não há valor
+   * nenhum, e o orçamento seguia o fluxo inteiro até virar OS valendo R$ 0,00.
+   * Uma linha de valor zero continua válida — é assim que se registra cortesia.
+   */
+  private async assertQuoteHasLines(quoteId: string) {
+    const lines = await this.prisma.quoteLine.count({ where: { quoteId } });
+    if (lines === 0) {
+      throw new BadRequestException(
+        'Adicione ao menos uma linha ao orçamento antes de aprová-lo',
+      );
+    }
+  }
+
+  /**
+   * Valida a transição sem escrever nada. Serve para que fluxos compostos
+   * (ex: registro de OC/OP) falhem ANTES de persistir qualquer coisa.
+   */
+  assertTransitionAllowed(from: QuoteStatus, to: QuoteStatus) {
+    if (!VALID_STATUS_TRANSITIONS[from].includes(to)) {
+      throw new BadRequestException(
+        `Transição de status inválida: ${from} -> ${to}`,
+      );
+    }
+  }
+
   async updateStatus(
     id: string,
     dto: UpdateQuoteStatusDto,
@@ -279,12 +332,7 @@ export class QuotesService {
   ) {
     const quote = await this.findOne(id);
 
-    const allowedNextStatuses = VALID_STATUS_TRANSITIONS[quote.status];
-    if (!allowedNextStatuses.includes(dto.status)) {
-      throw new BadRequestException(
-        `Transição de status inválida: ${quote.status} -> ${dto.status}`,
-      );
-    }
+    this.assertTransitionAllowed(quote.status, dto.status);
 
     if (
       (dto.status === QuoteStatus.APPROVED || dto.status === QuoteStatus.ACCEPTED) &&
@@ -308,25 +356,98 @@ export class QuotesService {
       );
     }
 
-    const updated = await this.prisma.quote.update({
-      where: { id },
-      data: { status: dto.status },
+    if (dto.status === QuoteStatus.APPROVED) {
+      await this.assertQuoteHasLines(id);
+    }
+
+    return this.applyStatusTransition(
+      { id, status: quote.status, technicalVisitId: quote.technicalVisitId },
+      dto.status,
+      userId,
+      dto.comments,
+    );
+  }
+
+  /**
+   * Aceite disparado pela confirmação de OC/OP do cliente. Não é uma aprovação
+   * manual do usuário logado — é o registro de um fato comercial —, por isso
+   * não passa pelo gate de ADMIN/MANAGER de updateStatus: quem pode registrar
+   * a OC já foi decidido pelo @Roles do endpoint de Ordens de Compra.
+   *
+   * Aceita um client de transação para participar da mesma transação da OC.
+   */
+  async acceptFromPurchaseOrder(
+    quote: { id: string; status: QuoteStatus; technicalVisitId: string | null },
+    userId: string,
+    comments: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    this.assertTransitionAllowed(quote.status, QuoteStatus.ACCEPTED);
+    return this.applyStatusTransition(
+      quote,
+      QuoteStatus.ACCEPTED,
+      userId,
+      comments,
+      tx,
+    );
+  }
+
+  /**
+   * Transição disparada pelo fluxo de aprovação (ApprovalsService). Igual ao
+   * acceptFromPurchaseOrder: quem pode aprovar/rejeitar já foi decidido pelo
+   * @Roles do endpoint de Aprovações, então não repete o gate de gerente.
+   *
+   * Aceita um client de transação para que o registro da aprovação e a
+   * mudança de status sejam gravados juntos — ou nenhum dos dois.
+   */
+  async applyApprovalDecision(
+    quote: { id: string; status: QuoteStatus; technicalVisitId: string | null },
+    to: typeof QuoteStatus.APPROVED | typeof QuoteStatus.REJECTED,
+    approverId: string,
+    comments: string | undefined,
+    tx?: Prisma.TransactionClient,
+  ) {
+    this.assertTransitionAllowed(quote.status, to);
+
+    if (to === QuoteStatus.APPROVED) {
+      await this.assertQuoteHasLines(quote.id);
+    }
+
+    return this.applyStatusTransition(quote, to, approverId, comments, tx);
+  }
+
+  /**
+   * Aplica a transição já validada: grava o status, audita e dispara os
+   * efeitos colaterais de negócio. Ponto único de escrita de status do Quote.
+   */
+  private async applyStatusTransition(
+    quote: { id: string; status: QuoteStatus; technicalVisitId: string | null },
+    to: QuoteStatus,
+    userId: string,
+    comments?: string,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx ?? this.prisma;
+
+    const updated = await db.quote.update({
+      where: { id: quote.id },
+      data: { status: to },
       include: {
         client: true,
         createdBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
 
-    await this.auditService.record(userId, AuditAction.UPDATE, 'Quote', id, {
+    await this.auditService.record(userId, AuditAction.UPDATE, 'Quote', quote.id, {
       from: quote.status,
-      to: dto.status,
-      comments: dto.comments,
+      to,
+      comments,
     });
 
     // Orçamento reprovado: se veio de uma visita técnica, marca a visita
     // como cobrável — cliente recusou, custo da visita deixa de ser cortesia.
-    if (dto.status === QuoteStatus.REJECTED && quote.technicalVisitId) {
-      await this.prisma.technicalVisit.update({
+    if (to === QuoteStatus.REJECTED && quote.technicalVisitId) {
+      await db.technicalVisit.update({
         where: { id: quote.technicalVisitId },
         data: { chargeable: true },
       });
@@ -361,8 +482,44 @@ export class QuotesService {
     });
   }
 
+  /**
+   * Mesma regra de congelamento de update(): depois do aceite o valor virou
+   * contrato. Sem isso, dava para congelar o escopo mas continuar mexendo no
+   * preço de um orçamento já aceito.
+   */
+  private assertLinesEditable(status: QuoteStatus) {
+    if (status === QuoteStatus.ACCEPTED) {
+      throw new BadRequestException(
+        'Orçamento aceito não pode ter suas linhas alteradas — o valor já foi fechado com o cliente',
+      );
+    }
+    if (status === QuoteStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Orçamento cancelado não pode ter suas linhas alteradas',
+      );
+    }
+  }
+
+  /**
+   * Desconto é valor absoluto, não percentual. Sem teto, um desconto maior que
+   * o subtotal gerava linha com total negativo — o orçamento passava a "dever"
+   * dinheiro ao cliente e o total somava errado.
+   */
+  private computeLineTotal(quantity: number, unitValue: number, discount: number) {
+    const subtotal = round2(quantity * unitValue);
+
+    if (discount > subtotal) {
+      throw new BadRequestException(
+        `Desconto (${discount}) não pode ser maior que o subtotal da linha (${subtotal})`,
+      );
+    }
+
+    return round2(subtotal - discount);
+  }
+
   async addQuoteLine(quoteId: string, dto: CreateQuoteLineDto) {
-    await this.findOne(quoteId);
+    const quote = await this.findOne(quoteId);
+    this.assertLinesEditable(quote.status);
 
     const discount = dto.discount ?? 0;
 
@@ -374,12 +531,15 @@ export class QuotesService {
         quantity: dto.quantity,
         unitValue: dto.unitValue,
         discount,
-        totalValue: dto.quantity * dto.unitValue - discount,
+        totalValue: this.computeLineTotal(dto.quantity, dto.unitValue, discount),
       },
     });
   }
 
   async updateQuoteLine(quoteId: string, lineId: string, dto: UpdateQuoteLineDto) {
+    const quote = await this.findOne(quoteId);
+    this.assertLinesEditable(quote.status);
+
     const line = await this.prisma.quoteLine.findUnique({ where: { id: lineId } });
 
     if (!line || line.quoteId !== quoteId) {
@@ -398,12 +558,15 @@ export class QuotesService {
         quantity,
         unitValue,
         discount,
-        totalValue: quantity * unitValue - discount,
+        totalValue: this.computeLineTotal(quantity, unitValue, discount),
       },
     });
   }
 
   async removeQuoteLine(quoteId: string, lineId: string) {
+    const quote = await this.findOne(quoteId);
+    this.assertLinesEditable(quote.status);
+
     const line = await this.prisma.quoteLine.findUnique({ where: { id: lineId } });
 
     if (!line || line.quoteId !== quoteId) {
@@ -435,16 +598,16 @@ export class QuotesService {
     });
 
     for (const quote of overdue) {
-      await this.prisma.quote.update({
-        where: { id: quote.id },
-        data: { status: QuoteStatus.EXPIRED },
-      });
+      // Passa pela mesma máquina de estados da API: o cron não pode produzir
+      // um status que o fluxo manual consideraria inválido.
+      this.assertTransitionAllowed(quote.status, QuoteStatus.EXPIRED);
 
-      await this.auditService.record(quote.createdById, AuditAction.UPDATE, 'Quote', quote.id, {
-        from: quote.status,
-        to: QuoteStatus.EXPIRED,
-        reason: 'Expiração automática (validUntil vencido)',
-      });
+      await this.applyStatusTransition(
+        quote,
+        QuoteStatus.EXPIRED,
+        quote.createdById,
+        'Expiração automática (validUntil vencido)',
+      );
     }
 
     return overdue.length;

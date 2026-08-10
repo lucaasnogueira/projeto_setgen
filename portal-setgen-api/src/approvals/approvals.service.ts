@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { ApproveDto, RejectDto } from './dto/approve-reject.dto';
-import { ApprovalStatus, QuoteStatus, UserRole } from '@prisma/client';
+import { ApprovalStatus, QuoteStatus } from '@prisma/client';
 
 @Injectable()
 export class ApprovalsService {
@@ -15,7 +15,7 @@ export class ApprovalsService {
     private quotesService: QuotesService,
   ) {}
 
-  async approve(quoteId: string, dto: ApproveDto, approverId: string, approverRole: UserRole) {
+  async approve(quoteId: string, dto: ApproveDto, approverId: string) {
     const quote = await this.prisma.quote.findUnique({ where: { id: quoteId } });
 
     if (!quote) {
@@ -28,33 +28,14 @@ export class ApprovalsService {
       );
     }
 
-    const approval = await this.prisma.approval.create({
-      data: {
-        quote: { connect: { id: quoteId } },
-        approver: { connect: { id: approverId } },
-        status: ApprovalStatus.APPROVED,
-        comments: dto.comments || 'Aprovado',
-      },
-      include: {
-        approver: { select: { id: true, name: true, email: true, role: true } },
-      },
-    });
+    // Valida a transição ANTES de gravar a aprovação: senão um status inválido
+    // deixava a linha de Approval no histórico e o orçamento parado.
+    this.quotesService.assertTransitionAllowed(quote.status, QuoteStatus.APPROVED);
 
-    // Fonte única de verdade pra transição de status + cobrar visita etc.
-    const updatedQuote = await this.quotesService.updateStatus(
-      quoteId,
-      { status: QuoteStatus.APPROVED, comments: dto.comments },
-      approverId,
-      approverRole,
-    );
-
-    return {
-      ...approval,
-      quote: { id: updatedQuote.id, quoteNumber: updatedQuote.quoteNumber, status: updatedQuote.status },
-    };
+    return this.recordDecision(quote, ApprovalStatus.APPROVED, dto.comments || 'Aprovado', approverId);
   }
 
-  async reject(quoteId: string, dto: RejectDto, approverId: string, approverRole: UserRole) {
+  async reject(quoteId: string, dto: RejectDto, approverId: string) {
     const quote = await this.prisma.quote.findUnique({
       where: { id: quoteId },
       include: { createdBy: { select: { id: true, name: true, email: true } } },
@@ -64,43 +45,67 @@ export class ApprovalsService {
       throw new NotFoundException('Orçamento não encontrado');
     }
 
-    if (
-      quote.status === QuoteStatus.ACCEPTED ||
-      quote.status === QuoteStatus.CANCELLED
-    ) {
-      throw new BadRequestException(
-        `Não é possível rejeitar orçamento com status ${quote.status}`,
-      );
-    }
+    // A própria máquina de estados diz de onde dá pra rejeitar — a checagem
+    // solta de ACCEPTED/CANCELLED deixava passar DRAFT, APPROVED e EXPIRED,
+    // que gravavam a aprovação e só então estouravam.
+    this.quotesService.assertTransitionAllowed(quote.status, QuoteStatus.REJECTED);
 
-    const approval = await this.prisma.approval.create({
-      data: {
-        quote: { connect: { id: quoteId } },
-        approver: { connect: { id: approverId } },
-        status: ApprovalStatus.REJECTED,
-        comments: dto.comments,
-      },
-      include: {
-        approver: { select: { id: true, name: true, email: true, role: true } },
-      },
-    });
-
-    const updatedQuote = await this.quotesService.updateStatus(
-      quoteId,
-      { status: QuoteStatus.REJECTED, comments: dto.comments },
+    const result = await this.recordDecision(
+      quote,
+      ApprovalStatus.REJECTED,
+      dto.comments,
       approverId,
-      approverRole,
     );
 
     return {
-      ...approval,
-      quote: {
-        id: updatedQuote.id,
-        quoteNumber: updatedQuote.quoteNumber,
-        status: updatedQuote.status,
-        createdBy: quote.createdBy,
-      },
+      ...result,
+      quote: { ...result.quote, createdBy: quote.createdBy },
     };
+  }
+
+  /**
+   * Grava a aprovação e a transição de status na mesma transação: ou as duas
+   * coisas acontecem, ou nenhuma.
+   */
+  private async recordDecision(
+    quote: { id: string; status: QuoteStatus; technicalVisitId: string | null },
+    decision: ApprovalStatus,
+    comments: string | undefined,
+    approverId: string,
+  ) {
+    const nextStatus =
+      decision === ApprovalStatus.APPROVED ? QuoteStatus.APPROVED : QuoteStatus.REJECTED;
+
+    return this.prisma.$transaction(async (tx) => {
+      const approval = await tx.approval.create({
+        data: {
+          quote: { connect: { id: quote.id } },
+          approver: { connect: { id: approverId } },
+          status: decision,
+          comments,
+        },
+        include: {
+          approver: { select: { id: true, name: true, email: true, role: true } },
+        },
+      });
+
+      const updatedQuote = await this.quotesService.applyApprovalDecision(
+        quote,
+        nextStatus,
+        approverId,
+        comments,
+        tx,
+      );
+
+      return {
+        ...approval,
+        quote: {
+          id: updatedQuote.id,
+          quoteNumber: updatedQuote.quoteNumber,
+          status: updatedQuote.status,
+        },
+      };
+    });
   }
 
   async findAll(filters?: { quoteId?: string; approverId?: string }) {

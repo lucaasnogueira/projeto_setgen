@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { toDateInputValue, startOfBusinessDayISO, endOfBusinessDayISO } from '@/lib/date';
 
 // Espelha OC_ELIGIBLE_QUOTE_STATUSES do backend (purchase-orders.service.ts).
 const OC_ELIGIBLE_STATUSES: QuoteStatus[] = [QuoteStatus.APPROVED, QuoteStatus.SENT_TO_CLIENT, QuoteStatus.AWAITING_RESPONSE];
@@ -27,7 +28,7 @@ export default function NewPurchaseOrderPage() {
     clientId: '',
     orderNumber: '',
     value: '',
-    issueDate: new Date().toISOString().split('T')[0],
+    issueDate: toDateInputValue(new Date()),
     expiryDate: '',
   });
 
@@ -79,8 +80,11 @@ export default function NewPurchaseOrderPage() {
       data.append('clientId', formData.clientId);
       data.append('orderNumber', formData.orderNumber);
       data.append('value', formData.value);
-      data.append('issueDate', formData.issueDate ? new Date(formData.issueDate).toISOString() : '');
-      data.append('expiryDate', formData.expiryDate ? new Date(formData.expiryDate).toISOString() : '');
+      // Emissão no início do dia, validade até o fim do dia — no fuso da
+      // operação. O backend compara expiryDate com "agora" para decidir se a
+      // OC nasce APPROVED ou EXPIRED.
+      data.append('issueDate', startOfBusinessDayISO(formData.issueDate) || '');
+      data.append('expiryDate', endOfBusinessDayISO(formData.expiryDate) || '');
       data.append('file', file);
 
       await purchaseOrdersApi.create(data);

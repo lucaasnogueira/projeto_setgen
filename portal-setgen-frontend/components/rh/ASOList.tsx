@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toDateInputValue } from '@/lib/date';
 import {
   Select,
   SelectContent,
@@ -282,7 +283,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                       setFormData({
                         ...formData,
                         examDate,
-                        expiryDate: expiryDate.toISOString().split('T')[0]
+                        expiryDate: toDateInputValue(expiryDate)
                       });
                     } else {
                       setFormData({ ...formData, examDate });

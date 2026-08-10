@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { QuotesService } from '../quotes/quotes.service';
 import { ServiceOrdersService } from '../service-orders/service-orders.service';
@@ -33,40 +34,22 @@ export class PurchaseOrdersService {
     private serviceOrdersService: ServiceOrdersService,
   ) {}
 
+  /**
+   * O status da OC é função da validade, nunca um campo digitado — é o que
+   * mantém "OC ativa" (usada para barrar uma segunda OC no mesmo orçamento)
+   * consistente com a realidade.
+   */
+  private resolveStatus(expiryDate: Date): PurchaseOrderStatus {
+    return expiryDate < new Date()
+      ? PurchaseOrderStatus.EXPIRED
+      : PurchaseOrderStatus.APPROVED;
+  }
+
   async create(
     createPurchaseOrderDto: CreatePurchaseOrderDto,
     fileUrl: string,
     uploadedById: string,
-    uploadedByRole: UserRole,
   ) {
-    const quote = await this.prisma.quote.findUnique({
-      where: { id: createPurchaseOrderDto.quoteId },
-      include: { purchaseOrders: true },
-    });
-
-    if (!quote) {
-      throw new NotFoundException('Orçamento não encontrado');
-    }
-
-    if (!OC_ELIGIBLE_QUOTE_STATUSES.includes(quote.status)) {
-      throw new BadRequestException(
-        'Apenas orçamentos aprovados (ou já enviados ao cliente) podem receber Ordem de Compra/Pedido',
-      );
-    }
-
-    if (quote.purchaseOrders && quote.purchaseOrders.length > 0) {
-      const activeOC = quote.purchaseOrders.find(
-        (po) => po.status !== PurchaseOrderStatus.EXPIRED,
-      );
-      if (activeOC) {
-        throw new BadRequestException('Este orçamento já possui uma Ordem de Compra ativa');
-      }
-    }
-
-    if (quote.clientId !== createPurchaseOrderDto.clientId) {
-      throw new BadRequestException('Cliente da OC não corresponde ao cliente do orçamento');
-    }
-
     const issueDate = new Date(createPurchaseOrderDto.issueDate);
     const expiryDate = new Date(createPurchaseOrderDto.expiryDate);
 
@@ -74,43 +57,96 @@ export class PurchaseOrdersService {
       throw new BadRequestException('Data de validade deve ser posterior à data de emissão');
     }
 
-    const now = new Date();
-    const status =
-      expiryDate < now ? PurchaseOrderStatus.EXPIRED : PurchaseOrderStatus.APPROVED;
+    const status = this.resolveStatus(expiryDate);
 
-    const purchaseOrderData: Prisma.PurchaseOrderCreateInput = {
-      quote: { connect: { id: createPurchaseOrderDto.quoteId } },
-      client: { connect: { id: createPurchaseOrderDto.clientId } },
-      orderNumber: createPurchaseOrderDto.orderNumber,
-      value: createPurchaseOrderDto.value,
-      issueDate,
-      expiryDate,
-      status,
-      fileUrl,
-      uploadedBy: { connect: { id: uploadedById } },
-    };
+    // Toda a validação acontece dentro da transação, com o orçamento travado
+    // (FOR UPDATE): duas OCs simultâneas para o mesmo orçamento se
+    // serializam em vez de as duas passarem pela checagem de "OC ativa".
+    // Nada é persistido antes de sabermos que o aceite do orçamento é
+    // possível — senão a OC ficava gravada e travava o orçamento pra sempre.
+    const { purchaseOrder, shouldCreateServiceOrder } = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM quotes WHERE id = ${createPurchaseOrderDto.quoteId} FOR UPDATE`;
 
-    const purchaseOrder = await this.prisma.purchaseOrder.create({
-      data: purchaseOrderData,
-      include: {
-        quote: { select: { id: true, quoteNumber: true, type: true, status: true } },
-        client: { select: { id: true, companyName: true, tradeName: true, cnpjCpf: true } },
-        uploadedBy: { select: { id: true, name: true, email: true } },
-      },
-    });
+        const quote = await tx.quote.findUnique({
+          where: { id: createPurchaseOrderDto.quoteId },
+          include: { purchaseOrders: true, serviceOrder: { select: { id: true } } },
+        });
 
-    // OC/OP válida confirma o orçamento: aceita o orçamento e materializa a
-    // Ordem de Serviço de execução (equivale ao antigo "verificar OC/OP" do
-    // fluxograma comercial, logo antes de emitir ART e programar o início).
-    if (status === PurchaseOrderStatus.APPROVED) {
-      if (quote.status !== QuoteStatus.ACCEPTED) {
-        await this.quotesService.updateStatus(
-          createPurchaseOrderDto.quoteId,
-          { status: QuoteStatus.ACCEPTED, comments: 'OC/OP confirmada' },
-          uploadedById,
-          uploadedByRole,
+        if (!quote) {
+          throw new NotFoundException('Orçamento não encontrado');
+        }
+
+        if (!OC_ELIGIBLE_QUOTE_STATUSES.includes(quote.status)) {
+          throw new BadRequestException(
+            'Apenas orçamentos aprovados (ou já enviados ao cliente) podem receber Ordem de Compra/Pedido',
+          );
+        }
+
+        const activeOC = quote.purchaseOrders.find(
+          (po) => po.status !== PurchaseOrderStatus.EXPIRED,
         );
-      }
+        if (activeOC) {
+          throw new BadRequestException('Este orçamento já possui uma Ordem de Compra ativa');
+        }
+
+        if (quote.clientId !== createPurchaseOrderDto.clientId) {
+          throw new BadRequestException('Cliente da OC não corresponde ao cliente do orçamento');
+        }
+
+        // Falha cedo se a OC fosse confirmar um orçamento que não pode ser
+        // aceito a partir do status atual.
+        const willAccept =
+          status === PurchaseOrderStatus.APPROVED &&
+          quote.status !== QuoteStatus.ACCEPTED;
+        if (willAccept) {
+          this.quotesService.assertTransitionAllowed(quote.status, QuoteStatus.ACCEPTED);
+        }
+
+        const purchaseOrderData: Prisma.PurchaseOrderCreateInput = {
+          quote: { connect: { id: createPurchaseOrderDto.quoteId } },
+          client: { connect: { id: createPurchaseOrderDto.clientId } },
+          orderNumber: createPurchaseOrderDto.orderNumber,
+          value: createPurchaseOrderDto.value,
+          issueDate,
+          expiryDate,
+          status,
+          fileUrl,
+          uploadedBy: { connect: { id: uploadedById } },
+        };
+
+        const created = await tx.purchaseOrder.create({
+          data: purchaseOrderData,
+          include: {
+            quote: { select: { id: true, quoteNumber: true, type: true, status: true } },
+            client: { select: { id: true, companyName: true, tradeName: true, cnpjCpf: true } },
+            uploadedBy: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        // OC/OP válida confirma o orçamento (equivale ao "verificar OC/OP" do
+        // fluxograma comercial, logo antes de emitir ART e programar o início).
+        if (willAccept) {
+          await this.quotesService.acceptFromPurchaseOrder(
+            quote,
+            uploadedById,
+            'OC/OP confirmada',
+            tx,
+          );
+        }
+
+        return {
+          purchaseOrder: created,
+          shouldCreateServiceOrder:
+            status === PurchaseOrderStatus.APPROVED && !quote.serviceOrder,
+        };
+      },
+    );
+
+    // A materialização da OS envolve almoxarifado e estoque e vive fora desta
+    // transação. Se falhar, a OC e o aceite continuam válidos e a OS pode ser
+    // gerada depois pelo botão "Gerar OS" — nunca deixa a OC órfã.
+    if (shouldCreateServiceOrder) {
       await this.serviceOrdersService.createFromQuote(
         { quoteId: createPurchaseOrderDto.quoteId },
         uploadedById,
@@ -197,12 +233,29 @@ export class PurchaseOrdersService {
       throw new BadRequestException('Não é possível editar Ordem de Compra vencida');
     }
 
+    // Datas efetivas: o que veio no DTO ou o que já estava gravado.
+    const issueDate = updatePurchaseOrderDto.issueDate
+      ? new Date(updatePurchaseOrderDto.issueDate)
+      : purchaseOrder.issueDate;
+    const expiryDate = updatePurchaseOrderDto.expiryDate
+      ? new Date(updatePurchaseOrderDto.expiryDate)
+      : purchaseOrder.expiryDate;
+
+    // Mesma regra do create — que não era aplicada aqui: dava para editar uma
+    // OC deixando a validade antes da emissão.
+    if (expiryDate <= issueDate) {
+      throw new BadRequestException('Data de validade deve ser posterior à data de emissão');
+    }
+
     const updateData: Prisma.PurchaseOrderUpdateInput = {
       ...(updatePurchaseOrderDto.orderNumber && { orderNumber: updatePurchaseOrderDto.orderNumber }),
       ...(updatePurchaseOrderDto.value !== undefined && { value: updatePurchaseOrderDto.value }),
-      ...(updatePurchaseOrderDto.issueDate && { issueDate: new Date(updatePurchaseOrderDto.issueDate) }),
-      ...(updatePurchaseOrderDto.expiryDate && { expiryDate: new Date(updatePurchaseOrderDto.expiryDate) }),
-      ...(updatePurchaseOrderDto.status && { status: updatePurchaseOrderDto.status }),
+      ...(updatePurchaseOrderDto.issueDate && { issueDate }),
+      ...(updatePurchaseOrderDto.expiryDate && { expiryDate }),
+      // Status é derivado da validade, nunca informado: empurrar a validade
+      // para o passado agora vence a OC de fato, em vez de deixar uma OC
+      // "aprovada" com data vencida.
+      status: this.resolveStatus(expiryDate),
     };
 
     return this.prisma.purchaseOrder.update({
@@ -215,6 +268,10 @@ export class PurchaseOrdersService {
     });
   }
 
+  // Sem isso, só rodava se alguém chamasse POST /purchase-orders/check-expired
+  // na mão — e OC vencida ficava APROVADA para sempre, travando o cadastro de
+  // uma nova OC no mesmo orçamento. Mesma cadência do expireOverdueQuotes.
+  @Cron(CronExpression.EVERY_HOUR)
   async checkExpiredOrders() {
     const now = new Date();
 

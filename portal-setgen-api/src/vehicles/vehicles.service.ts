@@ -78,30 +78,46 @@ export class VehiclesService {
   }
 
   async createTrip(vehicleId: string, dto: CreateTripDto, createdById: string) {
-    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
-    if (!vehicle) {
-      throw new NotFoundException('Veículo não encontrado');
-    }
+    // Veículo travado (FOR UPDATE): a checagem de "já em trânsito" era
+    // read-then-write e não há unique constraint impedindo duas saídas
+    // abertas no mesmo veículo.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM vehicles WHERE id = ${vehicleId} FOR UPDATE`;
 
-    const openTrip = await this.prisma.vehicleTrip.findFirst({
-      where: { vehicleId, status: VehicleTripStatus.OUT },
-    });
-    if (openTrip) {
-      throw new BadRequestException('Este veículo já está em trânsito — finalize a saída atual antes de abrir outra');
-    }
+      const vehicle = await tx.vehicle.findUnique({ where: { id: vehicleId } });
+      if (!vehicle) {
+        throw new NotFoundException('Veículo não encontrado');
+      }
 
-    return this.prisma.vehicleTrip.create({
-      data: {
-        vehicle: { connect: { id: vehicleId } },
-        driver: { connect: { id: dto.driverId } },
-        destination: dto.destination,
-        startKm: dto.startKm,
-        createdBy: { connect: { id: createdById } },
-      },
-      include: {
-        vehicle: { select: { id: true, name: true, plate: true } },
-        driver: { select: { id: true, name: true } },
-      },
+      const openTrip = await tx.vehicleTrip.findFirst({
+        where: { vehicleId, status: VehicleTripStatus.OUT },
+      });
+      if (openTrip) {
+        throw new BadRequestException('Este veículo já está em trânsito — finalize a saída atual antes de abrir outra');
+      }
+
+      // O hodômetro só anda para frente. Sem isso, uma saída aberta com KM
+      // menor que o atual fazia o veículo "voltar no tempo" ao ser finalizada,
+      // e o cálculo de troca de óleo passava a mentir.
+      if (dto.startKm < vehicle.currentKm) {
+        throw new BadRequestException(
+          `KM de saída (${dto.startKm}) não pode ser menor que o KM atual do veículo (${vehicle.currentKm})`,
+        );
+      }
+
+      return tx.vehicleTrip.create({
+        data: {
+          vehicle: { connect: { id: vehicleId } },
+          driver: { connect: { id: dto.driverId } },
+          destination: dto.destination,
+          startKm: dto.startKm,
+          createdBy: { connect: { id: createdById } },
+        },
+        include: {
+          vehicle: { select: { id: true, name: true, plate: true } },
+          driver: { select: { id: true, name: true } },
+        },
+      });
     });
   }
 
@@ -131,10 +147,15 @@ export class VehiclesService {
         },
       });
 
-      await tx.vehicle.update({
-        where: { id: trip.vehicleId },
-        data: { currentKm: dto.endKm },
-      });
+      // Só avança o hodômetro — nunca retrocede. Protege contra saída antiga
+      // finalizada depois de outra mais recente.
+      const vehicle = await tx.vehicle.findUnique({ where: { id: trip.vehicleId } });
+      if (vehicle && dto.endKm > vehicle.currentKm) {
+        await tx.vehicle.update({
+          where: { id: trip.vehicleId },
+          data: { currentKm: dto.endKm },
+        });
+      }
 
       return updatedTrip;
     });

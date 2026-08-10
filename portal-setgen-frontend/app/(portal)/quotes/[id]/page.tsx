@@ -32,7 +32,14 @@ import Link from 'next/link';
 import { QuoteStatusTimeline } from '../components/QuoteStatusTimeline';
 import { QuoteStatusManager } from '../components/QuoteStatusManager';
 import { QuoteLineEditor } from '../components/QuoteLineEditor';
-import { QUOTE_STATUS_CONFIG, quoteStatusBadgeClass } from '@/lib/status-config';
+import { formatDateBR, formatDateTimeBR } from '@/lib/date';
+import {
+  QUOTE_STATUS_CONFIG,
+  quoteStatusBadgeClass,
+  isQuoteEditable,
+  areQuoteLinesEditable,
+  isQuotePubliclyVisible,
+} from '@/lib/status-config';
 
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CASH: 'Dinheiro',
@@ -119,7 +126,8 @@ export default function QuoteDetailsPage() {
   };
 
   const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
-  const canEdit = quote && (quote.status === QuoteStatus.DRAFT || quote.status === QuoteStatus.REJECTED);
+  const canEdit =
+    !!quote && isQuoteEditable(quote.status, user?.role, quote.createdById === user?.id);
 
   if (loading) {
     return (
@@ -143,12 +151,16 @@ export default function QuoteDetailsPage() {
         onBack={() => router.back()}
         actions={
           <>
-            <a href={`${PUBLIC_QUOTE_BASE_URL}/public/quotes/${quote.id}`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="rounded-[9px] font-bold gap-2">
-                <ExternalLink className="h-4 w-4" />
-                Visualizar Orçamento
-              </Button>
-            </a>
+            {/* A página pública só serve orçamento já enviado ao cliente — nos
+                demais status a rota responde 404, então o link nem aparece. */}
+            {isQuotePubliclyVisible(quote.status) && (
+              <a href={`${PUBLIC_QUOTE_BASE_URL}/public/quotes/${quote.id}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" className="rounded-[9px] font-bold gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  Visualizar Orçamento
+                </Button>
+              </a>
+            )}
             {canEdit && (
               <Link href={`/quotes/${quote.id}/edit`}>
                 <Button variant="outline" className="rounded-[9px] font-bold gap-2">
@@ -264,7 +276,7 @@ export default function QuoteDetailsPage() {
           <QuoteLineEditor
             quoteId={quote.id}
             lines={quote.quoteLines || []}
-            editable={quote.status === QuoteStatus.DRAFT || quote.status === QuoteStatus.PENDING_APPROVAL || quote.status === QuoteStatus.REJECTED}
+            editable={areQuoteLinesEditable(quote.status, user?.role, quote.createdById === user?.id)}
             onChange={(lines) => setQuote({ ...quote, quoteLines: lines })}
           />
         </TabsContent>
@@ -279,10 +291,10 @@ export default function QuoteDetailsPage() {
 
               <div className="space-y-4">
                 <InfoRow icon={Clock} label="Validade">
-                  {quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR') : 'Não definida'}
+                  {quote.validUntil ? formatDateBR(quote.validUntil) : 'Não definida'}
                 </InfoRow>
                 <InfoRow icon={User} label="Criado por">{quote.createdBy?.name || 'Sistema'}</InfoRow>
-                <InfoRow icon={Calendar} label="Data de Criação">{new Date(quote.createdAt).toLocaleDateString('pt-BR')}</InfoRow>
+                <InfoRow icon={Calendar} label="Data de Criação">{formatDateBR(quote.createdAt)}</InfoRow>
                 {quote.salesRep && (
                   <InfoRow icon={User} label="Responsável Comercial">{quote.salesRep.name}</InfoRow>
                 )}
@@ -346,7 +358,7 @@ export default function QuoteDetailsPage() {
                     <div>
                       <p className="font-bold text-foreground text-[13px]">OC {po.orderNumber}</p>
                       <p className="text-[11.5px] text-text-muted">
-                        Emitida em {new Date(po.issueDate).toLocaleDateString('pt-BR')} · válida até {new Date(po.expiryDate).toLocaleDateString('pt-BR')}
+                        Emitida em {formatDateBR(po.issueDate)} · válida até {formatDateBR(po.expiryDate)}
                       </p>
                     </div>
                     <span className="font-bold text-primary text-[13px]">
@@ -380,7 +392,7 @@ export default function QuoteDetailsPage() {
                       {entry.user?.name || 'Sistema'}
                       <span>·</span>
                       <Calendar className="h-3 w-3" />
-                      {new Date(entry.createdAt).toLocaleString('pt-BR')}
+                      {formatDateTimeBR(entry.createdAt)}
                     </div>
                   </div>
                 </div>

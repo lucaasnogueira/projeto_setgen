@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { PurchaseOrder } from '@/types';
 import { cn } from '@/lib/utils';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
+import { toDateInputValue, startOfBusinessDayISO, endOfBusinessDayISO } from '@/lib/date';
 
 // Espelha OC_ELIGIBLE_QUOTE_STATUSES do backend (purchase-orders.service.ts).
 const OC_ELIGIBLE_STATUSES: QuoteStatus[] = [QuoteStatus.APPROVED, QuoteStatus.SENT_TO_CLIENT, QuoteStatus.AWAITING_RESPONSE];
@@ -37,8 +38,8 @@ export function PurchaseOrderForm({
     clientId: initialData?.clientId || '',
     orderNumber: initialData?.orderNumber || '',
     value: initialData?.value?.toString() || '',
-    issueDate: initialData?.issueDate ? new Date(initialData.issueDate).toISOString().split('T')[0] : '',
-    expiryDate: initialData?.expiryDate ? new Date(initialData.expiryDate).toISOString().split('T')[0] : '',
+    issueDate: toDateInputValue(initialData?.issueDate),
+    expiryDate: toDateInputValue(initialData?.expiryDate),
   });
 
   useEffect(() => {
@@ -96,8 +97,12 @@ export function PurchaseOrderForm({
       clientId: formData.clientId,
       orderNumber: formData.orderNumber,
       value: parseFloat(formData.value),
-      issueDate: formData.issueDate ? new Date(formData.issueDate).toISOString() : '',
-      expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : '',
+      // Emissão é o início do dia, validade vale até o fim do dia — ambos no
+      // fuso da operação. O backend decide se a OC nasce APPROVED ou EXPIRED
+      // comparando expiryDate com "agora", então um dia a menos aqui reprovava
+      // uma OC ainda válida.
+      issueDate: startOfBusinessDayISO(formData.issueDate) || '',
+      expiryDate: endOfBusinessDayISO(formData.expiryDate) || '',
     };
     onSubmit(payload);
   };

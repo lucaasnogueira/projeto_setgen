@@ -90,11 +90,9 @@ export class ExpensesController {
     @Body('paymentDate') paymentDate: string,
     @Body('paidAmount') paidAmount?: number,
   ) {
-    return this.expensesService.markAsPaid(
-      id,
-      new Date(paymentDate),
-      paidAmount,
-    );
+    // a string crua vai para o serviço, que a interpreta no fuso da operação —
+    // converter aqui com `new Date` jogava a baixa para o dia anterior
+    return this.expensesService.markAsPaid(id, paymentDate, paidAmount);
   }
 
   @Delete(':id')

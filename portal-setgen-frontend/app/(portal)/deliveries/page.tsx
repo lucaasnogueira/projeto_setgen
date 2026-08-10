@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
 import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
+import { formatDateBR } from '@/lib/date';
 import {
   Table,
   TableHeader,
@@ -83,7 +84,7 @@ export default function DeliveriesPage() {
                     {delivery.serviceOrder?.client?.companyName || '—'}
                   </TableCell>
                   <TableCell className="text-[12.5px] text-text-secondary">
-                    {new Date(delivery.deliveryDate).toLocaleDateString('pt-BR')}
+                    {formatDateBR(delivery.deliveryDate)}
                   </TableCell>
                   <TableCell className="text-[12.5px] text-text-secondary max-w-[240px] truncate">
                     {delivery.notes || '—'}
