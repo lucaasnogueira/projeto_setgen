@@ -146,9 +146,38 @@ const TARGETS: Target[] = [
 const fmt = (d: Date) =>
   `${d.toISOString()} (${d.toLocaleDateString('pt-BR', { timeZone: BUSINESS_TIME_ZONE })} em ${BUSINESS_TIME_ZONE})`;
 
+/**
+ * Mostra em qual banco vamos mexer. O Prisma lê o .env automaticamente, então
+ * uma variável de ambiente que não pegou faz o script rodar no banco LOCAL sem
+ * avisar — e um --apply no alvo errado é o pior resultado possível aqui.
+ */
+function describeTarget(): string {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return 'DATABASE_URL não definida (o Prisma vai usar o .env)';
+
+  try {
+    const url = new URL(raw);
+    return `${url.hostname}:${url.port || 5432}${url.pathname}`;
+  } catch {
+    return 'DATABASE_URL em formato não reconhecido';
+  }
+}
+
 async function main() {
   console.log(APPLY ? '=== APLICANDO ===' : '=== DRY-RUN (nada será gravado) ===');
+  console.log('Banco alvo      :', describeTarget());
+
+  // Confirma no próprio servidor, não só na string de conexão.
+  const [{ db, host }] = await prisma.$queryRaw<
+    { db: string; host: string | null }[]
+  >`SELECT current_database() AS db, inet_server_addr()::text AS host`;
+  console.log('Confirmado pelo servidor:', `${host ?? 'local'} / ${db}`);
   console.log('Fuso da operação:', BUSINESS_TIME_ZONE, '\n');
+
+  if (APPLY) {
+    console.log('Você tem 5s para cancelar (Ctrl+C) se o banco acima não for o esperado.\n');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 
   let grandTotal = 0;
 
