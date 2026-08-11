@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -82,5 +84,9 @@ import { ScheduleModule } from '@nestjs/schedule';
       limit: 10,
     }]),
   ],
+  // AppController/AppService existiam desde o scaffold mas nunca foram
+  // registrados aqui — a raiz respondia 404 e o teste e2e original falhava.
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
