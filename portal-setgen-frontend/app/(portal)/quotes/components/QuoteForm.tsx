@@ -92,7 +92,7 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
 
   useEffect(() => {
     clientsApi.getAll().then(setClients).catch(() => setClients([]));
-    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
+    usersApi.getSelectable().then(setUsers).catch(() => setUsers([]));
   }, []);
 
   useEffect(() => {

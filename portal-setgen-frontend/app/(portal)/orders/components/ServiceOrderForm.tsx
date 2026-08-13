@@ -93,7 +93,7 @@ export function ServiceOrderForm({
 
   useEffect(() => {
     loadProducts();
-    usersApi.getAll().then(setUsers).catch(() => setUsers([]));
+    usersApi.getSelectable().then(setUsers).catch(() => setUsers([]));
     if (!initialData) {
       checklistTemplatesApi.getAll(undefined, true).then(setTemplates).catch(() => setTemplates([]));
     }

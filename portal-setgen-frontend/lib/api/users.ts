@@ -24,6 +24,21 @@ export interface CurrentUser extends Omit<User, 'permissions'> {
 }
 
 export const usersApi = {
+  /**
+   * Lista enxuta (id/nome/perfil) dos usuarios ativos, para dropdown.
+   * getAll() exige ADMIN/MANAGER — quem e ADMINISTRATIVE tomava 403 e ficava
+   * com a combo vazia sem entender por que.
+   */
+  async getSelectable(): Promise<User[]> {
+    try {
+      const { data } = await api.get('/users/selectable');
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar usuarios para selecao:', error);
+      return [];
+    }
+  },
+
   async getAll(): Promise<User[]> {
     try {
       const { data } = await api.get('/users');

@@ -81,6 +81,22 @@ export class UsersService {
     });
   }
 
+  /**
+   * Lista enxuta para preencher dropdown de "responsável"/"técnico".
+   *
+   * Existe separada de findAll() porque aquela exige ADMIN/MANAGER e devolve
+   * e-mail, cargo e permissões — dado demais para quem só precisa escolher um
+   * nome numa combo. Sem isso, quem é ADMINISTRATIVE tomava 403 ao abrir o
+   * formulário de cliente, visita ou OS.
+   */
+  async findSelectable() {
+    return this.prisma.user.findMany({
+      where: { active: true },
+      select: { id: true, name: true, role: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },

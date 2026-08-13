@@ -128,7 +128,7 @@ export function VisitForm({
 
   const loadTechnicians = async () => {
     try {
-      const allUsers = await usersApi.getAll();
+      const allUsers = await usersApi.getSelectable();
       const techs = allUsers.filter(u => u.role === UserRole.TECHNICIAN || u.role === UserRole.ADMIN || u.role === UserRole.MANAGER);
       setTechnicians(techs);
     } catch (error) {
