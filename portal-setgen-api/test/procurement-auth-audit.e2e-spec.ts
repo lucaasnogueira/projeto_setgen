@@ -193,6 +193,54 @@ describe('Compras/Estoque e Auth (e2e)', () => {
         .expect(401);
     });
 
+    it('lista de seleção de usuários é acessível a qualquer autenticado', async () => {
+      const adm = await prisma.user.create({
+        data: {
+          name: 'Administrativo',
+          email: 'adm.selectable@test.local',
+          password: 'x',
+          role: UserRole.ADMINISTRATIVE,
+        },
+      });
+      const admToken = jwt.sign({ sub: adm.id, email: adm.email, role: adm.role });
+
+      // /users exige ADMIN|MANAGER — era isso que deixava o dropdown vazio
+      await request(app.getHttpServer()).get('/users').set(auth(admToken)).expect(403);
+
+      const res = await request(app.getHttpServer())
+        .get('/users/selectable')
+        .set(auth(admToken))
+        .expect(200);
+
+      expect(res.body.length).toBeGreaterThan(0);
+      // só id/nome/perfil — nada de e-mail, senha, cargo ou permissões
+      expect(Object.keys(res.body[0]).sort()).toEqual(['id', 'name', 'role']);
+      expect(res.body.every((u: any) => u.id && u.name)).toBe(true);
+    });
+
+    it('lista de seleção não devolve usuários inativos', async () => {
+      const off = await prisma.user.create({
+        data: {
+          name: 'Desligado',
+          email: 'off.selectable@test.local',
+          password: 'x',
+          role: UserRole.TECHNICIAN,
+          active: false,
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/users/selectable')
+        .set(auth())
+        .expect(200);
+
+      expect(res.body.some((u: any) => u.id === off.id)).toBe(false);
+    });
+
+    it('lista de seleção exige autenticação', async () => {
+      await request(app.getHttpServer()).get('/users/selectable').expect(401);
+    });
+
     it('perfil próprio não permite escalar privilégio', async () => {
       const tech = await prisma.user.create({
         data: {

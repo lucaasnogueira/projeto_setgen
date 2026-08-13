@@ -94,7 +94,7 @@ export function ClientForm({
   const [segments, setSegments] = useState<ClientTaxonomy[]>([]);
 
   useEffect(() => {
-    usersApi.getAll().then(setUsers);
+    usersApi.getSelectable().then(setUsers).catch(() => setUsers([]));
     teamsApi.getAll(true).then(setTeams).catch(() => setTeams([]));
     clientTaxonomiesApi.getAll(ClientTaxonomyKind.GROUP, true).then(setGroups).catch(() => setGroups([]));
     clientTaxonomiesApi.getAll(ClientTaxonomyKind.SEGMENT, true).then(setSegments).catch(() => setSegments([]));

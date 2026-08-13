@@ -85,7 +85,7 @@ export function VisitsAgendaView() {
   const [optimizing, setOptimizing] = useState(false);
 
   useEffect(() => {
-    usersApi.getAll().then((all) => setTechnicians(all.filter((u) => u.role === "TECHNICIAN")));
+    usersApi.getSelectable().then((all) => setTechnicians(all.filter((u) => u.role === "TECHNICIAN"))).catch(() => setTechnicians([]));
     teamsApi.getAll(true).then(setTeams).catch(() => setTeams([]));
   }, []);
 

@@ -42,6 +42,18 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  // Sem @Roles de propósito: qualquer usuário autenticado precisa preencher
+  // dropdown de responsável/técnico. Devolve só id/nome/perfil dos ativos —
+  // nada de e-mail, cargo ou permissões. Tem que vir antes de @Get(':id'),
+  // senão a rota de parâmetro captura "selectable".
+  @Get('selectable')
+  @ApiOperation({
+    summary: 'Lista enxuta de usuários ativos para seleção em formulários',
+  })
+  findSelectable() {
+    return this.usersService.findSelectable();
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'Buscar dados do usuário logado' })
   findMe(@Request() req) {
