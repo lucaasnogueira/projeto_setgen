@@ -13,6 +13,20 @@ import { Prisma, Client, ClientStatus } from '@prisma/client';
 export class ClientsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Campo opcional em branco tem que virar NULL, não string vazia.
+   *
+   * `externalCode` é `String? @unique`. O Postgres aceita vários NULL numa
+   * coluna unique, mas só UMA string vazia — então o primeiro cliente salvo
+   * sem código externo gravava '' e todos os seguintes batiam em P2002
+   * (unique constraint), que virava 500 na tela. O formulário manda '' quando
+   * o campo fica em branco.
+   */
+  private nullIfBlank(value?: string | null): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
   async create(createClientDto: CreateClientDto): Promise<Client> {
     const existing = await this.prisma.client.findUnique({
       where: { cnpjCpf: createClientDto.cnpjCpf },
@@ -22,9 +36,11 @@ export class ClientsService {
       throw new ConflictException('CNPJ/CPF já cadastrado');
     }
 
-    if (createClientDto.externalCode) {
+    const externalCode = this.nullIfBlank(createClientDto.externalCode);
+
+    if (externalCode) {
       const existingCode = await this.prisma.client.findUnique({
-        where: { externalCode: createClientDto.externalCode },
+        where: { externalCode },
       });
 
       if (existingCode) {
@@ -42,7 +58,7 @@ export class ClientsService {
       contacts: createClientDto.contacts ?? [],
       status: createClientDto.status,
       notes: createClientDto.notes,
-      externalCode: createClientDto.externalCode,
+      externalCode,
       onSiteContact: createClientDto.onSiteContact,
       corporatePhones: createClientDto.corporatePhones ?? [],
       corporateEmails: createClientDto.corporateEmails ?? [],
@@ -110,6 +126,19 @@ export class ClientsService {
   async update(id: string, updateClientDto: UpdateClientDto): Promise<Client> {
     await this.findOne(id);
 
+    // O create já checava duplicidade de código externo; o update não checava
+    // nada e devolvia 500 (P2002) em vez de um conflito explicado.
+    const externalCode = this.nullIfBlank(updateClientDto.externalCode);
+    if (externalCode) {
+      const existingCode = await this.prisma.client.findUnique({
+        where: { externalCode },
+      });
+
+      if (existingCode && existingCode.id !== id) {
+        throw new ConflictException('Código externo já cadastrado');
+      }
+    }
+
     const updateData: Prisma.ClientUpdateInput = {
       ...(updateClientDto.cnpjCpf && { cnpjCpf: updateClientDto.cnpjCpf }),
       ...(updateClientDto.companyName && {
@@ -133,7 +162,7 @@ export class ClientsService {
         notes: updateClientDto.notes,
       }),
       ...(updateClientDto.externalCode !== undefined && {
-        externalCode: updateClientDto.externalCode,
+        externalCode: this.nullIfBlank(updateClientDto.externalCode),
       }),
       ...(updateClientDto.onSiteContact !== undefined && {
         onSiteContact: updateClientDto.onSiteContact,
