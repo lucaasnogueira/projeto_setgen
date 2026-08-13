@@ -293,6 +293,69 @@ describe('Frota, Visitas e Clientes (e2e)', () => {
       ).not.toBeNull();
     });
 
+    it('dois clientes sem código externo podem coexistir (campo em branco vira NULL)', async () => {
+      const service = app.get(ClientsService);
+
+      const base = {
+        companyName: 'Sem Codigo',
+        address: {},
+        phone: '11999999999',
+        email: 'sem@test.local',
+        externalCode: '', // é isso que o formulário manda com o campo em branco
+      };
+
+      const a = await service.create({ ...base, cnpjCpf: '11111111000191' } as any);
+      // antes: o 2º cliente batia em P2002 (unique em externalCode) -> 500
+      const b = await service.create({ ...base, cnpjCpf: '22222222000191' } as any);
+
+      expect(a.externalCode).toBeNull();
+      expect(b.externalCode).toBeNull();
+    });
+
+    it('código externo duplicado devolve conflito explicado, não 500', async () => {
+      const service = app.get(ClientsService);
+
+      await service.create({
+        cnpjCpf: '33333333000191',
+        companyName: 'Com Codigo',
+        address: {},
+        phone: '1',
+        email: 'c1@test.local',
+        externalCode: 'EXT-001',
+      } as any);
+
+      await expect(
+        service.create({
+          cnpjCpf: '44444444000191',
+          companyName: 'Outro',
+          address: {},
+          phone: '1',
+          email: 'c2@test.local',
+          externalCode: 'EXT-001',
+        } as any),
+      ).rejects.toThrow(/Código externo já cadastrado/);
+    });
+
+    it('editar cliente para um código externo já usado também é bloqueado', async () => {
+      const service = app.get(ClientsService);
+
+      const alvo = await service.create({
+        cnpjCpf: '55555555000191',
+        companyName: 'Alvo',
+        address: {},
+        phone: '1',
+        email: 'c3@test.local',
+        externalCode: 'EXT-002',
+      } as any);
+
+      await expect(
+        service.update(alvo.id, { externalCode: 'EXT-001' } as any),
+      ).rejects.toThrow(/Código externo já cadastrado/);
+
+      // manter o próprio código não é conflito
+      await service.update(alvo.id, { externalCode: 'EXT-002' } as any);
+    });
+
     it('cliente sem vínculo nenhum ainda pode ser excluído', async () => {
       const free = await prisma.client.create({
         data: {
