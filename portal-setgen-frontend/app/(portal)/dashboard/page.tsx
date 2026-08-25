@@ -16,12 +16,14 @@ import {
   Percent,
   Truck,
   RotateCcw,
+  Building2,
 } from 'lucide-react';
 import { RevenueChart } from '@/components/dashboard/RevenueChart';
 import { OSStatusChart } from '@/components/dashboard/OSStatusChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { canSeeDashboard } from '@/lib/dashboard-access';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -30,9 +32,19 @@ export default function DashboardPage() {
   const [kpis, setKpis] = useState<OperationalKpis | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // /dashboard é o destino do login para todo mundo, inclusive para quem não
+  // enxerga nenhuma das áreas que os KPIs resumem (um cargo de RH, por
+  // exemplo). Esses caem na tela de boas-vindas em vez de um painel vazio
+  // montado a partir de requisições que a API vai recusar.
+  const showKpis = canSeeDashboard(user?.role, user?.permissions);
+
   useEffect(() => {
+    if (!showKpis) {
+      setLoading(false);
+      return;
+    }
     loadStats();
-  }, []);
+  }, [showKpis]);
 
   const loadStats = async () => {
     setLoading(true);
@@ -56,6 +68,30 @@ export default function DashboardPage() {
     month: 'long',
     day: 'numeric',
   });
+
+  if (!showKpis) {
+    const firstName = user?.name?.split(' ')[0];
+
+    return (
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <Card className="max-w-lg w-full p-10 text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+            <Building2 className="h-7 w-7 text-primary" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-bold text-foreground">
+              Bem-vindo(a) ao Portal Setgen
+            </h1>
+            <p className="text-[13.5px] text-text-muted">
+              {firstName ? `Olá, ${firstName}. ` : ''}
+              Use o menu ao lado para acessar suas áreas.
+            </p>
+          </div>
+          <p className="text-xs text-text-muted capitalize pt-2 border-t">{dateStr}</p>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
