@@ -42,7 +42,10 @@ const navigation: {
   permissions?: string[];
   section?: string;
 }[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'] },
+  // O dashboard agrega KPIs comerciais, financeiros e de execução. Não existe
+  // permissão própria dele, então exige ver ao menos uma das áreas que ele
+  // resume — quem só tem RH, por exemplo, não teria nada para olhar ali.
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'], permissions: ['orders:view', 'expenses:view', 'clients:view', 'visits:view', 'inventory:view', 'fleet:view'] },
 
   { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'], section: 'COMERCIAL' },
   { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE'], permissions: ['equipment:view'] },
