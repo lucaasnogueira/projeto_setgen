@@ -12,6 +12,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { ProcurementOrdersService } from '../src/procurement-orders/procurement-orders.service';
 import { UserRole, ProcurementOrderStatus } from '@prisma/client';
+import { expandImpliedPermissions } from '../src/access-control/expand-permissions.util';
 
 jest.setTimeout(120000);
 
@@ -239,6 +240,66 @@ describe('Compras/Estoque e Auth (e2e)', () => {
 
     it('lista de seleção exige autenticação', async () => {
       await request(app.getHttpServer()).get('/users/selectable').expect(401);
+    });
+
+    it('permissões implícitas: quem cria/edita/gerencia também vê', () => {
+      expect(
+        expandImpliedPermissions(['expenses:create', 'expenses:approve']).sort(),
+      ).toEqual(['expenses:approve', 'expenses:create', 'expenses:view']);
+
+      // era exatamente o caso da Luane: fleet:manage sem fleet:view
+      expect(expandImpliedPermissions(['fleet:manage'])).toContain('fleet:view');
+      expect(expandImpliedPermissions(['inventory:manage'])).toContain(
+        'inventory:view',
+      );
+
+      // não inventa permissão de recurso que o usuário não tem
+      expect(expandImpliedPermissions(['expenses:create'])).not.toContain(
+        'clients:view',
+      );
+      // ações fora da lista não implicam leitura
+      expect(expandImpliedPermissions(['fleet:fuel-request'])).toEqual([
+        'fleet:fuel-request',
+      ]);
+    });
+
+    it('/users/me devolve as permissões implícitas junto', async () => {
+      const perm = await prisma.permission.findFirst({
+        where: { name: 'expenses:create' },
+      });
+      if (!perm) return; // seed sem essa permissão — nada a verificar
+
+      const u = await prisma.user.create({
+        data: {
+          name: 'So Cria Despesa',
+          email: 'socria@test.local',
+          password: 'x',
+          role: UserRole.ADMINISTRATIVE,
+          permissions: { create: [{ permissionId: perm.id }] },
+        },
+      });
+      const token = jwt.sign({ sub: u.id, email: u.email, role: u.role });
+
+      const res = await request(app.getHttpServer())
+        .get('/users/me')
+        .set(auth(token))
+        .expect(200);
+
+      expect(res.body.permissions).toContain('expenses:create');
+      expect(res.body.permissions).toContain('expenses:view');
+    });
+
+    it('/users/me devolve todas as permissões para ADMIN', async () => {
+      const total = await prisma.permission.count();
+
+      const res = await request(app.getHttpServer())
+        .get('/users/me')
+        .set(auth())
+        .expect(200);
+
+      // o admin semeado não tem permissao gravada nenhuma; sem este caminho
+      // ele ficaria sem menu algum na sidebar
+      expect(res.body.permissions.length).toBe(total);
     });
 
     it('perfil próprio não permite escalar privilégio', async () => {

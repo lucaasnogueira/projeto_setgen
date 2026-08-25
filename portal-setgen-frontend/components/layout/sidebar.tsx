@@ -127,12 +127,17 @@ export default function Sidebar() {
     router.push('/auth/login');
   };
 
+  // Quando o item declara permissões, SÃO ELAS que mandam — o enum legado só
+  // decide nos itens que não declaram nenhuma.
+  //
+  // Antes isto era um OU com o enum na frente, e como todo cargo sem
+  // correspondência óbvia (RH, Financeiro, Compras...) vira ADMINISTRATIVE,
+  // um usuário de RH via o sistema inteiro no menu.
   const filteredNavigation = navigation.filter((item) => {
-    if (user?.role && item.roles.includes(user.role)) return true;
-    if (item.permissions?.length && user?.permissions?.length) {
-      return item.permissions.some((p) => user.permissions!.includes(p));
+    if (item.permissions?.length) {
+      return item.permissions.some((p) => user?.permissions?.includes(p));
     }
-    return false;
+    return !!user?.role && item.roles.includes(user.role);
   });
 
   const navGroups = groupNavigation(filteredNavigation);

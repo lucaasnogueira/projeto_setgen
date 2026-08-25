@@ -10,6 +10,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserRole } from '@prisma/client';
+import { expandImpliedPermissions } from '../access-control/expand-permissions.util';
 import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -276,12 +277,23 @@ export class UsersService {
     }
 
     const { roleRef, permissions, ...rest } = user;
-    const effectivePermissions = Array.from(
-      new Set([
-        ...(roleRef?.permissions.map((p) => p.permission.name) || []),
-        ...permissions.map((p) => p.permission.name),
-      ]),
-    );
+
+    // ADMIN ignora o PermissionsGuard por completo; devolver a lista inteira
+    // mantém o menu coerente com isso. Sem esta linha o admin semeado — que
+    // não tem nenhuma permissão gravada — ficaria sem menu algum.
+    if (user.role === UserRole.ADMIN) {
+      const all = await this.prisma.permission.findMany({
+        select: { name: true },
+      });
+      return { ...rest, permissions: all.map((p) => p.name) };
+    }
+
+    // Inclui as implícitas (quem edita, vê) — é a mesma expansão que o
+    // PermissionsGuard aplica, para o menu não divergir do que a API libera.
+    const effectivePermissions = expandImpliedPermissions([
+      ...(roleRef?.permissions.map((p) => p.permission.name) || []),
+      ...permissions.map((p) => p.permission.name),
+    ]);
 
     return { ...rest, permissions: effectivePermissions };
   }
