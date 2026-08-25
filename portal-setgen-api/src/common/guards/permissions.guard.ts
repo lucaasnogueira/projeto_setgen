@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
+import { expandImpliedPermissions } from '../../access-control/expand-permissions.util';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -52,20 +53,18 @@ export class PermissionsGuard implements CanActivate {
       return false;
     }
 
-    // Consolidar todas as permissões do usuário
-    const userPermissions = new Set<string>();
+    // Consolidar todas as permissões do usuário (individuais + do cargo) e
+    // derivar as implícitas: quem cria/edita/exclui/aprova/gerencia também vê.
+    // Sem isso, um cargo com `expenses:create` e sem `expenses:view` tomava 403
+    // ao abrir a listagem que ele mesmo alimenta.
+    const granted = [
+      ...userWithPermissions.permissions.map((up) => up.permission.name),
+      ...(userWithPermissions.roleRef?.permissions.map(
+        (rp) => rp.permission.name,
+      ) || []),
+    ];
 
-    // Adicionar permissões individuais
-    userWithPermissions.permissions.forEach((up) => {
-      userPermissions.add(up.permission.name);
-    });
-
-    // Adicionar permissões do cargo
-    if (userWithPermissions.roleRef) {
-      userWithPermissions.roleRef.permissions.forEach((rp) => {
-        userPermissions.add(rp.permission.name);
-      });
-    }
+    const userPermissions = new Set(expandImpliedPermissions(granted));
 
     // Verificar se o usuário possui todas as permissões requeridas (AND logic)
     // Ou se possui QUALQUER uma das permissões (OR logic - mais comum para acesso básico)
