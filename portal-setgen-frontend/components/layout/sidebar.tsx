@@ -51,7 +51,7 @@ const navigation: {
   { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view', 'orders:create'], section: 'OPERAÇÕES' },
   { name: 'Ordem de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
   { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'], permissions: ['orders:approve', 'expenses:approve'] },
-  { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'] },
+  { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
 
   { name: 'Estoque', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['inventory:view'], section: 'ESTOQUE' },
   { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['material-requests:view'] },
@@ -60,7 +60,7 @@ const navigation: {
   { name: 'Frota', href: '/fleet', icon: Car, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['fleet:view'] },
 
   { name: 'Despesas', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['expenses:view'], section: 'FINANCEIRO' },
-  { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'] },
+  { name: 'Faturamento', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
 
   { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['rh:view'], section: 'RH' },
 
@@ -127,6 +127,12 @@ export default function Sidebar() {
     router.push('/auth/login');
   };
 
+  // ADMIN vê tudo, igual ao PermissionsGuard do backend, que também ignora
+  // permissões para esse perfil. Decidir aqui e não depender da lista que a
+  // API devolve evita o menu sumir se o /users/me responder antes do deploy
+  // novo, ou se o cache local estiver velho.
+  const isAdmin = user?.role === UserRole.ADMIN;
+
   // Quando o item declara permissões, SÃO ELAS que mandam — o enum legado só
   // decide nos itens que não declaram nenhuma.
   //
@@ -134,6 +140,7 @@ export default function Sidebar() {
   // correspondência óbvia (RH, Financeiro, Compras...) vira ADMINISTRATIVE,
   // um usuário de RH via o sistema inteiro no menu.
   const filteredNavigation = navigation.filter((item) => {
+    if (isAdmin) return true;
     if (item.permissions?.length) {
       return item.permissions.some((p) => user?.permissions?.includes(p));
     }
