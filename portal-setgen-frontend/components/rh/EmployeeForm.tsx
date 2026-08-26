@@ -645,6 +645,8 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
                           <SelectContent>
+                            <SelectItem value={HierarchicalLevel.AUXILIAR}>Auxiliar</SelectItem>
+                            <SelectItem value={HierarchicalLevel.ASSISTENTE}>Assistente</SelectItem>
                             <SelectItem value={HierarchicalLevel.TRAINEE}>Estagiário/Trainee</SelectItem>
                             <SelectItem value={HierarchicalLevel.JUNIOR}>Júnior</SelectItem>
                             <SelectItem value={HierarchicalLevel.MID}>Pleno</SelectItem>

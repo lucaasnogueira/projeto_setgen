@@ -171,6 +171,8 @@ export enum AccountType {
 }
 
 export enum HierarchicalLevel {
+  AUXILIAR = 'AUXILIAR',
+  ASSISTENTE = 'ASSISTENTE',
   TRAINEE = 'TRAINEE',
   JUNIOR = 'JUNIOR',
   MID = 'MID',
