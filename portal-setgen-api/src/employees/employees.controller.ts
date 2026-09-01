@@ -15,7 +15,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { mkdirSync } from 'fs';
+import { extname, join } from 'path';
 import { EmployeesService } from './employees.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
@@ -27,6 +28,43 @@ import { RequiredPermissions } from '../common/decorators/permissions.decorator'
 import { PERMISSIONS } from '../access-control/permissions.constants';
 import { EmployeeStatus } from '@prisma/client';
 import { PaginationQueryDto } from '../common/dto/pagination.dto';
+
+const EMPLOYEE_UPLOAD_MAX_SIZE = 10 * 1024 * 1024;
+
+function employeeUploadStorage(folder: 'asos' | 'documents', prefix: string) {
+  return diskStorage({
+    destination: (_req, _file, callback) => {
+      const destination = join(process.cwd(), 'uploads', 'employees', folder);
+      mkdirSync(destination, { recursive: true });
+      callback(null, destination);
+    },
+    filename: (_req, file, callback) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      callback(null, `${prefix}-${uniqueSuffix}${extname(file.originalname).toLowerCase()}`);
+    },
+  });
+}
+
+function employeeDocumentFileFilter(
+  _req: Express.Request,
+  file: Express.Multer.File,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) {
+  const extension = extname(file.originalname).toLowerCase();
+  const allowedExtensions = new Set(['.pdf', '.jpg', '.jpeg', '.png']);
+  const allowedMimeTypes = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+  ]);
+
+  if (!allowedExtensions.has(extension) || !allowedMimeTypes.has(file.mimetype)) {
+    callback(new BadRequestException('Envie um arquivo PDF, JPG, JPEG ou PNG.'), false);
+    return;
+  }
+
+  callback(null, true);
+}
 
 @ApiTags('Employees')
 @Controller('employees')
@@ -95,20 +133,9 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Adicionar ASO ao funcionário (com upload)' })
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/employees/asos',
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `aso-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(pdf|jpg|jpeg|png)$/)) {
-          return callback(new BadRequestException('Apenas arquivos PDF ou imagens são permitidos'), false);
-        }
-        callback(null, true);
-      },
+      storage: employeeUploadStorage('asos', 'aso'),
+      fileFilter: employeeDocumentFileFilter,
+      limits: { fileSize: EMPLOYEE_UPLOAD_MAX_SIZE },
     }),
   )
   @ApiConsumes('multipart/form-data')
@@ -117,7 +144,14 @@ export class EmployeesController {
     @Body() createASODto: CreateASODto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.employeesService.createASO(createASODto, file?.path);
+    if (!file) {
+      throw new BadRequestException('O documento do ASO é obrigatório.');
+    }
+
+    return this.employeesService.createASO(
+      { ...createASODto, employeeId: id },
+      file.path,
+    );
   }
 
   @Get(':id/asos')
@@ -146,14 +180,9 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Adicionar documento ao funcionário (com upload)' })
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/employees/documents',
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `doc-${uniqueSuffix}${ext}`);
-        },
-      }),
+      storage: employeeUploadStorage('documents', 'doc'),
+      fileFilter: employeeDocumentFileFilter,
+      limits: { fileSize: EMPLOYEE_UPLOAD_MAX_SIZE },
     }),
   )
   @ApiConsumes('multipart/form-data')
@@ -165,7 +194,10 @@ export class EmployeesController {
     if (!file) {
       throw new BadRequestException('Arquivo do documento é obrigatório');
     }
-    return this.employeesService.createDocument(createDocumentDto, file.path);
+    return this.employeesService.createDocument(
+      { ...createDocumentDto, employeeId: id },
+      file.path,
+    );
   }
 
   @Get(':id/documents')

@@ -37,6 +37,13 @@ import {
   SelectSeparator
 } from "@/components/ui/select";
 
+const MAX_EMPLOYEE_DOCUMENT_SIZE = 10 * 1024 * 1024;
+const ACCEPTED_EMPLOYEE_DOCUMENT_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+]);
+
 interface DocumentListProps {
   employeeId: string;
   initialDocuments: EmployeeDocument[];
@@ -82,6 +89,17 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
   const handleAddDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) return;
+
+    if (!ACCEPTED_EMPLOYEE_DOCUMENT_TYPES.has(selectedFile.type)) {
+      alert('Envie um arquivo PDF, JPG, JPEG ou PNG.');
+      return;
+    }
+
+    if (selectedFile.size > MAX_EMPLOYEE_DOCUMENT_SIZE) {
+      alert('O documento deve ter no máximo 10 MB.');
+      return;
+    }
+
     setLoading(true);
 
     const data = new FormData();
@@ -103,7 +121,9 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
       setFormData({ name: '', type: '' });
       setSelectedFile(null);
     } catch (error) {
-      alert('Erro ao adicionar documento');
+      const message =
+        error instanceof Error ? error.message : 'Erro ao adicionar documento';
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -271,7 +291,9 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
                 type="file" 
                 required
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                accept=".pdf,image/jpeg,image/png"
               />
+              <p className="text-xs text-muted-foreground">PDF, JPG ou PNG com até 10 MB.</p>
             </div>
 
             <DialogFooter className="pt-4">

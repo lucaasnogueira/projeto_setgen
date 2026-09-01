@@ -45,6 +45,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+const MAX_EMPLOYEE_DOCUMENT_SIZE = 10 * 1024 * 1024;
+const ACCEPTED_EMPLOYEE_DOCUMENT_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+]);
+
 interface ASOListProps {
   employeeId: string;
   initialAsos: ASO[];
@@ -95,6 +102,22 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
 
   const handleAddAso = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!selectedFile) {
+      alert('Selecione o documento do ASO.');
+      return;
+    }
+
+    if (!ACCEPTED_EMPLOYEE_DOCUMENT_TYPES.has(selectedFile.type)) {
+      alert('Envie um arquivo PDF, JPG, JPEG ou PNG.');
+      return;
+    }
+
+    if (selectedFile.size > MAX_EMPLOYEE_DOCUMENT_SIZE) {
+      alert('O arquivo do ASO deve ter no máximo 10 MB.');
+      return;
+    }
+
     setLoading(true);
 
     const data = new FormData();
@@ -103,7 +126,7 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
     data.append('employeeId', employeeId);
     if (formData.expiryDate) data.append('expiryDate', formData.expiryDate);
     if (formData.result) data.append('result', formData.result);
-    if (selectedFile) data.append('file', selectedFile);
+    data.append('file', selectedFile);
 
     try {
       await employeeApi.addAso(employeeId, data);
@@ -115,7 +138,9 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
       setFormData({ type: ASOType.PERIODIC, examDate: '', expiryDate: '', result: 'APTO' });
       setSelectedFile(null);
     } catch (error) {
-      alert('Erro ao adicionar ASO');
+      const message =
+        error instanceof Error ? error.message : 'Erro ao adicionar ASO';
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -325,11 +350,12 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
                 onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                 accept=".pdf,image/*"
               />
+              <p className="text-xs text-muted-foreground">PDF, JPG ou PNG com até 10 MB.</p>
             </div>
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-gray-700" disabled={loading || !formData.examDate}>
+              <Button type="submit" className="bg-gray-700" disabled={loading || !formData.examDate || !selectedFile}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar ASO'}
               </Button>
             </DialogFooter>
