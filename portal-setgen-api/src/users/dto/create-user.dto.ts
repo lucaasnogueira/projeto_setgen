@@ -42,6 +42,17 @@ export class CreateUserDto {
   permissionIds?: string[];
 
   @ApiProperty({ description: 'Usuário ativo', required: false, default: true })
+  @ApiProperty({ description: 'Cargo / Posição', required: false, example: 'Analista Fiscal' })
+  @IsString()
+  @IsOptional()
+  jobTitle?: string;
+
+  @ApiProperty({ description: 'Username / Login', required: false, example: 'joao.silva' })
+  @IsString()
+  @IsOptional()
+  login?: string;
+
+  @ApiProperty({ description: 'Usuário ativo', required: false, default: true })
   @IsBoolean()
   @IsOptional()
   active?: boolean;

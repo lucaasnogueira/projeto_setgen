@@ -133,7 +133,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     badge: 'SISTEMA',
     prefixes: ['/users', '/roles', '/settings', '/config-permissoes'],
     items: [
-      { name: 'Usuários', href: '/users', icon: UserCog, roles: ['ADMIN'], permissions: ['users:view'] },
+      { name: 'Usuários & Permissões', href: '/users', icon: UserCog, roles: ['ADMIN'], permissions: ['users:view'] },
       { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'], permissions: ['roles:view'] },
       { name: 'Módulos e Acessos', href: '/settings/modules', icon: Layers, roles: ['ADMIN'], permissions: ['roles:view'] },
       { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN', 'MANAGER'] },

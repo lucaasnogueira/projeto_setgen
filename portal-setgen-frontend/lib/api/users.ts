@@ -7,6 +7,9 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'MANAGER' | 'ADMINISTRATIVE' | 'WAREHOUSE' | 'TECHNICIAN';
   roleId?: string;
+  login?: string;
+  jobTitle?: string;
+  company?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;

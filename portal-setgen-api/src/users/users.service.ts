@@ -36,6 +36,8 @@ export class UsersService {
         password: hashedPassword,
         role: createUserDto.role,
         roleId: createUserDto.roleId,
+        jobTitle: createUserDto.jobTitle,
+        login: createUserDto.login || (createUserDto.email ? createUserDto.email.split('@')[0] : undefined),
         active: createUserDto.active ?? true,
         permissions: {
           create: createUserDto.permissionIds?.map((pId) => ({
@@ -65,6 +67,9 @@ export class UsersService {
         id: true,
         name: true,
         email: true,
+        login: true,
+        jobTitle: true,
+        avatarUrl: true,
         role: true,
         roleId: true,
         active: true,
