@@ -19,9 +19,8 @@ export class MaterialRequestsService {
     private auditService: AuditService,
   ) {}
 
-  // Chamado pela aprovação de OS (ver ApprovalsService.approve). Cria a
-  // "mesa do almoxarife" a partir dos materiais previstos na OS. Se a OS não
-  // tem itens de material, não há o que separar — não cria nada.
+  // Chamado pela aprovação de OS ou sincronização automática. Cria ou atualiza
+  // a "mesa do almoxarife" a partir dos materiais previstos na OS.
   async createFromServiceOrder(serviceOrderId: string) {
     const serviceOrder = await this.prisma.serviceOrder.findUnique({
       where: { id: serviceOrderId },
@@ -34,8 +33,32 @@ export class MaterialRequestsService {
 
     const existing = await this.prisma.materialRequest.findFirst({
       where: { serviceOrderId },
+      include: { items: true },
     });
+
     if (existing) {
+      if (existing.status !== MaterialRequestStatus.RELEASED) {
+        for (const item of serviceOrder.items) {
+          const matchItem = existing.items.find((i) => i.productId === item.productId);
+          if (matchItem) {
+            if (matchItem.quantityNeeded !== item.quantity) {
+              await this.prisma.materialRequestItem.update({
+                where: { id: matchItem.id },
+                data: { quantityNeeded: item.quantity },
+              });
+            }
+          } else {
+            await this.prisma.materialRequestItem.create({
+              data: {
+                materialRequestId: existing.id,
+                productId: item.productId,
+                quantityNeeded: item.quantity,
+                quantityReserved: 0,
+              },
+            });
+          }
+        }
+      }
       return existing;
     }
 
@@ -53,7 +76,49 @@ export class MaterialRequestsService {
     });
   }
 
+  // Sincroniza retroativamente qualquer OS que tenha peças cadastradas mas ainda não gerou requisição
+  async syncAllOrdersWithItems() {
+    const ordersWithItems = await this.prisma.serviceOrder.findMany({
+      where: {
+        items: { some: {} },
+      },
+      include: {
+        items: true,
+        materialRequests: { include: { items: true } },
+      },
+    });
+
+    for (const order of ordersWithItems) {
+      if (!order.materialRequests || order.materialRequests.length === 0) {
+        await this.createFromServiceOrder(order.id);
+      } else {
+        const mr = order.materialRequests[0];
+        if (mr.status !== MaterialRequestStatus.RELEASED) {
+          for (const item of order.items) {
+            const hasItem = mr.items.some((i) => i.productId === item.productId);
+            if (!hasItem) {
+              await this.prisma.materialRequestItem.create({
+                data: {
+                  materialRequestId: mr.id,
+                  productId: item.productId,
+                  quantityNeeded: item.quantity,
+                  quantityReserved: 0,
+                },
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
   async findAll(status?: MaterialRequestStatus) {
+    try {
+      await this.syncAllOrdersWithItems();
+    } catch (e) {
+      console.warn('Erro ao sincronizar OSs com itens no almoxarifado:', e);
+    }
+
     return this.prisma.materialRequest.findMany({
       where: status ? { status } : undefined,
       include: {
@@ -66,7 +131,7 @@ export class MaterialRequestsService {
         },
         items: { include: { product: true } },
       },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
