@@ -44,11 +44,16 @@ export function NotificationCenter() {
     setLoading(true)
     const items: NotificationItem[] = []
 
+    const canSeeApprovals = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+    const canSeeStock = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'WAREHOUSE';
+    const canSeeFuel = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'WAREHOUSE';
+    const canSeeMaterialRequests = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'WAREHOUSE';
+
     const results = await Promise.allSettled([
-      wants("approvals") ? approvalsApi.getPending() : Promise.resolve([]),
-      wants("lowStock") ? inventoryApi.getAll() : Promise.resolve([]),
-      wants("fuelRequests") ? fuelRequestsApi.getAll({ status: FuelRequestStatus.PENDING }) : Promise.resolve([]),
-      wants("materialRequests") ? materialRequestsApi.getAll(MaterialRequestStatus.PENDING) : Promise.resolve([]),
+      wants("approvals") && canSeeApprovals ? approvalsApi.getPending() : Promise.resolve([]),
+      wants("lowStock") && canSeeStock ? inventoryApi.getAll() : Promise.resolve([]),
+      wants("fuelRequests") && canSeeFuel ? fuelRequestsApi.getAll({ status: FuelRequestStatus.PENDING }) : Promise.resolve([]),
+      wants("materialRequests") && canSeeMaterialRequests ? materialRequestsApi.getAll(MaterialRequestStatus.PENDING) : Promise.resolve([]),
     ])
 
     if (results[0].status === "fulfilled") {

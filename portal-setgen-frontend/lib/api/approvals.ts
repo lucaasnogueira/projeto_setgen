@@ -6,8 +6,10 @@ export const approvalsApi = {
     try {
       const { data } = await api.get('/approvals/pending');
       return data;
-    } catch (error) {
-      console.error('Erro ao buscar aprovações:', error);
+    } catch (error: any) {
+      if (error?.response?.status !== 403) {
+        console.error('Erro ao buscar aprovações:', error);
+      }
       return [];
     }
   },
