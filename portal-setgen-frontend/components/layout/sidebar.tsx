@@ -57,10 +57,11 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     id: 'commercial',
     name: 'Comercial & Propostas',
     badge: 'COMERCIAL',
-    prefixes: ['/quotes', '/clients', '/art'],
+    prefixes: ['/quotes', '/clients', '/art', '/purchase-orders'],
     items: [
       { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view', 'orders:create'] },
       { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'] },
+      { name: 'Ordens de Compra (Clientes)', href: '/purchase-orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
     ],
   },
   {
@@ -90,10 +91,9 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     id: 'procurement',
     name: 'Compras & Suprimentos',
     badge: 'COMPRAS',
-    prefixes: ['/procurement', '/suppliers', '/purchase-orders'],
+    prefixes: ['/procurement', '/suppliers'],
     items: [
-      { name: 'Painel de Compras', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['procurement:view'] },
-      { name: 'Pedidos de Compra', href: '/purchase-orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['procurement:view'] },
+      { name: 'Pedidos de Compra (Peças)', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'], permissions: ['procurement:view'] },
       { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['suppliers:view'] },
     ],
   },

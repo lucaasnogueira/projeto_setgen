@@ -423,9 +423,19 @@ export default function WarehousePage() {
                                       Disponível no Físico
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-                                      Estoque Insuficiente
-                                    </span>
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                        Estoque Insuficiente
+                                      </span>
+                                      <Link
+                                        href={`/procurement?new=true&productId=${item.productId}&qty=${Math.max(1, item.quantityNeeded - item.quantityReserved)}&materialRequestId=${r.id}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-orange-50 text-[#E2661D] border border-orange-200 hover:bg-orange-100 transition-colors"
+                                        title="Criar pedido de compra para esta peça"
+                                      >
+                                        Pedir Compra
+                                      </Link>
+                                    </div>
                                   )}
                                 </td>
                               </tr>
@@ -444,7 +454,9 @@ export default function WarehousePage() {
                             <strong>Falta de Estoque Detectada:</strong> O sistema gera cotação/pedido em rascunho automaticamente para o setor de compras suprir as peças faltantes.
                           </span>
                         </div>
-                        <Link href="/procurement">
+                        <Link
+                          href={`/procurement?new=true&productId=${missingItems[0].productId}&qty=${Math.max(1, missingItems[0].quantityNeeded - missingItems[0].quantityReserved)}&materialRequestId=${r.id}`}
+                        >
                           <Button
                             size="sm"
                             variant="outline"

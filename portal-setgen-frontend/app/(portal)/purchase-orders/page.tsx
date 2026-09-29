@@ -63,25 +63,25 @@ export default function PurchaseOrdersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Ordens de Compra & Pedidos"
-        subtitle={`${filtered.length} ordens de compra vinculadas a orçamentos`}
+        title="Ordens de Compra dos Clientes (OCs)"
+        subtitle={`${filtered.length} ordens de compra e autorizações emitidas por clientes vinculadas a orçamentos`}
         actions={
           <Button
             onClick={() => router.push('/purchase-orders/new')}
             className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white"
           >
             <Plus className="h-4 w-4" />
-            Nova Ordem de Compra
+            Nova OC de Cliente
           </Button>
         }
       />
 
       {/* 4 StatusCards KPI Padrão Setgen */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatusCard label="Total de OC/OP" value={orders.length} icon={ShoppingCart} variant="orange" />
-        <StatusCard label="OC Aprovadas" value={totalApproved} icon={CheckCircle} variant="emerald" />
+        <StatusCard label="Total de OCs Recebidas" value={orders.length} icon={ShoppingCart} variant="orange" />
+        <StatusCard label="OCs Aprovadas" value={totalApproved} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Aguardando Validação" value={totalPending} icon={Clock} variant="amber" />
-        <StatusCard label="OC Expiradas" value={totalExpired} icon={AlertCircle} variant="red" />
+        <StatusCard label="OCs Expiradas" value={totalExpired} icon={AlertCircle} variant="red" />
       </div>
 
       <Card className="overflow-hidden">
@@ -101,8 +101,8 @@ export default function PurchaseOrdersPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-t-0 hover:bg-transparent">
-              <TableHead>Número OC</TableHead>
-              <TableHead>Orçamento</TableHead>
+              <TableHead>Número OC (Cliente)</TableHead>
+              <TableHead>Orçamento Aprovado</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Valor Autorizado</TableHead>
               <TableHead>Emissão</TableHead>

@@ -1,6 +1,17 @@
 import api from './client';
 import type { ProcurementOrder, ProcurementOrderStatus } from '@/types';
 
+export interface CreateProcurementOrderPayload {
+  supplierId?: string;
+  materialRequestId?: string;
+  expectedDeliveryDate?: string;
+  items: {
+    productId: string;
+    quantity: number;
+    unitCost: number;
+  }[];
+}
+
 export const procurementOrdersApi = {
   getAll: async (filters?: { status?: ProcurementOrderStatus; supplierId?: string }): Promise<ProcurementOrder[]> => {
     const { data } = await api.get('/procurement-orders', { params: filters });
@@ -12,6 +23,11 @@ export const procurementOrdersApi = {
     return data;
   },
 
+  create: async (payload: CreateProcurementOrderPayload): Promise<ProcurementOrder> => {
+    const { data } = await api.post('/procurement-orders', payload);
+    return data;
+  },
+
   update: async (id: string, payload: { supplierId?: string; expectedDeliveryDate?: string }): Promise<ProcurementOrder> => {
     const { data } = await api.patch(`/procurement-orders/${id}`, payload);
     return data;
@@ -20,5 +36,9 @@ export const procurementOrdersApi = {
   updateStatus: async (id: string, status: ProcurementOrderStatus): Promise<ProcurementOrder> => {
     const { data } = await api.patch(`/procurement-orders/${id}/status`, { status });
     return data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/procurement-orders/${id}`);
   },
 };
