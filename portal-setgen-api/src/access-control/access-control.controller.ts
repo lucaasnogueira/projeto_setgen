@@ -14,10 +14,41 @@ export class AccessControlController {
   @ApiOperation({ summary: 'Obter módulos disponíveis para o usuário autenticado com base em permissões reais' })
   async getUserModules(@Req() req: any) {
     const userId = req.user?.id || req.user?.sub;
-    const userRole = (req.user?.role || 'TECHNICIAN').toUpperCase();
-    const isAdmin = userRole === 'ADMIN';
 
-    // 1. Se for ADMIN, tem acesso irrestrito a todos os módulos ativos cadastrados
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roleRef: {
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        },
+        permissions: {
+          include: { permission: true },
+        },
+      },
+    });
+
+    if (!user) {
+      return { isAdmin: false, modules: [] };
+    }
+
+    const roleNameLower = (user.roleRef?.name || '').toLowerCase();
+    const isExplicitNonAdmin =
+      roleNameLower.includes('administrativo') ||
+      roleNameLower.includes('compras') ||
+      roleNameLower.includes('financeiro') ||
+      roleNameLower.includes('almoxarife') ||
+      roleNameLower.includes('tecnico') ||
+      roleNameLower.includes('atendimento');
+
+    const isAdmin =
+      !isExplicitNonAdmin &&
+      (user.role === 'ADMIN' || roleNameLower.includes('administrador') || roleNameLower === 'admin');
+
+    // 1. Se for ADMIN legítimo, tem acesso irrestrito a todos os módulos ativos cadastrados
     if (isAdmin) {
       const dbModules = await this.prisma.systemModule.findMany({
         where: { isActive: true },
@@ -45,22 +76,6 @@ export class AccessControlController {
     }
 
     // 2. Para usuários não-ADMIN, busca as permissões ativas reais do usuário e do seu cargo no banco
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        roleRef: {
-          include: {
-            permissions: {
-              include: { permission: true },
-            },
-          },
-        },
-        permissions: {
-          include: { permission: true },
-        },
-      },
-    });
-
     const userPermNames = new Set<string>([
       ...(user?.roleRef?.permissions.map((p) => p.permission.name) || []),
       ...(user?.permissions.map((p) => p.permission.name) || []),

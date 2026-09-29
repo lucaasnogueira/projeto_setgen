@@ -193,49 +193,37 @@ export function ModulePage({ announcement }: ModulePageProps) {
     const userRole = user?.role;
     const userRoleName = user?.roleName || (user as any)?.roleRef?.name;
     const normRoleName = (userRoleName || "").toLowerCase().trim();
-    const isAdmin =
-      userRole === "ADMIN" ||
-      (normRoleName !== "" &&
-        !normRoleName.includes("administrativo") &&
-        !normRoleName.includes("compras") &&
-        (normRoleName.includes("administrador") || normRoleName === "admin"));
+    const isExplicitNonAdmin =
+      normRoleName.includes("administrativo") ||
+      normRoleName.includes("compras") ||
+      normRoleName.includes("financeiro") ||
+      normRoleName.includes("almoxarife") ||
+      normRoleName.includes("tecnico") ||
+      normRoleName.includes("atendimento");
 
-    const filteredDefaults = DEFAULT_MODULES.filter((m) => {
-      const code = (m.code || "").toUpperCase();
-      if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
-        return isAdmin;
-      }
-      return isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName);
-    }).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+    const isAdmin =
+      !isExplicitNonAdmin &&
+      (userRole === "ADMIN" || normRoleName.includes("administrador") || normRoleName === "admin");
 
     try {
-      const response = await api.get("/access-control/me/modules").catch(() => {
-        return api.get("/user-modules/status").catch(() => null);
-      });
+      const response = await api.get("/access-control/me/modules");
 
       if (!response || !response.data) {
-        setModules(filteredDefaults);
+        setModules(isAdmin ? DEFAULT_MODULES : []);
         return;
       }
 
       const data = response.data;
       const rawModules: any[] = Array.isArray(data) ? data : data.modules || [];
+      const isAdminUser = !isExplicitNonAdmin && (isAdmin || data.isAdmin === true);
 
-      if (rawModules.length === 0) {
-        setModules(filteredDefaults);
-        return;
-      }
-
-      const isAdminUser = isAdmin || data.isAdmin === true;
       const enabledModules = rawModules
         .filter((mod: any) => {
           const code = (mod.code || mod.name || "").toUpperCase();
           if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
             return isAdminUser;
           }
-          const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName);
-          const active = isAdminUser || mod.isEnabled === true || mod.active === true;
-          return authorized && active;
+          return mod.isEnabled !== false && mod.active !== false;
         })
         .map((mod: any) => ({
           id: String(mod.id),
@@ -248,13 +236,17 @@ export function ModulePage({ announcement }: ModulePageProps) {
         }))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
-      setModules(enabledModules.length > 0 ? enabledModules : filteredDefaults);
+      setModules(enabledModules);
     } catch (err: any) {
       console.error("Erro ao buscar catálogo de módulos:", err);
-      setError(
-        "Não foi possível carregar os módulos disponíveis. Verifique sua conexão ou tente novamente."
-      );
-      setModules(filteredDefaults);
+      if (isAdmin) {
+        setModules(DEFAULT_MODULES);
+      } else {
+        setModules([]);
+        setError(
+          "Não foi possível carregar os módulos disponíveis. Verifique sua conexão ou tente novamente."
+        );
+      }
     } finally {
       setLoading(false);
     }

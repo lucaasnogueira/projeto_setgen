@@ -163,11 +163,19 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
 export function isUserAuthorizedForRoute(
   role: string | undefined | null,
   pathname: string,
-  roleName?: string | null
+  roleName?: string | null,
+  userPerms: string[] = []
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
-  if (key === "ADMIN") return true;
+  const isExplicitNonAdmin =
+    key === "ADMINISTRATIVO_COMPRAS" ||
+    key === "FINANCEIRO" ||
+    key === "ALMOXARIFE" ||
+    key === "TECNICO" ||
+    key === "ATENDIMENTO";
+
+  const isAdmin = !isExplicitNonAdmin && key === "ADMIN";
 
   // Bloqueio rigoroso de telas administrativas para qualquer usuário não-admin
   if (
@@ -176,7 +184,37 @@ export function isUserAuthorizedForRoute(
     pathname.startsWith("/settings") ||
     pathname.startsWith("/config-permissoes")
   ) {
-    return false;
+    return isAdmin;
+  }
+
+  if (isAdmin) return true;
+
+  // Rotas comuns a todos os usuários autenticados
+  if (
+    pathname === "/" ||
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/modules" ||
+    pathname === "/profile"
+  ) {
+    return true;
+  }
+
+  // Validação dinâmica por permissões reais do usuário (DB)
+  if (userPerms && userPerms.length > 0) {
+    if (pathname.startsWith("/quotes")) return userPerms.includes("quotes:view") || userPerms.includes("clients:view");
+    if (pathname.startsWith("/clients")) return userPerms.includes("clients:view");
+    if (pathname.startsWith("/purchase-orders")) return userPerms.includes("orders:view") || userPerms.includes("procurement:view");
+    if (pathname.startsWith("/orders")) return userPerms.includes("orders:view");
+    if (pathname.startsWith("/visits")) return userPerms.includes("visits:view");
+    if (pathname.startsWith("/deliveries")) return userPerms.includes("orders:view");
+    if (pathname.startsWith("/fleet") || pathname.startsWith("/fuel-requests")) return userPerms.includes("fleet:view") || userPerms.includes("fleet:fuel-request");
+    if (pathname.startsWith("/inventory")) return userPerms.includes("inventory:view");
+    if (pathname.startsWith("/warehouse")) return userPerms.includes("material-requests:view") || userPerms.includes("inventory:view");
+    if (pathname.startsWith("/equipment")) return userPerms.includes("equipment:view") || userPerms.includes("warranty:view");
+    if (pathname.startsWith("/procurement") || pathname.startsWith("/suppliers")) return userPerms.includes("procurement:view") || userPerms.includes("suppliers:view");
+    if (pathname.startsWith("/financial") || pathname.startsWith("/invoices") || pathname.startsWith("/approvals")) return userPerms.includes("expenses:view") || userPerms.includes("expenses:approve");
+    if (pathname.startsWith("/rh")) return userPerms.includes("rh:view");
   }
 
   const allowedRoutes = ROLE_ALLOWED_ROUTES[key];
@@ -190,16 +228,60 @@ export function isUserAuthorizedForRoute(
 export function isUserAuthorizedForModule(
   role: string | undefined | null,
   moduleCode: string,
-  roleName?: string | null
+  roleName?: string | null,
+  userPerms: string[] = []
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
-  if (key === "ADMIN") return true;
+  const isExplicitNonAdmin =
+    key === "ADMINISTRATIVO_COMPRAS" ||
+    key === "FINANCEIRO" ||
+    key === "ALMOXARIFE" ||
+    key === "TECNICO" ||
+    key === "ATENDIMENTO";
+
+  const isAdmin = !isExplicitNonAdmin && key === "ADMIN";
 
   const code = moduleCode.trim().toUpperCase();
   // Bloqueio estrito de Configurador e Usuários para não-admin
   if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
-    return false;
+    return isAdmin;
+  }
+
+  if (isAdmin) return true;
+
+  // Dashboard sempre acessível
+  if (code === "DASHBOARD") return true;
+
+  // Validação dinâmica por permissões reais do usuário
+  if (userPerms && userPerms.length > 0) {
+    if (code === "COMMERCIAL" || code === "COMERCIAL" || code === "QUOTES") {
+      return userPerms.includes("clients:view") || userPerms.includes("quotes:view");
+    }
+    if (code === "SERVICE_ORDERS" || code === "ORDERS") {
+      return userPerms.includes("orders:view") || userPerms.includes("visits:view") || userPerms.includes("art:view");
+    }
+    if (code === "CLIENTS") {
+      return userPerms.includes("clients:view");
+    }
+    if (code === "INVENTORY" || code === "ESTOQUE" || code === "WAREHOUSE") {
+      return userPerms.includes("inventory:view") || userPerms.includes("material-requests:view");
+    }
+    if (code === "EQUIPMENT" || code === "EQUIPMENTS") {
+      return userPerms.includes("equipment:view") || userPerms.includes("warranty:view");
+    }
+    if (code === "PROCUREMENT" || code === "COMPRAS") {
+      return userPerms.includes("procurement:view") || userPerms.includes("suppliers:view");
+    }
+    if (code === "FINANCIAL" || code === "FINANCEIRO") {
+      return userPerms.includes("expenses:view");
+    }
+    if (code === "RH") {
+      return userPerms.includes("rh:view");
+    }
+    if (code === "FLEET") {
+      return userPerms.includes("fleet:view") || userPerms.includes("fleet:fuel-request");
+    }
   }
 
   const allowedModules = ROLE_ALLOWED_MODULES[key];
