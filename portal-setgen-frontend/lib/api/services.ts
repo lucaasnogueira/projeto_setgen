@@ -3,6 +3,7 @@ import api from './client';
 export interface ServiceItem {
   id: string;
   title: string;
+  name?: string;
   price: number;
   externalCode?: string;
   defaultObservation?: string;

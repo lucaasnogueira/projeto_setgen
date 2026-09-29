@@ -97,7 +97,6 @@ model User {
   fuelRequestsApproved   FuelRequest[]    @relation("FuelApprovedBy")
 
   // Times e clientes sob responsabilidade
-  teams                 Team[]
   teams                 Team[]   @relation("TeamMembers")
   managedTeams          Team[]   @relation("TeamManagers")
   clientsResponsibleFor Client[] @relation("ClientResponsibleUser")
@@ -129,6 +128,8 @@ model Permission {
   id          String   @id @default(uuid())
   name        String   @unique // ex: "users:create"
   description String?
+  moduleId    String?
+  module      SystemModule? @relation(fields: [moduleId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -136,6 +137,23 @@ model Permission {
   users UserPermission[]
 
   @@map("permissions")
+}
+
+model SystemModule {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  name        String
+  description String?
+  icon        String?
+  route       String?
+  orderIndex  Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  permissions Permission[]
+
+  @@map("system_modules")
 }
 
 model Role {
@@ -355,7 +373,6 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  members        User[]
   members        User[]   @relation("TeamMembers")
   managers       User[]   @relation("TeamManagers")
   responsibleFor Client[]
@@ -391,8 +408,6 @@ enum EquipmentType {
 model Equipment {
   id              String        @id @default(uuid())
   clientId        String
-  type            EquipmentType
-  clientId        String?
   name            String?
   identifier      String?       @unique
   category        String?
@@ -423,11 +438,7 @@ model Equipment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  client          Client           @relation(fields: [clientId], references: [id])
-  technicalVisits TechnicalVisit[]
-  visitLinks      VisitEquipment[]
-  warranties      Warranty[]
-  client               Client?          @relation(fields: [clientId], references: [id])
+  client               Client           @relation(fields: [clientId], references: [id])
   technicalVisits      TechnicalVisit[]
   visitLinks           VisitEquipment[]
   warranties           Warranty[]

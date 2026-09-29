@@ -501,6 +501,7 @@ export interface ServiceOrder {
   assignedCollaboratorId?: string;
   signature?: any;
   expenses?: any[];
+  executionLogs?: any[];
   itemServices?: any[];
   checkinTime?: string;
   checkoutTime?: string;
@@ -754,6 +755,7 @@ export interface Product {
   locationId?: string;
   location?: Pick<StockLocation, 'id' | 'code'>;
   unitPrice?: number;
+  salePrice?: number;
   unitsPerPackage?: number;
   active: boolean;
   createdAt: string;
@@ -1037,3 +1039,4 @@ export interface FuelRequest {
 }
 
 export * from './financial';
+export type { ServiceItem, ServiceTemplateItem } from '../lib/api/services';
