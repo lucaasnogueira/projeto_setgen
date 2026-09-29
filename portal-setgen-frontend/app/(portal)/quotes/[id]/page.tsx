@@ -188,18 +188,18 @@ export default function QuoteDetailsPage() {
         }
       />
 
-      {quote.status === QuoteStatus.ACCEPTED && !quote.serviceOrder && (
+      {(quote.status === QuoteStatus.ACCEPTED || quote.status === QuoteStatus.APPROVED) && !quote.serviceOrder && (
         <Card className="p-5 bg-status-green-bg/40 border-status-green-fg/20 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-status-green-bg rounded-xl">
               <ArrowRightCircle className="h-5 w-5 text-status-green-fg" />
             </div>
             <div>
-              <p className="font-bold text-foreground text-[14px]">Orçamento aceito — pronto pra virar Ordem de Serviço</p>
-              <p className="text-[12.5px] text-text-muted">Verifique a OC/OP nas Compras abaixo e gere a OS de execução.</p>
+              <p className="font-bold text-foreground text-[14px]">Orçamento aprovado — pronto pra virar Ordem de Serviço</p>
+              <p className="text-[12.5px] text-text-muted">Acompanhe e gerencie a OS de execução técnica e financeira (DRE) com 1 clique.</p>
             </div>
           </div>
-          <Button onClick={() => router.push(`/orders/new?quoteId=${quote.id}`)} className="rounded-[9px] font-bold gap-2 shrink-0">
+          <Button onClick={() => router.push(`/orders/new?quoteId=${quote.id}`)} className="rounded-[9px] font-bold gap-2 shrink-0 bg-primary hover:bg-primary/90 text-white">
             <ArrowRightCircle className="h-4 w-4" />
             Gerar OS
           </Button>
@@ -213,12 +213,12 @@ export default function QuoteDetailsPage() {
               <ClipboardCheck className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="font-bold text-foreground text-[14px]">Ordem de Serviço gerada: {quote.serviceOrder.orderNumber}</p>
-              <p className="text-[12.5px] text-text-muted">Acompanhe a execução na OS.</p>
+              <p className="font-bold text-foreground text-[14px]">Ordem de Serviço vinculada: {quote.serviceOrder.orderNumber}</p>
+              <p className="text-[12.5px] text-text-muted">Acesse a OS para acompanhar custos e lucros (DRE), checklist de execução, prazos e ART.</p>
             </div>
           </div>
-          <Button variant="outline" onClick={() => router.push(`/orders/${quote.serviceOrder!.id}`)} className="rounded-[9px] font-bold gap-2 shrink-0">
-            Ver OS
+          <Button onClick={() => router.push(`/orders/${quote.serviceOrder!.id}`)} className="rounded-[9px] font-bold gap-2 shrink-0 bg-primary hover:bg-primary/90 text-white">
+            Acessar Ordem de Serviço
           </Button>
         </Card>
       )}

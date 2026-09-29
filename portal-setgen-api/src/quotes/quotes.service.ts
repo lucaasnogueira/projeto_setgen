@@ -385,7 +385,7 @@ export class QuotesService {
       await this.assertQuoteHasLines(id);
     }
 
-    if (dto.status === QuoteStatus.ACCEPTED) {
+    if (dto.status === QuoteStatus.ACCEPTED || dto.status === QuoteStatus.APPROVED) {
       try {
         return await this.approveAndCreateWorkOrder(id, userId);
       } catch (e) {
@@ -416,13 +416,19 @@ export class QuotesService {
     tx?: Prisma.TransactionClient,
   ) {
     this.assertTransitionAllowed(quote.status, QuoteStatus.ACCEPTED);
-    return this.applyStatusTransition(
+    const result = await this.applyStatusTransition(
       quote,
       QuoteStatus.ACCEPTED,
       userId,
       comments,
       tx,
     );
+    try {
+      await this.approveAndCreateWorkOrder(quote.id, userId);
+    } catch (e) {
+      console.warn('Criação automática de OS a partir de OC não aplicada:', e);
+    }
+    return result;
   }
 
   /**
