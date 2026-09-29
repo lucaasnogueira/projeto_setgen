@@ -26,9 +26,8 @@ export function RouteGuard({ children }: RouteGuardProps) {
   }
 
   // Se o usuário estiver autenticado e não tiver autorização para a rota atual
-  const effectiveRoleName = user?.roleName || user?.roleRef?.name;
-  if (user && !isUserAuthorizedForRoute(user.role, pathname, effectiveRoleName, user.permissions)) {
-    const defaultRoute = getDefaultRouteForRole(user.role, effectiveRoleName);
+  if (user && !isUserAuthorizedForRoute(user.role, pathname)) {
+    const defaultRoute = getDefaultRouteForRole(user.role);
 
     return (
       <div className="flex items-center justify-center min-h-[75vh] px-4">
@@ -42,7 +41,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
               Acesso Restrito
             </h2>
             <p className="text-xs text-gray-500 leading-relaxed">
-              O seu perfil de acesso (<strong>{effectiveRoleName || user.role}</strong>) não possui permissão para visualizar este módulo ou rota do sistema.
+              O seu perfil de acesso (<strong>{user.role}</strong>) não possui permissão para visualizar este módulo ou rota do sistema.
             </p>
           </div>
 

@@ -185,9 +185,9 @@ export default function Sidebar() {
     if (!user?.role && !roleName) return [];
     if (isAdmin) return SYSTEM_MODULES;
     return SYSTEM_MODULES.filter((mod) =>
-      isUserAuthorizedForModule(user?.role, mod.id, roleName, user?.permissions)
+      isUserAuthorizedForModule(user?.role, mod.id, roleName)
     );
-  }, [user?.role, roleName, isAdmin, user?.permissions]);
+  }, [user?.role, roleName, isAdmin]);
 
   // Identifica dinamicamente o módulo atual a partir do pathname
   const currentModule = useMemo(() => {
@@ -202,7 +202,7 @@ export default function Sidebar() {
     if (!currentModule) return [];
     return currentModule.items.filter((item) => {
       if (isAdmin) return true;
-      if (!isUserAuthorizedForRoute(user?.role, item.href, roleName, user?.permissions)) return false;
+      if (!isUserAuthorizedForRoute(user?.role, item.href, roleName)) return false;
       if (item.permissions?.length) {
         return item.permissions.some((p) => user?.permissions?.includes(p));
       }

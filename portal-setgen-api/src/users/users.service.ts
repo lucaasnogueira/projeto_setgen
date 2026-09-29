@@ -218,6 +218,19 @@ export class UsersService {
 
     const { permissionIds, ...data } = updateUserDto;
 
+    if (updateUserDto.email && updateUserDto.email.toLowerCase().trim() !== current.email.toLowerCase().trim()) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: updateUserDto.email.toLowerCase().trim() },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('E-mail já cadastrado por outro usuário');
+      }
+    }
+
+    if (updateUserDto.login) {
+      updateUserDto.login = updateUserDto.login.trim().toLowerCase();
+    }
+
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -235,10 +248,15 @@ export class UsersService {
         id: true,
         name: true,
         email: true,
+        login: true,
+        jobTitle: true,
         role: true,
         roleId: true,
         active: true,
         updatedAt: true,
+        roleRef: {
+          select: { id: true, name: true },
+        },
       },
     });
   }

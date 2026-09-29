@@ -1813,8 +1813,8 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                     className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-[#E2661D]"
                   >
                     <option value="TECHNICIAN">Técnico Operacional</option>
-                    <option value="ADMINISTRATIVE">Administrativo / Compras</option>
-                    <option value="MANAGER">Gestor / Supervisor</option>
+                    <option value="ADMINISTRATIVE">Administrativo</option>
+                    <option value="MANAGER">Gerente / Supervisor</option>
                   </select>
                 </div>
               </>

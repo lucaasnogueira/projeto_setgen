@@ -67,9 +67,9 @@ export function getAvatarColor(name: string): { bg: string; fg: string } {
 export function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
     ADMIN: 'Administrador',
-    MANAGER: 'Gestor',
-    ADMINISTRATIVE: 'Administrativo / Compras',
-    WAREHOUSE: 'Almoxarife',
+    MANAGER: 'Gerente',
+    ADMINISTRATIVE: 'Administrativo',
+    WAREHOUSE: 'Almoxarifado',
     TECHNICIAN: 'Técnico',
   }
   return labels[role] || role

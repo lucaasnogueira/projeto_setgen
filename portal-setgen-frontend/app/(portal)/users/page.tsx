@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   Loader2,
   X,
+  Edit2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,7 +76,7 @@ function getBadgeStyle(roleName: string) {
   if (norm.includes("gestor") || norm.includes("gerente")) return { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" };
   if (norm.includes("financeiro")) return { label: "Financeiro", bg: "bg-emerald-50", text: "text-emerald-700" };
   if (norm.includes("compras") || norm.includes("administrativo")) return { label: "Administrativo / Compras", bg: "bg-teal-50", text: "text-teal-700" };
-  if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarife", bg: "bg-orange-50", text: "text-orange-700" };
+  if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarifado", bg: "bg-orange-50", text: "text-orange-700" };
   if (norm.includes("atendimento")) return { label: "Atendimento", bg: "bg-sky-50", text: "text-sky-700" };
   if (norm.includes("técnico") || norm.includes("tecnico")) return { label: "Técnico", bg: "bg-blue-50", text: "text-blue-700" };
   return { label: roleName || "Colaborador", bg: "bg-gray-100", text: "text-gray-700" };
@@ -134,6 +135,18 @@ export default function UsersAndPermissionsPage() {
   const [newPasswordValue, setNewPasswordValue] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
 
+  // Modal de Edição de Usuário
+  const [editModalUser, setEditModalUser] = useState<User | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editLogin, setEditLogin] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRoleId, setEditRoleId] = useState("");
+  const [editJobTitle, setEditJobTitle] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [editNewPassword, setEditNewPassword] = useState("");
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [savingEditUser, setSavingEditUser] = useState(false);
+
   // Estados de Permissões
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
   const [selectedRolePermissions, setSelectedRolePermissions] = useState<Set<string>>(new Set());
@@ -157,18 +170,12 @@ export default function UsersAndPermissionsPage() {
       setRoles(rolesData || []);
       setPermissionGroups(permsData || []);
 
-      if (rolesData && rolesData.length > 0) {
-        if (!selectedRoleId) {
-          setSelectedRoleId(rolesData[0].id);
-          const initialPerms = new Set(
-            rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
-          );
-          setSelectedRolePermissions(initialPerms);
-        }
-        if (!createRoleId) {
-          setCreateRoleId(rolesData[0].id);
-          setJobTitle(rolesData[0].name);
-        }
+      if (rolesData && rolesData.length > 0 && !selectedRoleId) {
+        setSelectedRoleId(rolesData[0].id);
+        const initialPerms = new Set(
+          rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
+        );
+        setSelectedRolePermissions(initialPerms);
       }
     } catch (err) {
       console.error("Erro ao carregar dados de usuários e permissões:", err);
@@ -283,6 +290,97 @@ export default function UsersAndPermissionsPage() {
     }
   };
 
+  // Abrir Modal de Edição de Usuário
+  const handleOpenEditModal = (user: User) => {
+    setEditModalUser(user);
+    setEditFullName(user.name || "");
+    setEditLogin(user.login || formatNameToLogin(user.name) || user.email.split("@")[0]);
+    setEditEmail(user.email || "");
+    const matchedRole =
+      roles.find((r) => r.id === user.roleId) ||
+      roles.find(
+        (r) =>
+          r.name.toLowerCase() ===
+          (user.roleRef?.name || (user as any).roleName || user.role || "").toLowerCase()
+      ) ||
+      roles[0];
+    setEditRoleId(matchedRole?.id || "");
+    setEditJobTitle(user.jobTitle || matchedRole?.name || "");
+    setEditActive(user.active);
+    setEditNewPassword("");
+    setShowEditPassword(false);
+  };
+
+  // Salvar Edição de Usuário
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModalUser) return;
+    if (!editFullName.trim()) {
+      toast.error("Informe o nome completo.");
+      return;
+    }
+    if (!editEmail.trim()) {
+      toast.error("Informe o e-mail corporativo.");
+      return;
+    }
+
+    setSavingEditUser(true);
+    try {
+      const selectedRoleObj = roles.find((r) => r.id === editRoleId) || roles[0];
+      const assignedRole = mapRoleNameToUserRole(selectedRoleObj?.name || "Técnico");
+      const finalLogin = (editLogin || formatNameToLogin(editFullName) || editEmail.split("@")[0]).toLowerCase().trim();
+
+      const updatePayload: any = {
+        name: editFullName.trim(),
+        email: editEmail.toLowerCase().trim(),
+        login: finalLogin,
+        role: assignedRole,
+        roleId: selectedRoleObj?.id,
+        jobTitle: editJobTitle.trim() || selectedRoleObj?.name || undefined,
+        active: editActive,
+      };
+
+      if (editNewPassword.trim()) {
+        if (editNewPassword.trim().length < 6) {
+          toast.error("A nova senha deve ter no mínimo 6 dígitos.");
+          setSavingEditUser(false);
+          return;
+        }
+        updatePayload.password = editNewPassword.trim();
+      }
+
+      const updated = await usersApi.update(editModalUser.id, updatePayload);
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editModalUser.id
+            ? {
+                ...u,
+                ...updated,
+                name: editFullName.trim(),
+                email: editEmail.toLowerCase().trim(),
+                login: finalLogin,
+                role: assignedRole as any,
+                roleId: selectedRoleObj?.id,
+                jobTitle: editJobTitle.trim() || selectedRoleObj?.name,
+                roleRef: selectedRoleObj ? { id: selectedRoleObj.id, name: selectedRoleObj.name } : u.roleRef,
+                roleName: selectedRoleObj?.name,
+                active: editActive,
+              }
+            : u
+        )
+      );
+
+      toast.success(`Usuário ${editFullName} atualizado com sucesso!`);
+      setEditModalUser(null);
+    } catch (err: any) {
+      console.error("Erro ao atualizar usuário:", err);
+      toast.error(err.response?.data?.message || "Erro ao atualizar usuário.");
+    } finally {
+      setSavingEditUser(false);
+    }
+  };
+
   // Toggle de permissão individual na aba 2
   const handleTogglePermission = (permId: string) => {
     setSelectedRolePermissions((prev) => {
@@ -317,10 +415,9 @@ export default function UsersAndPermissionsPage() {
     setSavingPermissions(true);
     try {
       const permIdsArray = Array.from(selectedRolePermissions);
-      const updated = await rolesApi.update(selectedRoleId, {
+      await rolesApi.update(selectedRoleId, {
         permissionIds: permIdsArray,
       });
-      setRoles((prev) => prev.map((r) => (r.id === selectedRoleId ? updated : r)));
       toast.success("Permissões do perfil atualizadas com sucesso!");
     } catch (err: any) {
       console.error("Erro ao salvar permissões:", err);
@@ -726,6 +823,16 @@ export default function UsersAndPermissionsPage() {
                           {/* Ações */}
                           <td className="py-3.5 px-6 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Editar Usuário */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(user)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-[#E2661D] hover:bg-orange-50 transition-colors"
+                                title="Editar dados e cargo do usuário"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+
                               {/* Reset de Senha */}
                               <button
                                 type="button"
@@ -1010,6 +1117,202 @@ export default function UsersAndPermissionsPage() {
                 {savingPassword ? "Salvando..." : "Atualizar Senha"}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Editar Usuário */}
+      {editModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-100 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-orange-50 text-[#E2661D] flex items-center justify-center">
+                  <Edit2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Editar Usuário</h3>
+                  <p className="text-[11px] text-gray-400">Atualize os dados cadastrais e o perfil de acesso</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModalUser(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Nome Completo */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-xs font-bold text-gray-700">Nome Completo *</label>
+                  <div className="relative">
+                    <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      required
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      placeholder="Nome completo"
+                      className="pl-10 text-xs h-10 rounded-xl border-gray-200"
+                    />
+                  </div>
+                </div>
+
+                {/* Login de Acesso */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">Login (nome.sobrenome) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">@</span>
+                    <Input
+                      type="text"
+                      required
+                      value={editLogin}
+                      onChange={(e) => setEditLogin(e.target.value.toLowerCase().trim())}
+                      placeholder="login.acesso"
+                      className="pl-10 text-xs h-10 rounded-xl border-gray-200 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* E-mail Corporativo */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">E-mail Corporativo *</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="email"
+                      required
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      placeholder="colaborador@setgen.com.br"
+                      className="pl-10 text-xs h-10 rounded-xl border-gray-200"
+                    />
+                  </div>
+                </div>
+
+                {/* Perfil de Acesso (Cargos) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">Cargo / Perfil de Acesso *</label>
+                  <div className="relative">
+                    <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                    <select
+                      value={editRoleId}
+                      onChange={(e) => {
+                        setEditRoleId(e.target.value);
+                        const r = roles.find((role) => role.id === e.target.value);
+                        if (r && (!editJobTitle || roles.some((x) => x.name === editJobTitle))) {
+                          setEditJobTitle(r.name);
+                        }
+                      }}
+                      className="w-full pl-10 pr-4 text-xs h-10 rounded-xl border border-gray-200 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+                    >
+                      {roles.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Especialidade / Cargo Operacional */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-700">Cargo / Especialidade</label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type="text"
+                      value={editJobTitle}
+                      onChange={(e) => setEditJobTitle(e.target.value)}
+                      placeholder="Ex: Técnico Especialista"
+                      className="pl-10 text-xs h-10 rounded-xl border-gray-200"
+                    />
+                  </div>
+                </div>
+
+                {/* Status da Conta */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-xs font-bold text-gray-700">Status da Conta</label>
+                  <div className="flex items-center gap-4 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-700">
+                      <input
+                        type="radio"
+                        name="editActive"
+                        checked={editActive === true}
+                        onChange={() => setEditActive(true)}
+                        className="text-[#E2661D] focus:ring-[#E2661D]"
+                      />
+                      <span className="inline-flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Conta Ativa
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-gray-700">
+                      <input
+                        type="radio"
+                        name="editActive"
+                        checked={editActive === false}
+                        onChange={() => setEditActive(false)}
+                        className="text-[#E2661D] focus:ring-[#E2661D]"
+                      />
+                      <span className="inline-flex items-center gap-1.5 text-gray-600 bg-gray-100 px-2.5 py-0.5 rounded-full border border-gray-200 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                        Conta Inativa
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Redefinir Senha (Opcional) */}
+                <div className="space-y-1.5 md:col-span-2 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-700">Alterar Senha (Opcional)</label>
+                    <span className="text-[11px] text-gray-400">Deixe em branco para manter a atual</span>
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      type={showEditPassword ? "text" : "password"}
+                      placeholder="Preencha apenas se desejar trocar a senha"
+                      value={editNewPassword}
+                      onChange={(e) => setEditNewPassword(e.target.value)}
+                      className="pl-10 pr-10 text-xs h-10 rounded-xl border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setEditModalUser(null)}
+                  className="rounded-xl text-xs h-9"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={savingEditUser}
+                  className="rounded-xl font-bold text-xs h-9 bg-[#E2661D] hover:bg-[#c95716] text-white gap-2"
+                >
+                  {savingEditUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {savingEditUser ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}
