@@ -14,6 +14,18 @@ import { expandImpliedPermissions } from '../access-control/expand-permissions.u
 import { UpdateNotificationPrefsDto } from './dto/update-notification-prefs.dto';
 import * as bcrypt from 'bcrypt';
 
+function formatNameToLogin(name: string): string {
+  if (!name) return '';
+  const clean = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]}.${parts[parts.length - 1]}`;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
@@ -37,7 +49,7 @@ export class UsersService {
         role: createUserDto.role,
         roleId: createUserDto.roleId,
         jobTitle: createUserDto.jobTitle,
-        login: createUserDto.login || (createUserDto.email ? createUserDto.email.split('@')[0] : undefined),
+        login: (createUserDto.login ? createUserDto.login.trim().toLowerCase() : formatNameToLogin(createUserDto.name) || createUserDto.email.split('@')[0].toLowerCase().trim()),
         active: createUserDto.active ?? true,
         permissions: {
           create: createUserDto.permissionIds?.map((pId) => ({
@@ -98,7 +110,7 @@ export class UsersService {
   async findSelectable() {
     return this.prisma.user.findMany({
       where: { active: true },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, roleId: true, login: true, roleRef: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });
   }
@@ -168,6 +180,22 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
+      include: { roleRef: true },
+    });
+  }
+
+  async findByEmailOrLogin(identifier: string) {
+    const trimmed = identifier.trim().toLowerCase();
+    return this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: trimmed, mode: 'insensitive' } },
+          { login: { equals: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        roleRef: true,
+      },
     });
   }
 
@@ -316,7 +344,12 @@ export class UsersService {
       const all = await this.prisma.permission.findMany({
         select: { name: true },
       });
-      return { ...rest, permissions: all.map((p) => p.name) };
+      return {
+        ...rest,
+        roleName: roleRef?.name || 'Administrador',
+        roleRef: roleRef ? { id: roleRef.id, name: roleRef.name } : null,
+        permissions: all.map((p) => p.name),
+      };
     }
 
     // Inclui as implícitas (quem edita, vê) — é a mesma expansão que o
@@ -326,7 +359,12 @@ export class UsersService {
       ...permissions.map((p) => p.permission.name),
     ]);
 
-    return { ...rest, permissions: effectivePermissions };
+    return {
+      ...rest,
+      roleName: roleRef?.name || user.role,
+      roleRef: roleRef ? { id: roleRef.id, name: roleRef.name } : null,
+      permissions: effectivePermissions,
+    };
   }
 
   async updateProfile(id: string, updateProfileDto: UpdateProfileDto) {

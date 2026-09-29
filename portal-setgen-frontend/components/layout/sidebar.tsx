@@ -37,6 +37,7 @@ import {
 import { useEffect, useState, useMemo } from 'react';
 import { usersApi } from '@/lib/api/users';
 import { DASHBOARD_PERMISSIONS } from '@/lib/dashboard-access';
+import { isUserAuthorizedForModule, isUserAuthorizedForRoute } from '@/lib/permissions';
 
 export interface ModuleDefinition {
   id: string;
@@ -159,10 +160,12 @@ export default function Sidebar() {
   const [showModuleSwitcher, setShowModuleSwitcher] = useState(false);
 
   useEffect(() => {
-    usersApi.getMe().then((fresh) => {
+    usersApi.getMe().then((fresh: any) => {
       updateUser({
         role: fresh.role as unknown as UserRole,
         roleId: fresh.roleId,
+        roleName: fresh.roleName || fresh.roleRef?.name,
+        roleRef: fresh.roleRef,
         permissions: fresh.permissions,
       });
     }).catch(() => {});
@@ -175,19 +178,23 @@ export default function Sidebar() {
 
   const isAdmin = user?.role === UserRole.ADMIN;
 
+  const roleName = user?.roleName || (user as any)?.roleRef?.name;
+
   // Filtra apenas módulos aos quais o usuário tem acesso permitido
   const allowedModules = useMemo(() => {
-    if (!user?.role) return [];
+    if (!user?.role && !roleName) return [];
     if (isAdmin) return SYSTEM_MODULES;
-    return SYSTEM_MODULES.filter((mod) => mod.roles.includes(user.role));
-  }, [user?.role, isAdmin]);
+    return SYSTEM_MODULES.filter((mod) =>
+      isUserAuthorizedForModule(user?.role, mod.id, roleName)
+    );
+  }, [user?.role, roleName, isAdmin]);
 
   // Identifica dinamicamente o módulo atual a partir do pathname
   const currentModule = useMemo(() => {
     const found = allowedModules.find((mod) =>
       mod.prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
     );
-    return found || allowedModules[0] || SYSTEM_MODULES[0];
+    return found || allowedModules[0] || null;
   }, [pathname, allowedModules]);
 
   // Filtra itens apenas pertinentes ao módulo ativo e com permissão
@@ -195,13 +202,13 @@ export default function Sidebar() {
     if (!currentModule) return [];
     return currentModule.items.filter((item) => {
       if (isAdmin) return true;
-      if (!user?.role || !item.roles.includes(user.role)) return false;
+      if (!isUserAuthorizedForRoute(user?.role, item.href, roleName)) return false;
       if (item.permissions?.length) {
         return item.permissions.some((p) => user?.permissions?.includes(p));
       }
       return true;
     });
-  }, [currentModule, isAdmin, user]);
+  }, [currentModule, isAdmin, user?.role, user?.permissions, roleName]);
 
   return (
     <div
@@ -263,11 +270,11 @@ export default function Sidebar() {
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#E2661D]" />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2661D]">
-                  {currentModule.badge}
+                  {currentModule?.badge || "SETGEN"}
                 </span>
               </div>
               <h3 className="text-[12px] font-bold text-white truncate mt-0.5">
-                {currentModule.name}
+                {currentModule?.name || "Módulos"}
               </h3>
             </div>
             <button
@@ -361,7 +368,7 @@ export default function Sidebar() {
             {!collapsed && (
               <div className="min-w-0 overflow-hidden">
                 <div className="text-white text-[12px] font-bold truncate leading-tight">{user.name}</div>
-                <div className="text-sidebar-fg-dim text-[10.5px] truncate">{getRoleLabel(user.role)}</div>
+                <div className="text-sidebar-fg-dim text-[10.5px] truncate">{roleName || getRoleLabel(user.role)}</div>
               </div>
             )}
           </div>

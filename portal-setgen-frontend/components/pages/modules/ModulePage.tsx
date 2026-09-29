@@ -25,6 +25,7 @@ import {
 import { ModuleCard, ModuleItem } from "./ModuleCard";
 import api from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { isUserAuthorizedForModule } from "@/lib/permissions";
 
 // Mapeamento dinâmico de strings do banco para ícones Lucide
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -189,9 +190,13 @@ export function ModulePage({ announcement }: ModulePageProps) {
       },
     ];
 
-    const sortedDefaults = [...DEFAULT_MODULES].sort((a, b) =>
-      a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
-    );
+    const userRole = user?.role;
+    const userRoleName = user?.roleName || (user as any)?.roleRef?.name;
+    const isAdmin = userRole === "ADMIN" || (userRoleName && userRoleName.toLowerCase().includes("admin"));
+
+    const filteredDefaults = DEFAULT_MODULES.filter(
+      (m) => isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName)
+    ).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
     try {
       const response = await api.get("/access-control/me/modules").catch(() => {
@@ -199,7 +204,7 @@ export function ModulePage({ announcement }: ModulePageProps) {
       });
 
       if (!response || !response.data) {
-        setModules(sortedDefaults);
+        setModules(filteredDefaults);
         return;
       }
 
@@ -207,13 +212,18 @@ export function ModulePage({ announcement }: ModulePageProps) {
       const rawModules: any[] = Array.isArray(data) ? data : data.modules || [];
 
       if (rawModules.length === 0) {
-        setModules(sortedDefaults);
+        setModules(filteredDefaults);
         return;
       }
 
-      const isAdmin = user?.role === "ADMIN" || data.isAdmin === true;
+      const isAdminUser = isAdmin || data.isAdmin === true;
       const enabledModules = rawModules
-        .filter((mod: any) => isAdmin || mod.isEnabled === true || mod.active === true)
+        .filter((mod: any) => {
+          const code = mod.code || mod.name;
+          const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName);
+          const active = isAdminUser || mod.isEnabled === true || mod.active === true;
+          return authorized && active;
+        })
         .map((mod: any) => ({
           id: String(mod.id),
           name: mod.name,
@@ -221,17 +231,17 @@ export function ModulePage({ announcement }: ModulePageProps) {
           description: mod.description || "Acesse as funcionalidades deste módulo operacional.",
           route: mod.route,
           icon: mod.icon || "Layers",
-          isEnabled: isAdmin || (mod.isEnabled ?? true),
+          isEnabled: true,
         }))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
-      setModules(enabledModules.length > 0 ? enabledModules : sortedDefaults);
+      setModules(enabledModules.length > 0 ? enabledModules : filteredDefaults);
     } catch (err: any) {
       console.error("Erro ao buscar catálogo de módulos:", err);
       setError(
         "Não foi possível carregar os módulos disponíveis. Verifique sua conexão ou tente novamente."
       );
-      setModules(sortedDefaults);
+      setModules(filteredDefaults);
     } finally {
       setLoading(false);
     }
@@ -239,7 +249,7 @@ export function ModulePage({ announcement }: ModulePageProps) {
 
   useEffect(() => {
     fetchModules();
-  }, [user?.id]);
+  }, [user?.id, user?.role, user?.roleName]);
 
   const resolveIcon = (iconName: string): LucideIcon => {
     if (!iconName) return DEFAULT_ICON;

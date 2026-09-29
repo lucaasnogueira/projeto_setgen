@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  AtSign,
   Layers,
   Settings,
   Package,
@@ -44,30 +45,41 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// Perfis padrão do sistema
-const ROLE_OPTIONS = [
-  { value: "TECHNICIAN", label: "Colaborador (Técnico / Operacional)" },
-  { value: "ADMIN", label: "Administrador (Full Admin)" },
-  { value: "MANAGER", label: "Gestor (Gerente Operacional)" },
-  { value: "WAREHOUSE", label: "Almoxarife (Estoque & Suprimentos)" },
-  { value: "ADMINISTRATIVE", label: "Colaborador Administrativo" },
-];
+function formatNameToLogin(name: string): string {
+  if (!name) return "";
+  const clean = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]}.${parts[parts.length - 1]}`;
+}
 
-const COMPANIES = [
-  "Setgen Geradores & Serviços",
-  "Aurora EADI Manaus",
-  "Setgen Energia Solar",
-  "Parceiro / Terceirizado",
-];
+function mapRoleNameToUserRole(roleName: string): string {
+  const norm = (roleName || "").toLowerCase();
+  if (norm.includes("admin")) return "ADMIN";
+  if (norm.includes("gestor") || norm.includes("gerente")) return "MANAGER";
+  if (norm.includes("almoxarife") || norm.includes("estoque")) return "WAREHOUSE";
+  if (norm.includes("financeiro")) return "ADMINISTRATIVE";
+  if (norm.includes("compras") || norm.includes("administrativo")) return "ADMINISTRATIVE";
+  if (norm.includes("atendimento")) return "TECHNICIAN";
+  if (norm.includes("técnico") || norm.includes("tecnico")) return "TECHNICIAN";
+  return "TECHNICIAN";
+}
 
-const ROLE_BADGES: Record<string, { label: string; bg: string; text: string }> = {
-  ADMIN: { label: "Administrador", bg: "bg-purple-50", text: "text-purple-700" },
-  MANAGER: { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" },
-  TECHNICIAN: { label: "Colaborador", bg: "bg-blue-50", text: "text-blue-700" },
-  WAREHOUSE: { label: "Almoxarifado", bg: "bg-orange-50", text: "text-orange-700" },
-  ADMINISTRATIVE: { label: "Administrativo", bg: "bg-emerald-50", text: "text-emerald-700" },
-  CLIENT: { label: "Cliente", bg: "bg-gray-100", text: "text-gray-700" },
-};
+function getBadgeStyle(roleName: string) {
+  const norm = (roleName || "").toLowerCase();
+  if (norm.includes("admin")) return { label: "Administrador", bg: "bg-purple-50", text: "text-purple-700" };
+  if (norm.includes("gestor") || norm.includes("gerente")) return { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" };
+  if (norm.includes("financeiro")) return { label: "Financeiro", bg: "bg-emerald-50", text: "text-emerald-700" };
+  if (norm.includes("compras") || norm.includes("administrativo")) return { label: "Administrativo / Compras", bg: "bg-teal-50", text: "text-teal-700" };
+  if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarifado", bg: "bg-orange-50", text: "text-orange-700" };
+  if (norm.includes("atendimento")) return { label: "Atendimento", bg: "bg-sky-50", text: "text-sky-700" };
+  if (norm.includes("técnico") || norm.includes("tecnico")) return { label: "Técnico", bg: "bg-blue-50", text: "text-blue-700" };
+  return { label: roleName || "Colaborador", bg: "bg-gray-100", text: "text-gray-700" };
+}
 
 const MODULE_ICONS: Record<string, any> = {
   "Usuários": Users,
@@ -111,11 +123,11 @@ export default function UsersAndPermissionsPage() {
 
   // Form de Novo Usuário
   const [fullName, setFullName] = useState("");
+  const [login, setLogin] = useState("");
   const [corporateEmail, setCorporateEmail] = useState("");
   const [provisionalPassword, setProvisionalPassword] = useState("");
-  const [selectedRole, setSelectedRole] = useState("TECHNICIAN");
+  const [createRoleId, setCreateRoleId] = useState("");
   const [jobTitle, setJobTitle] = useState("");
-  const [linkedCompany, setLinkedCompany] = useState(COMPANIES[0]);
 
   // Modal de Redefinir Senha
   const [passwordModalUser, setPasswordModalUser] = useState<User | null>(null);
@@ -190,31 +202,28 @@ export default function UsersAndPermissionsPage() {
 
     setCreatingUser(true);
     try {
-      // Encontra roleId correspondente caso exista
-      const matchedRole = roles.find(
-        (r) => r.name.toLowerCase() === selectedRole.toLowerCase() ||
-               (selectedRole === "TECHNICIAN" && r.name.toLowerCase().includes("tÃ©cnico")) ||
-               (selectedRole === "WAREHOUSE" && r.name.toLowerCase().includes("almoxarife"))
-      );
-
-      const generatedLogin = corporateEmail.split("@")[0].toLowerCase().trim();
+      const selectedRoleObj = roles.find((r) => r.id === createRoleId) || roles[0];
+      const assignedRole = mapRoleNameToUserRole(selectedRoleObj?.name || "Técnico");
+      const finalLogin = (login || formatNameToLogin(fullName) || corporateEmail.split("@")[0]).toLowerCase().trim();
 
       const created = await usersApi.create({
         name: fullName.trim(),
         email: corporateEmail.toLowerCase().trim(),
         password: provisionalPassword,
-        role: selectedRole as any,
-        roleId: matchedRole?.id,
-        jobTitle: jobTitle.trim() || undefined,
-        login: generatedLogin,
+        login: finalLogin,
+        role: assignedRole as any,
+        roleId: selectedRoleObj?.id,
+        roleName: selectedRoleObj?.name,
+        jobTitle: jobTitle.trim() || selectedRoleObj?.name || undefined,
         active: true,
       } as any);
 
       setUsers((prev) => [created, ...prev]);
-      toast.success(`Usuário ${fullName} cadastrado com sucesso!`);
+      toast.success(`Usuário ${fullName} (${selectedRoleObj?.name || assignedRole}) cadastrado com sucesso!`);
 
       // Limpa campos
       setFullName("");
+      setLogin("");
       setCorporateEmail("");
       setProvisionalPassword("");
       setJobTitle("");
@@ -462,32 +471,56 @@ export default function UsersAndPermissionsPage() {
               </div>
 
               <form onSubmit={handleCreateUser} className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {/* Nome Completo */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Nome Completo</label>
+                    <label className="text-xs font-bold text-gray-700">Nome Completo *</label>
                     <div className="relative">
                       <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         type="text"
                         required
-                        placeholder="EX: JOÃO DA SILVA"
+                        placeholder="Ex: João da Silva"
                         value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFullName(val);
+                          const genLogin = formatNameToLogin(val);
+                          setLogin(genLogin);
+                          if (!corporateEmail || corporateEmail.endsWith("@setgen.com.br")) {
+                            setCorporateEmail(genLogin ? `${genLogin}@setgen.com.br` : "");
+                          }
+                        }}
                         className="pl-10 text-xs h-11 rounded-xl border-gray-200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Login de Acesso (nome.sobrenome) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Login de Acesso (nome.sobrenome) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">@</span>
+                      <Input
+                        type="text"
+                        required
+                        placeholder="joao.silva"
+                        value={login}
+                        onChange={(e) => setLogin(e.target.value.toLowerCase().trim())}
+                        className="pl-10 text-xs h-11 rounded-xl border-gray-200 font-mono"
                       />
                     </div>
                   </div>
 
                   {/* E-mail Corporativo */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">E-mail Corporativo</label>
+                    <label className="text-xs font-bold text-gray-700">E-mail Corporativo *</label>
                     <div className="relative">
                       <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         type="email"
                         required
-                        placeholder="nome@empresa.com"
+                        placeholder="joao.silva@setgen.com.br"
                         value={corporateEmail}
                         onChange={(e) => setCorporateEmail(e.target.value)}
                         className="pl-10 text-xs h-11 rounded-xl border-gray-200"
@@ -495,15 +528,53 @@ export default function UsersAndPermissionsPage() {
                     </div>
                   </div>
 
+                  {/* Perfil de Acesso (Cargos do Sistema) */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Perfil de Acesso / Cargo *</label>
+                    <div className="relative">
+                      <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                      <select
+                        value={createRoleId}
+                        onChange={(e) => {
+                          setCreateRoleId(e.target.value);
+                          const r = roles.find(r => r.id === e.target.value);
+                          if (r && !jobTitle) setJobTitle(r.name);
+                        }}
+                        className="w-full pl-10 pr-4 text-xs h-11 rounded-xl border border-gray-200 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+                      >
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Cargo Operacional / Especialidade */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-700">Cargo / Especialidade</label>
+                    <div className="relative">
+                      <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        type="text"
+                        placeholder="Ex: Técnico Especialista em Geradores"
+                        value={jobTitle}
+                        onChange={(e) => setJobTitle(e.target.value)}
+                        className="pl-10 text-xs h-11 rounded-xl border-gray-200"
+                      />
+                    </div>
+                  </div>
+
                   {/* Senha Provisória */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Senha Provisória</label>
+                    <label className="text-xs font-bold text-gray-700">Senha Provisória *</label>
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
                         type={showPassword ? "text" : "password"}
                         required
-                        placeholder="********"
+                        placeholder="Mínimo 6 dígitos"
                         value={provisionalPassword}
                         onChange={(e) => setProvisionalPassword(e.target.value)}
                         className="pl-10 pr-10 text-xs h-11 rounded-xl border-gray-200"
@@ -515,59 +586,6 @@ export default function UsersAndPermissionsPage() {
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
-                    </div>
-                  </div>
-
-                  {/* Perfil de Acesso */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Perfil de Acesso</label>
-                    <div className="relative">
-                      <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
-                      <select
-                        value={selectedRole}
-                        onChange={(e) => setSelectedRole(e.target.value)}
-                        className="w-full pl-10 pr-4 text-xs h-11 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
-                      >
-                        {ROLE_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Cargo / Posição */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Cargo / Posição</label>
-                    <div className="relative">
-                      <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder="Ex: Analista Fiscal"
-                        value={jobTitle}
-                        onChange={(e) => setJobTitle(e.target.value)}
-                        className="pl-10 text-xs h-11 rounded-xl border-gray-200"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Empresa Vinculada */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Empresa Vinculada *</label>
-                    <div className="relative">
-                      <Building className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
-                      <select
-                        value={linkedCompany}
-                        onChange={(e) => setLinkedCompany(e.target.value)}
-                        className="w-full pl-10 pr-4 text-xs h-11 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
-                      >
-                        {COMPANIES.map((comp) => (
-                          <option key={comp} value={comp}>
-                            {comp}
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   </div>
                 </div>
@@ -633,11 +651,8 @@ export default function UsersAndPermissionsPage() {
                     </tr>
                   ) : (
                     filteredUsers.map((user) => {
-                      const badge = ROLE_BADGES[user.role] || {
-                        label: user.role,
-                        bg: "bg-gray-100",
-                        text: "text-gray-700",
-                      };
+                      const effectiveRoleName = user.roleRef?.name || (user as any).roleName || user.role;
+                      const badge = getBadgeStyle(effectiveRoleName);
                       const userInitial = user.name ? user.name.charAt(0).toUpperCase() : "U";
                       const displayUsername = user.login
                         ? `@${user.login}`
@@ -670,9 +685,7 @@ export default function UsersAndPermissionsPage() {
                             <div className="font-bold text-gray-900 text-xs">
                               {user.jobTitle || "—"}
                             </div>
-                            <div className="text-[11px] text-gray-400">
-                              {COMPANIES[0]}
-                            </div>
+                            <div className="text-[11px] text-gray-400 font-medium">SETGEN</div>
                           </td>
 
                           {/* Perfil */}

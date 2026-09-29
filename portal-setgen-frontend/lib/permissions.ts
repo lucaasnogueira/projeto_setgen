@@ -1,25 +1,47 @@
 import { useAuthStore } from "@/store/auth";
 import { useEffect, useState } from "react";
 
-export const ADMINISTRATIVE_ROLES = ["ADMIN", "MANAGER", "ADMINISTRATIVE"] as const;
+export function normalizeRoleKey(role?: string | null, roleName?: string | null): string {
+  const normRole = (role || "").trim().toUpperCase();
+  const normName = (roleName || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 
-export function canViewFinancialValues(role?: string | null): boolean {
-  if (!role) return false;
-  const normalized = role.trim().toUpperCase();
-  return (ADMINISTRATIVE_ROLES as readonly string[]).includes(normalized);
+  if (normRole === "ADMIN" || normName.includes("admin")) return "ADMIN";
+  if (normRole === "MANAGER" || normName.includes("gestor") || normName.includes("gerente")) return "MANAGER";
+  if (normName.includes("financeiro")) return "FINANCEIRO";
+  if (normName.includes("compras") || normName.includes("administrativo")) return "ADMINISTRATIVO_COMPRAS";
+  if (normRole === "WAREHOUSE" || normName.includes("almoxarife") || normName.includes("estoque")) return "ALMOXARIFE";
+  if (normName.includes("atendimento")) return "ATENDIMENTO";
+  if (normRole === "TECHNICIAN" || normName.includes("tecnico")) return "TECNICO";
+  if (normRole === "ADMINISTRATIVE") return "ADMINISTRATIVO_COMPRAS";
+
+  return normRole || "TECNICO";
+}
+
+/**
+ * Apenas ADMIN, Gestor e Financeiro podem visualizar valores monetários e custos.
+ * Técnicos, Almoxarifes, Atendimento e colaboradores operacionais NÃO visualizam.
+ */
+export function canViewFinancialValues(role?: string | null, roleName?: string | null): boolean {
+  if (!role && !roleName) return false;
+  const key = normalizeRoleKey(role, roleName);
+  return key === "ADMIN" || key === "MANAGER" || key === "FINANCEIRO";
 }
 
 export function useCanViewValues(): boolean {
   const storeUser = useAuthStore((state) => state.user);
 
   const [canView, setCanView] = useState<boolean>(() => {
-    if (storeUser?.role) return canViewFinancialValues(storeUser.role);
+    if (storeUser) return canViewFinancialValues(storeUser.role, storeUser.roleName || storeUser.roleRef?.name);
     if (typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem("user");
         if (raw) {
           const parsed = JSON.parse(raw);
-          return canViewFinancialValues(parsed.role);
+          return canViewFinancialValues(parsed.role, parsed.roleName || parsed.roleRef?.name);
         }
       } catch {
         // no-op
@@ -29,157 +51,151 @@ export function useCanViewValues(): boolean {
   });
 
   useEffect(() => {
-    if (storeUser?.role) {
-      setCanView(canViewFinancialValues(storeUser.role));
+    if (storeUser) {
+      setCanView(canViewFinancialValues(storeUser.role, storeUser.roleName || storeUser.roleRef?.name));
     } else if (typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem("user");
         if (raw) {
           const parsed = JSON.parse(raw);
-          setCanView(canViewFinancialValues(parsed.role));
+          setCanView(canViewFinancialValues(parsed.role, parsed.roleName || parsed.roleRef?.name));
         }
       } catch {
         // no-op
       }
     }
-  }, [storeUser?.role]);
+  }, [storeUser?.role, storeUser?.roleName, storeUser?.roleRef?.name]);
 
   return canView;
 }
 
 /**
- * Mapeamento oficial de quais papéis (roles) têm acesso autorizado a cada módulo do sistema.
+ * Módulos autorizados por perfil/cargo do sistema.
  */
-export const MODULE_ALLOWED_ROLES: Record<string, readonly string[]> = {
-  // Configurações e Usuários: Apenas Administrador
-  SETTINGS: ["ADMIN"],
-  CONFIGURADOR: ["ADMIN"],
-  USERS: ["ADMIN"],
-
-  // Financeiro & Faturamento / Caixa: Apenas Administração e Gestão
-  FINANCIAL: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-  FINANCEIRO: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-
-  // Recursos Humanos: Apenas Administração e Gestão
-  RH: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-
-  // Comercial & Propostas / Orçamentos: Apenas Administração e Gestão
-  COMMERCIAL: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-  COMERCIAL: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-  QUOTES: ["ADMIN", "MANAGER", "ADMINISTRATIVE"],
-
-  // Compras & Suprimentos: Administração, Gestão e Almoxarife (repor peças)
-  PROCUREMENT: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-  COMPRAS: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-
-  // Estoque & Armazém / Equipamentos: Administração, Gestão e Almoxarife
-  INVENTORY: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-  ESTOQUE: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-  WAREHOUSE: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-  EQUIPMENT: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-  EQUIPMENTS: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"],
-
-  // Ordens de Serviço & Campo: Administração, Gestão e Técnico
-  SERVICE_ORDERS: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"],
-  ORDERS: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"],
-  VISITS: ["ADMIN", "MANAGER", "TECHNICIAN"],
-  DELIVERIES: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"],
-
-  // Frotas & Veículos: Administração, Gestão e Almoxarife (liberação de veículos)
-  FLEET: ["ADMIN", "MANAGER", "WAREHOUSE"],
-
-  // Clientes: Administração, Gestão e Técnico (para visualização de local de atendimento)
-  CLIENTS: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"],
-
-  // Dashboard Geral: Todos os colaboradores autorizados
-  DASHBOARD: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE", "TECHNICIAN"],
+export const ROLE_ALLOWED_MODULES: Record<string, readonly string[]> = {
+  ADMIN: [
+    "SETTINGS", "CONFIGURADOR", "USERS", "FINANCIAL", "FINANCEIRO", "RH",
+    "COMMERCIAL", "COMERCIAL", "QUOTES", "PROCUREMENT", "COMPRAS",
+    "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
+    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD"
+  ],
+  MANAGER: [
+    "FINANCIAL", "FINANCEIRO", "RH", "COMMERCIAL", "COMERCIAL", "QUOTES",
+    "PROCUREMENT", "COMPRAS", "INVENTORY", "ESTOQUE", "WAREHOUSE",
+    "EQUIPMENT", "EQUIPMENTS", "SERVICE_ORDERS", "ORDERS", "VISITS",
+    "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD"
+  ],
+  FINANCEIRO: [
+    "FINANCIAL", "FINANCEIRO", "COMMERCIAL", "COMERCIAL", "QUOTES",
+    "CLIENTS", "DASHBOARD"
+  ],
+  ADMINISTRATIVO_COMPRAS: [
+    "PROCUREMENT", "COMPRAS", "SERVICE_ORDERS", "ORDERS", "CLIENTS", "DASHBOARD"
+  ],
+  ALMOXARIFE: [
+    "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
+    "PROCUREMENT", "COMPRAS", "FLEET", "DASHBOARD"
+  ],
+  TECNICO: [
+    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "CLIENTS", "DASHBOARD"
+  ],
+  ATENDIMENTO: [
+    "CLIENTS", "SERVICE_ORDERS", "ORDERS", "VISITS", "DASHBOARD"
+  ],
 };
 
 /**
- * Regras estritas de autorização de rotas e URLs no frontend.
+ * Rotas e URLs autorizadas por perfil/cargo do sistema.
  */
-export const ROUTE_ACCESS_RULES: { prefix: string; roles: readonly string[] }[] = [
-  // Configurações e Usuários
-  { prefix: "/users", roles: ["ADMIN"] },
-  { prefix: "/roles", roles: ["ADMIN"] },
-  { prefix: "/settings/modules", roles: ["ADMIN"] },
-  { prefix: "/settings", roles: ["ADMIN", "MANAGER"] },
-  { prefix: "/config-permissoes", roles: ["ADMIN"] },
+export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
+  ADMIN: ["*"],
+  MANAGER: [
+    "/dashboard", "/reports", "/modules", "/profile",
+    "/financial", "/invoices", "/approvals",
+    "/rh",
+    "/quotes", "/purchase-orders", "/clients",
+    "/procurement", "/suppliers",
+    "/inventory", "/warehouse", "/equipment",
+    "/orders", "/visits", "/deliveries", "/fleet", "/fuel-requests"
+  ],
+  FINANCEIRO: [
+    "/dashboard", "/modules", "/profile",
+    "/financial", "/invoices", "/approvals",
+    "/quotes", "/purchase-orders", "/clients"
+  ],
+  ADMINISTRATIVO_COMPRAS: [
+    "/dashboard", "/modules", "/profile",
+    "/procurement", "/suppliers",
+    "/clients", "/orders"
+  ],
+  ALMOXARIFE: [
+    "/dashboard", "/modules", "/profile",
+    "/inventory", "/warehouse", "/equipment",
+    "/procurement",
+    "/fleet", "/fuel-requests"
+  ],
+  TECNICO: [
+    "/dashboard", "/modules", "/profile",
+    "/orders", "/visits", "/deliveries",
+    "/clients"
+  ],
+  ATENDIMENTO: [
+    "/dashboard", "/modules", "/profile",
+    "/clients", "/visits", "/orders"
+  ],
+};
 
-  // Financeiro & Faturamento
-  { prefix: "/financial", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
-  { prefix: "/invoices", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
-  { prefix: "/approvals", roles: ["ADMIN", "MANAGER"] },
+export function isUserAuthorizedForRoute(
+  role: string | undefined | null,
+  pathname: string,
+  roleName?: string | null
+): boolean {
+  if (!role && !roleName) return false;
+  const key = normalizeRoleKey(role, roleName);
+  if (key === "ADMIN") return true;
 
-  // Recursos Humanos
-  { prefix: "/rh", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
+  const allowedRoutes = ROLE_ALLOWED_ROUTES[key];
+  if (!allowedRoutes) return false;
 
-  // Comercial
-  { prefix: "/quotes", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
-  { prefix: "/purchase-orders", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
-  { prefix: "/clients", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"] },
-
-  // Compras & Suprimentos
-  { prefix: "/procurement", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"] },
-  { prefix: "/suppliers", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE"] },
-
-  // Estoque & Armazém
-  { prefix: "/inventory", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"] },
-  { prefix: "/warehouse", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"] },
-  { prefix: "/equipment", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE"] },
-
-  // Ordens de Serviço & Campo
-  { prefix: "/orders", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"] },
-  { prefix: "/visits", roles: ["ADMIN", "MANAGER", "TECHNICIAN"] },
-  { prefix: "/deliveries", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "TECHNICIAN"] },
-  { prefix: "/fleet", roles: ["ADMIN", "MANAGER", "WAREHOUSE"] },
-  { prefix: "/fuel-requests", roles: ["ADMIN", "MANAGER", "WAREHOUSE"] },
-
-  // Dashboard & Hub
-  { prefix: "/dashboard", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE", "TECHNICIAN"] },
-  { prefix: "/reports", roles: ["ADMIN", "MANAGER"] },
-  { prefix: "/modules", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE", "TECHNICIAN"] },
-  { prefix: "/profile", roles: ["ADMIN", "MANAGER", "ADMINISTRATIVE", "WAREHOUSE", "TECHNICIAN"] },
-];
-
-export function isUserAuthorizedForRoute(role: string | undefined | null, pathname: string): boolean {
-  if (!role) return false;
-  const upperRole = role.trim().toUpperCase();
-  if (upperRole === "ADMIN") return true;
-
-  const matchedRule = ROUTE_ACCESS_RULES.find((rule) =>
-    pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")
+  return allowedRoutes.some(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
   );
-
-  if (!matchedRule) {
-    return true; // Rota pública ou não protegida explicitamente
-  }
-
-  return (matchedRule.roles as readonly string[]).includes(upperRole);
 }
 
-export function isUserAuthorizedForModule(role: string | undefined | null, moduleCode: string): boolean {
-  if (!role) return false;
-  const upperRole = role.trim().toUpperCase();
-  if (upperRole === "ADMIN") return true;
+export function isUserAuthorizedForModule(
+  role: string | undefined | null,
+  moduleCode: string,
+  roleName?: string | null
+): boolean {
+  if (!role && !roleName) return false;
+  const key = normalizeRoleKey(role, roleName);
+  if (key === "ADMIN") return true;
 
-  const allowedRoles = MODULE_ALLOWED_ROLES[moduleCode.trim().toUpperCase()];
-  if (!allowedRoles) return false;
+  const allowedModules = ROLE_ALLOWED_MODULES[key];
+  if (!allowedModules) return false;
 
-  return allowedRoles.includes(upperRole);
+  return allowedModules.includes(moduleCode.trim().toUpperCase());
 }
 
-export function getDefaultRouteForRole(role: string | undefined | null): string {
-  if (!role) return "/auth/login";
-  const upperRole = role.trim().toUpperCase();
-  switch (upperRole) {
+export function getDefaultRouteForRole(
+  role: string | undefined | null,
+  roleName?: string | null
+): string {
+  if (!role && !roleName) return "/auth/login";
+  const key = normalizeRoleKey(role, roleName);
+
+  switch (key) {
     case "ADMIN":
     case "MANAGER":
-    case "ADMINISTRATIVE":
       return "/modules";
-    case "WAREHOUSE":
+    case "FINANCEIRO":
+      return "/financial";
+    case "ADMINISTRATIVO_COMPRAS":
+      return "/procurement";
+    case "ALMOXARIFE":
       return "/inventory";
-    case "TECHNICIAN":
+    case "TECNICO":
+    case "ATENDIMENTO":
       return "/orders";
     default:
       return "/modules";

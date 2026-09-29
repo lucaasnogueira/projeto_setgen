@@ -70,22 +70,22 @@ export default function LoginPage() {
           Entrar na sua conta
         </h2>
         <p className="text-xs text-gray-500 mt-1">
-          Informe seu e-mail corporativo para acessar os módulos da Setgen.
+          Informe seu usuário (nome.sobrenome) ou e-mail corporativo.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Campo E-mail */}
+        {/* Campo Usuário / E-mail */}
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-xs font-semibold text-gray-700">
-            E-mail Corporativo
+            Usuário ou E-mail Corporativo
           </Label>
           <div className="relative">
             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               id="email"
-              type="email"
-              placeholder="nome@setgen.com.br"
+              type="text"
+              placeholder="lucas.silva ou lucas@setgen.com.br"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
