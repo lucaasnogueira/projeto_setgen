@@ -223,7 +223,7 @@ export function WorkOrderDualViewModal({
               </TabsTrigger>
               <TabsTrigger value="internal" className="rounded-lg gap-2 text-xs font-semibold">
                 <TrendingUp className="h-4 w-4 text-blue-600" />
-                OS Interna (Custos, KM •& Margem)
+                OS Interna
               </TabsTrigger>
             </TabsList>
 

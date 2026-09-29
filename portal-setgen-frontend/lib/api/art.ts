@@ -42,6 +42,13 @@ export const artApi = {
     return data;
   },
 
+  update: async (id: string, payload: Partial<CreateArtPayload>): Promise<ART> => {
+    const { data } = await api.patch(`/art/${id}`, toFormData(payload), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
   delete: async (id: string): Promise<void> => {
     await api.delete(`/art/${id}`);
   },

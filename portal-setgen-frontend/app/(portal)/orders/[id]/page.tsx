@@ -7,7 +7,10 @@ import { visitsApi } from '@/lib/api/visits';
 import { inventoryApi } from '@/lib/api/inventory';
 import { servicesApi } from '@/lib/api/services';
 import { usersApi } from '@/lib/api/users';
-import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit, Product, ServiceItem } from '@/types';
+import { artApi } from '@/lib/api/art';
+import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
+import { openAuthedFile } from '@/lib/utils/auth-file';
+import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit, Product, ServiceItem, ChecklistTemplate } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import {
   FileText,
@@ -38,6 +41,7 @@ import {
   Navigation,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Save,
   Plus,
   Loader2,
@@ -52,7 +56,16 @@ import {
   PenTool,
   Coins,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  HardHat,
+  FileDown,
+  Upload,
+  RefreshCw,
+  CheckSquare,
+  Square,
+  Timer,
+  Sliders,
+  CalendarDays
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -174,6 +187,40 @@ export default function OrderDetailsPage() {
   const [quickUserRole, setQuickUserRole] = useState("Técnico Mecânico");
   const [quickUserRate, setQuickUserRate] = useState("85");
   const [savingQuickUser, setSavingQuickUser] = useState(false);
+
+  // === ESTADOS DO CHECKLIST MULTI-CRUD ===
+  const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [newChecklistText, setNewChecklistText] = useState('');
+  const [newChecklistCat, setNewChecklistCat] = useState('Geral');
+  const [savingChecklist, setSavingChecklist] = useState(false);
+
+  // === ESTADOS DE STATUS & PRAZO ===
+  const [deadlineInput, setDeadlineInput] = useState('');
+  const [savingDeadline, setSavingDeadline] = useState(false);
+  const [selectedTechId, setSelectedTechId] = useState('');
+  const [savingTech, setSavingTech] = useState(false);
+  const [quickProgress, setQuickProgress] = useState<number>(0);
+  const [savingProgress, setSavingProgress] = useState(false);
+  const [statusComment, setStatusComment] = useState('');
+  const [savingStatusTransition, setSavingStatusTransition] = useState(false);
+
+  // === ESTADOS DE ART MULTI-CRUD ===
+  const [isEditingArt, setIsEditingArt] = useState(false);
+  const [artNumber, setArtNumber] = useState('');
+  const [artEngineer, setArtEngineer] = useState('');
+  const [artCrea, setArtCrea] = useState('');
+  const [artIssueDate, setArtIssueDate] = useState('');
+  const [artFile, setArtFile] = useState<File | undefined>();
+  const [savingArt, setSavingArt] = useState(false);
+
+  // === ESTADOS DE VISITAS TÉCNICAS MULTI-CRUD ===
+  const [showAddVisitModal, setShowAddVisitModal] = useState(false);
+  const [newVisitDate, setNewVisitDate] = useState('');
+  const [newVisitTechId, setNewVisitTechId] = useState('');
+  const [newVisitType, setNewVisitType] = useState('Manutenção Preventiva');
+  const [newVisitDesc, setNewVisitDesc] = useState('');
+  const [savingNewVisit, setSavingNewVisit] = useState(false);
 
   const handleQuickCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,14 +347,16 @@ export default function OrderDetailsPage() {
 
   const loadCatalogs = async () => {
     try {
-      const [prods, svcs, usrs] = await Promise.all([
+      const [prods, svcs, usrs, tmpls] = await Promise.all([
         inventoryApi.getAll().catch(() => []),
         servicesApi.getAll().catch(() => []),
         usersApi.getAll().catch(() => []),
+        checklistTemplatesApi.getAll().catch(() => []),
       ]);
       setProductsCatalog(prods);
       setServicesCatalog(svcs);
       setUsersCatalog(usrs);
+      setChecklistTemplates(tmpls);
     } catch (e) {
       console.error("Erro ao carregar catálogos para o DRE:", e);
     }
@@ -327,6 +376,21 @@ export default function OrderDetailsPage() {
       setAuditLog(history);
       setCustomKm(String(orderData.totalKmTraveled || 0));
       setCustomHours(String(orderData.totalWorkedHours || 0));
+
+      if (orderData.deadline) {
+        setDeadlineInput(orderData.deadline.slice(0, 10));
+      }
+      if (orderData.assignedCollaboratorId || (orderData.responsibleIds && orderData.responsibleIds[0])) {
+        setSelectedTechId(orderData.assignedCollaboratorId || orderData.responsibleIds[0]);
+      }
+      setQuickProgress(orderData.progress || 0);
+
+      if (orderData.art) {
+        setArtNumber(orderData.art.number || '');
+        setArtEngineer(orderData.art.engineerName || '');
+        setArtCrea(orderData.art.creaNumber || '');
+        setArtIssueDate(orderData.art.issueDate ? orderData.art.issueDate.slice(0, 10) : '');
+      }
 
       if (orderData.clientId) {
         visitsApi.getAll({ clientId: orderData.clientId }).then(setClientVisits).catch(() => setClientVisits([]));
@@ -684,6 +748,395 @@ export default function OrderDetailsPage() {
     }
   };
 
+  // Informações de SLA calculadas em tempo real
+  const slaInfo = useMemo(() => {
+    if (!order?.deadline) return null;
+    const deadline = new Date(order.deadline);
+    const now = new Date();
+    deadline.setHours(23, 59, 59, 999);
+    now.setHours(0, 0, 0, 0);
+    const diffTime = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      const absDays = Math.abs(diffDays);
+      return {
+        status: 'overdue',
+        label: `Atrasado há ${absDays} ${absDays === 1 ? 'dia' : 'dias'}`,
+        badgeClass: 'bg-red-50 text-red-700 border-red-200 ring-1 ring-red-300 font-bold',
+        days: diffDays,
+      };
+    } else if (diffDays === 0) {
+      return {
+        status: 'today',
+        label: 'Vence Hoje!',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-300 ring-1 ring-amber-400 font-bold',
+        days: 0,
+      };
+    } else {
+      return {
+        status: 'ok',
+        label: `No prazo · Faltam ${diffDays} ${diffDays === 1 ? 'dia' : 'dias'}`,
+        badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-emerald-300 font-semibold',
+        days: diffDays,
+      };
+    }
+  }, [order?.deadline]);
+
+  // --- Handlers de Prazos & Status ---
+  const handleSetDeadlinePreset = async (days: number) => {
+    if (!order) return;
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    const dateStr = target.toISOString().slice(0, 10);
+    setDeadlineInput(dateStr);
+    setSavingDeadline(true);
+    try {
+      const updated = await ordersApi.update(order.id, { deadline: target.toISOString() });
+      setOrder(updated);
+      toast.success(`Prazo definido para ${formatDateBR(target.toISOString())} (+${days} dias)!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao definir prazo');
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
+
+  const handleSaveCustomDeadline = async () => {
+    if (!order || !deadlineInput) {
+      toast.error('Selecione uma data para o prazo');
+      return;
+    }
+    setSavingDeadline(true);
+    try {
+      const isoDate = new Date(`${deadlineInput}T23:59:59.000Z`).toISOString();
+      const updated = await ordersApi.update(order.id, { deadline: isoDate });
+      setOrder(updated);
+      toast.success(`Prazo atualizado para ${formatDateBR(isoDate)}!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao salvar prazo');
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
+
+  const handleAssignTechnician = async (techId: string) => {
+    if (!order || !techId) return;
+    setSelectedTechId(techId);
+    setSavingTech(true);
+    try {
+      const updated = await ordersApi.update(order.id, { responsibleIds: [techId] });
+      setOrder(updated);
+      const tech = usersCatalog.find((u) => u.id === techId);
+      toast.success(`Técnico ${tech?.name || 'responsável'} atribuído à OS!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao atribuir técnico');
+    } finally {
+      setSavingTech(false);
+    }
+  };
+
+  const handleUpdateProgressQuick = async (val: number) => {
+    if (!order) return;
+    setQuickProgress(val);
+    setSavingProgress(true);
+    try {
+      const updated = await ordersApi.updateProgress(order.id, val);
+      setOrder(updated);
+      toast.success(`Progresso atualizado para ${val}%!`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao atualizar progresso');
+    } finally {
+      setSavingProgress(false);
+    }
+  };
+
+  const handleDirectStatusTransition = async (newStatus: ServiceOrderStatus) => {
+    if (!order) return;
+    setSavingStatusTransition(true);
+    try {
+      await handleStatusChange(newStatus, statusComment || undefined);
+      setStatusComment('');
+    } finally {
+      setSavingStatusTransition(false);
+    }
+  };
+
+  // --- Handlers de Checklist Multi-CRUD ---
+  const handleToggleChecklistItem = async (index: number) => {
+    if (!order) return;
+    const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+    if (!currentList[index]) return;
+    const item = currentList[index];
+    const newCompleted = !item.completed;
+    currentList[index] = {
+      ...item,
+      completed: newCompleted,
+      answer: newCompleted && !item.answer ? 'Conforme' : item.answer,
+    };
+    setOrder({ ...order, checklist: currentList });
+    try {
+      await ordersApi.update(order.id, { checklist: currentList as any });
+    } catch (err: any) {
+      toast.error('Erro ao atualizar item');
+      loadOrderData();
+    }
+  };
+
+  const handleSetChecklistItemAnswer = async (index: number, answer: string) => {
+    if (!order) return;
+    const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+    if (!currentList[index]) return;
+    const isOk = answer === 'Conforme' || answer === 'Ajustado' || answer === 'OK';
+    currentList[index] = {
+      ...currentList[index],
+      answer,
+      completed: isOk ? true : currentList[index].completed,
+    };
+    setOrder({ ...order, checklist: currentList });
+    try {
+      await ordersApi.update(order.id, { checklist: currentList as any });
+      toast.success(`Item marcado como "${answer}"`);
+    } catch (err: any) {
+      toast.error('Erro ao salvar avaliação');
+      loadOrderData();
+    }
+  };
+
+  const handleAddChecklistItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !newChecklistText.trim()) {
+      toast.error('Informe a descrição do item de checklist');
+      return;
+    }
+    setSavingChecklist(true);
+    try {
+      const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+      const newItem = {
+        id: `chk-${Date.now()}`,
+        item: newChecklistText.trim(),
+        label: newChecklistText.trim(),
+        category: newChecklistCat.trim() || 'Geral',
+        completed: false,
+        answer: '',
+      };
+      const updatedList = [...currentList, newItem];
+      await ordersApi.update(order.id, { checklist: updatedList as any });
+      setOrder({ ...order, checklist: updatedList as any });
+      setNewChecklistText('');
+      toast.success('Item adicionado ao checklist com sucesso!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao adicionar item de checklist');
+    } finally {
+      setSavingChecklist(false);
+    }
+  };
+
+  const handleDeleteChecklistItem = async (index: number) => {
+    if (!order) return;
+    const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+    currentList.splice(index, 1);
+    setOrder({ ...order, checklist: currentList });
+    try {
+      await ordersApi.update(order.id, { checklist: currentList as any });
+      toast.success('Item removido do checklist.');
+    } catch (err: any) {
+      toast.error('Erro ao remover item');
+      loadOrderData();
+    }
+  };
+
+  const handleApplyChecklistTemplate = async (templateId: string) => {
+    if (!order || !templateId) return;
+    const tmpl = checklistTemplates.find((t) => t.id === templateId);
+    if (!tmpl) return;
+
+    if (!window.confirm(`Deseja importar o modelo "${tmpl.name}"? Os itens serão adicionados ao checklist desta OS.`)) {
+      return;
+    }
+
+    setSavingChecklist(true);
+    try {
+      const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+      const templateItems = (tmpl.fields || []).map((f: any, idx: number) => ({
+        id: `tmpl-${tmpl.id}-${idx}-${Date.now()}`,
+        item: f.label || f.item || `Verificação ${idx + 1}`,
+        label: f.label || f.item || `Verificação ${idx + 1}`,
+        category: tmpl.name,
+        completed: false,
+        answer: '',
+      }));
+      const combined = [...currentList, ...templateItems];
+      await ordersApi.update(order.id, { checklist: combined as any, checklistTemplateId: tmpl.id });
+      setOrder({ ...order, checklist: combined as any, checklistTemplateId: tmpl.id });
+      setSelectedTemplateId('');
+      toast.success(`Modelo "${tmpl.name}" aplicado! (+${templateItems.length} itens)`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao carregar modelo de checklist');
+    } finally {
+      setSavingChecklist(false);
+    }
+  };
+
+  const handleToggleAllChecklist = async (complete: boolean) => {
+    if (!order || !order.checklist || order.checklist.length === 0) return;
+    const currentList = order.checklist.map((i: any) => ({
+      ...i,
+      completed: complete,
+      answer: complete ? (i.answer || 'Conforme') : '',
+    }));
+    setOrder({ ...order, checklist: currentList });
+    try {
+      await ordersApi.update(order.id, { checklist: currentList as any });
+      toast.success(complete ? 'Todos os itens foram marcados como concluídos!' : 'Itens desmarcados.');
+    } catch (err: any) {
+      toast.error('Erro ao atualizar itens');
+      loadOrderData();
+    }
+  };
+
+  const handleSyncProgressFromChecklist = async () => {
+    if (!order || !order.checklist || order.checklist.length === 0) {
+      toast.error('Não há itens no checklist para calcular progresso.');
+      return;
+    }
+    const total = order.checklist.length;
+    const done = order.checklist.filter((i: any) => i.completed).length;
+    const pct = Math.round((done / total) * 100);
+    try {
+      await ordersApi.updateProgress(order.id, pct);
+      setOrder({ ...order, progress: pct });
+      setQuickProgress(pct);
+      toast.success(`Progresso da OS sincronizado com o checklist: ${pct}%!`);
+    } catch (err: any) {
+      toast.error('Erro ao sincronizar progresso');
+    }
+  };
+
+  // --- Handlers de ART Multi-CRUD ---
+  const handleSaveArt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    if (!artNumber.trim() || !artEngineer.trim() || !artCrea.trim()) {
+      toast.error('Preencha o Número da ART, Responsável Técnico e CREA.');
+      return;
+    }
+    setSavingArt(true);
+    try {
+      const issueIso = artIssueDate ? new Date(artIssueDate).toISOString() : new Date().toISOString();
+      if (order.art?.id) {
+        const updated = await artApi.update(order.art.id, {
+          serviceOrderId: order.id,
+          number: artNumber.trim(),
+          engineerName: artEngineer.trim(),
+          creaNumber: artCrea.trim(),
+          issueDate: issueIso,
+          file: artFile,
+        });
+        setOrder({ ...order, art: updated });
+        setIsEditingArt(false);
+        toast.success('ART atualizada com sucesso!');
+      } else {
+        const created = await artApi.create({
+          serviceOrderId: order.id,
+          number: artNumber.trim(),
+          engineerName: artEngineer.trim(),
+          creaNumber: artCrea.trim(),
+          issueDate: issueIso,
+          file: artFile,
+        });
+        setOrder({ ...order, art: created });
+        setIsEditingArt(false);
+        toast.success('ART emitida e vinculada à OS!');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao registrar ART');
+    } finally {
+      setSavingArt(false);
+    }
+  };
+
+  const handleDeleteArt = async () => {
+    if (!order?.art?.id) return;
+    if (!window.confirm('Tem certeza que deseja excluir esta ART vinculada à OS?')) return;
+    setSavingArt(true);
+    try {
+      await artApi.delete(order.art.id);
+      setOrder({ ...order, art: undefined });
+      setArtNumber('');
+      setArtEngineer('');
+      setArtCrea('');
+      setArtIssueDate('');
+      setIsEditingArt(false);
+      toast.success('ART excluída com sucesso.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao excluir ART');
+    } finally {
+      setSavingArt(false);
+    }
+  };
+
+  // --- Handlers de Visitas Técnicas Multi-CRUD ---
+  const handleCreateAndLinkVisit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    if (!newVisitDate) {
+      toast.error('Informe a data e horário da visita');
+      return;
+    }
+    setSavingNewVisit(true);
+    try {
+      const createdVisit = await visitsApi.create({
+        clientId: order.clientId,
+        technicianId: newVisitTechId || undefined,
+        visitDate: new Date(newVisitDate).toISOString(),
+        visitType: (newVisitType as any) || 'PREVENTIVE',
+        description: newVisitDesc.trim() || `Visita técnica OS #${order.orderNumber}`,
+        location: typeof order.client?.address === 'string'
+          ? order.client.address
+          : order.client?.address
+            ? `${order.client.address.street || ''}, ${order.client.address.city || ''}`
+            : 'Local do cliente',
+        attachments: [],
+      });
+
+      await ordersApi.linkVisit(order.id, createdVisit.id);
+      toast.success('Visita técnica agendada e vinculada à OS com sucesso!');
+      setShowAddVisitModal(false);
+      setNewVisitDate('');
+      setNewVisitTechId('');
+      setNewVisitDesc('');
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao agendar visita técnica');
+    } finally {
+      setSavingNewVisit(false);
+    }
+  };
+
+  const handleUpdateVisitStatus = async (visitId: string, newStatus: string) => {
+    try {
+      await visitsApi.update(visitId, { status: newStatus as any });
+      toast.success(`Status da visita alterado para ${newStatus}`);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error('Erro ao atualizar status da visita');
+    }
+  };
+
+  const handleDeleteVisit = async (visitId: string) => {
+    if (!order) return;
+    if (!window.confirm('Deseja realmente excluir esta visita técnica?')) return;
+    try {
+      await ordersApi.unlinkVisit(order.id, visitId).catch(() => null);
+      await visitsApi.delete(visitId);
+      toast.success('Visita técnica removida com sucesso!');
+      loadOrderData();
+    } catch (err: any) {
+      toast.error('Erro ao remover visita');
+    }
+  };
+
   const handleDelete = async () => {
     if (!order) return;
     if (!window.confirm('Tem certeza que deseja excluir esta OS? Esta ação não pode ser desfeita.')) return;
@@ -947,7 +1400,7 @@ export default function OrderDetailsPage() {
             className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-[#1e293b] data-[state=active]:text-white data-[state=active]:shadow-xs transition-all relative"
           >
             <TrendingUp className="h-4 w-4 text-emerald-400" />
-            OS Interna (Custos & Lucro)
+            OS Interna
             <span className="ml-1 px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 data-[state=active]:text-emerald-300 text-[10px] rounded-full font-black">
               DRE Real
             </span>
@@ -2183,157 +2636,939 @@ export default function OrderDetailsPage() {
         </TabsContent>
 
         {/* ======================================================== */}
-        {/* ABA 3: CHECKLIST & EXECUÇÃO TÉCNICA                      */}
+        {/* ABA 3: CHECKLIST & EXECUÇÃO TÉCNICA - MULTI-CRUD NA TELA */}
         {/* ======================================================== */}
-        <TabsContent value="execucao" className="mt-4 space-y-4">
-          {order.checklist && order.checklist.length > 0 ? (
-            <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                  <ClipboardList className="h-4 w-4 text-[#E2661D]" /> Itens de Inspeção e Checklist do Gerador
-                </h3>
-                <span className="text-xs text-gray-500 font-bold">
-                  {order.checklist.filter((i: any) => i.completed).length} de {order.checklist.length} concluídos
-                </span>
+        <TabsContent value="execucao" className="mt-4 space-y-5">
+          {/* Header Card do Checklist */}
+          <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
+                    <ClipboardList className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 tracking-tight">
+                      Checklist Técnico & Procedimentos de Inspeção
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Multi-CRUD integrado em tempo real. Adicione, avalie e conclua itens diretamente nesta tela.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2.5">
-                {order.checklist.map((item: any, index: number) => (
+              {/* Controles Globais do Checklist */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSyncProgressFromChecklist}
+                  className="rounded-xl text-xs font-bold gap-1.5 h-9 border-orange-200 text-[#E2661D] hover:bg-orange-50"
+                  disabled={!order.checklist || order.checklist.length === 0}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Sincronizar Progresso OS
+                </Button>
+
+                {order.checklist && order.checklist.length > 0 && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleAllChecklist(true)}
+                      className="rounded-xl text-xs font-bold gap-1.5 h-9"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Concluir Todos
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleAllChecklist(false)}
+                      className="rounded-xl text-xs font-bold gap-1.5 h-9"
+                    >
+                      Desmarcar
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Barra de Progresso e Métricas */}
+            {order.checklist && order.checklist.length > 0 && (
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200/80 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold">
+                  <span className="text-gray-700 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E2661D]"></span>
+                    Conclusão dos Itens Técnicos
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500">
+                      {order.checklist.filter((i: any) => i.completed).length} de {order.checklist.length} concluídos
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-black bg-orange-100 text-[#E2661D]">
+                      {Math.round((order.checklist.filter((i: any) => i.completed).length / order.checklist.length) * 100)}%
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-orange-500 to-emerald-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (order.checklist.filter((i: any) => i.completed).length / order.checklist.length) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Importador Rápido de Template de Checklist */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 bg-orange-50/50 rounded-xl border border-orange-200/60 text-xs">
+              <span className="font-bold text-gray-700 shrink-0 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-[#E2661D]" /> Carregar de Modelo Padrão:
+              </span>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                className="flex-1 h-9 px-3 rounded-lg border border-orange-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]"
+              >
+                <option value="">Selecione um modelo pré-cadastrado...</option>
+                {checklistTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.fields?.length || 0} itens)
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!selectedTemplateId || savingChecklist}
+                onClick={() => handleApplyChecklistTemplate(selectedTemplateId)}
+                className="h-9 px-4 rounded-lg bg-gray-900 hover:bg-gray-800 text-white font-bold shrink-0"
+              >
+                Importar Modelo
+              </Button>
+            </div>
+
+            {/* Linha de Cadastro Rápido de Novo Item no Topo */}
+            <form onSubmit={handleAddChecklistItem} className="pt-2 border-t border-gray-200">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Adicionar novo item de checklist (ex: Conferir nível de óleo lubrificante)..."
+                    value={newChecklistText}
+                    onChange={(e) => setNewChecklistText(e.target.value)}
+                    className="h-10 rounded-xl text-xs border-gray-300"
+                  />
+                </div>
+                <div className="w-full md:w-44">
+                  <select
+                    value={newChecklistCat}
+                    onChange={(e) => setNewChecklistCat(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-gray-300 text-xs bg-white font-medium"
+                  >
+                    <option value="Geral">Categoria: Geral</option>
+                    <option value="Mecânica">Mecânica</option>
+                    <option value="Elétrica">Elétrica</option>
+                    <option value="Arrefecimento">Arrefecimento</option>
+                    <option value="Combustível">Combustível</option>
+                    <option value="Teste de Carga">Teste de Carga</option>
+                    <option value="Limpeza">Limpeza</option>
+                  </select>
+                </div>
+                <Button
+                  type="submit"
+                  disabled={savingChecklist || !newChecklistText.trim()}
+                  className="h-10 px-4 rounded-xl bg-[#E2661D] hover:bg-[#d05a18] text-white font-bold gap-1.5 shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar Item
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {/* Lista de Itens do Checklist */}
+          {order.checklist && order.checklist.length > 0 ? (
+            <div className="space-y-2.5">
+              {order.checklist.map((item: any, index: number) => {
+                const isCompleted = !!item.completed;
+                const currentAnswer = item.answer || '';
+
+                return (
                   <div
                     key={item.id ?? index}
-                    className="flex items-center gap-3 p-3.5 rounded-xl bg-gray-50/70 border border-gray-200"
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border transition-all ${
+                      isCompleted
+                        ? 'bg-emerald-50/40 border-emerald-200/80'
+                        : 'bg-white border-gray-200 shadow-xs hover:border-gray-300'
+                    }`}
                   >
-                    <div className={`p-1.5 rounded-full ${item.completed ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
-                      <CheckCircle className="h-4 w-4" />
+                    {/* Checkbox e Título */}
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleChecklistItem(index)}
+                        className={`mt-0.5 p-1 rounded-lg transition-colors ${
+                          isCompleted
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-gray-100 text-gray-400 hover:text-gray-600 border border-gray-300'
+                        }`}
+                        title={isCompleted ? 'Desmarcar' : 'Concluir'}
+                      >
+                        {isCompleted ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 uppercase tracking-wider">
+                            #{index + 1}
+                          </span>
+                          {item.category && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-100/70 text-[#E2661D]">
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          className={`text-xs font-semibold mt-1 ${
+                            isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'
+                          }`}
+                        >
+                          {item.label ?? item.item}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <span className={`text-xs font-medium ${item.completed ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
-                        {item.label ?? item.item}
-                      </span>
-                      {item.answer !== undefined && item.answer !== null && item.answer !== '' && (
-                        <p className="text-[11px] text-gray-500 mt-0.5">Resposta: {String(item.answer)}</p>
-                      )}
+
+                    {/* Avaliação Rápida (Pills de 1 Clique) & Exclusão */}
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                        {['Conforme', 'Não Conforme', 'Ajustado', 'N/A'].map((pill) => {
+                          const isSelected = currentAnswer.toLowerCase() === pill.toLowerCase();
+                          let pillStyle = 'text-gray-600 hover:bg-gray-200';
+                          if (isSelected) {
+                            if (pill === 'Conforme') pillStyle = 'bg-emerald-600 text-white font-bold shadow-xs';
+                            else if (pill === 'Não Conforme') pillStyle = 'bg-red-600 text-white font-bold shadow-xs';
+                            else if (pill === 'Ajustado') pillStyle = 'bg-amber-600 text-white font-bold shadow-xs';
+                            else pillStyle = 'bg-gray-600 text-white font-bold shadow-xs';
+                          }
+
+                          return (
+                            <button
+                              key={pill}
+                              type="button"
+                              onClick={() => handleSetChecklistItemAnswer(index, pill)}
+                              className={`px-2.5 py-1 text-[11px] rounded-lg transition-all ${pillStyle}`}
+                            >
+                              {pill}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteChecklistItem(index)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                        title="Remover item do checklist"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </Card>
+                );
+              })}
+            </div>
           ) : (
-            <Card className="p-12 text-center text-gray-400 italic rounded-2xl border border-gray-200 bg-white">
-              Nenhum checklist associado a esta OS no momento.
+            <Card className="p-10 text-center rounded-2xl border border-dashed border-gray-300 bg-white space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#E2661D] mx-auto flex items-center justify-center">
+                <ClipboardList className="h-6 w-6" />
+              </div>
+              <h4 className="text-sm font-bold text-gray-800">Nenhum item no checklist ainda</h4>
+              <p className="text-xs text-gray-500 max-w-md mx-auto">
+                Adicione itens técnicos acima ou carregue um modelo pré-cadastrado para iniciar a execução da ordem de serviço.
+              </p>
             </Card>
           )}
         </TabsContent>
 
         {/* ======================================================== */}
-        {/* ABA 4: STATUS & PRAZO                                    */}
+        {/* ABA 4: STATUS & PRAZO - PAINEL DIRETO E PRODUTIVO        */}
         {/* ======================================================== */}
-        <TabsContent value="status" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-6 space-y-5 rounded-2xl border border-gray-200 shadow-xs bg-white h-fit">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Info className="h-4 w-4 text-[#E2661D]" /> Informações Gerais da OS
-              </h3>
+        <TabsContent value="status" className="mt-4 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* CARD 1: CONTROLE DE PRAZOS, SLA & ALOCAÇÃO */}
+            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 tracking-tight">Prazos de Entrega & SLA</h3>
+                    <p className="text-xs text-gray-500">Defina o prazo de atendimento em 1 clique ou escolha a data</p>
+                  </div>
+                </div>
+              </div>
 
-              <div className="space-y-4 text-xs">
-                <InfoRow icon={Clock} label="Prazo de Entrega">
-                  {order.deadline ? formatDateBR(order.deadline) : 'Não definido'}
-                </InfoRow>
-                <InfoRow icon={User} label="Criado por">{order.createdBy?.name || 'Sistema'}</InfoRow>
-                <InfoRow icon={Calendar} label="Data de Abertura">{formatDateBR(order.createdAt)}</InfoRow>
-                {order.assignedCollaborator && (
-                  <InfoRow icon={User} label="Técnico Responsável">{order.assignedCollaborator.name}</InfoRow>
+              {/* Status do Prazo em Destaque */}
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Prazo Atual Definido</p>
+                  <p className="text-base font-black text-gray-900 mt-0.5">
+                    {order.deadline ? formatDateBR(order.deadline) : 'Nenhum prazo estabelecido'}
+                  </p>
+                </div>
+                {slaInfo ? (
+                  <Badge variant="outline" className={`px-3 py-1.5 text-xs rounded-xl ${slaInfo.badgeClass}`}>
+                    <Timer className="h-3.5 w-3.5 mr-1.5" />
+                    {slaInfo.label}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="px-3 py-1.5 text-xs rounded-xl bg-gray-100 text-gray-600">
+                    Sem SLA definido
+                  </Badge>
                 )}
               </div>
 
-              <div className="pt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between mb-2 text-xs">
-                  <p className="text-gray-500 font-bold uppercase">Progresso Técnico</p>
-                  <p className="font-black text-[#E2661D]">{order.progress || 0}%</p>
+              {/* Presets Rápidos de 1 Clique */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-gray-700">Definir Prazo Rápido (1 Clique):</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingDeadline}
+                    onClick={() => handleSetDeadlinePreset(3)}
+                    className="h-10 rounded-xl text-xs font-bold hover:border-[#E2661D] hover:text-[#E2661D]"
+                  >
+                    +3 Dias
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingDeadline}
+                    onClick={() => handleSetDeadlinePreset(7)}
+                    className="h-10 rounded-xl text-xs font-bold hover:border-[#E2661D] hover:text-[#E2661D]"
+                  >
+                    +7 Dias (1 Sem)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingDeadline}
+                    onClick={() => handleSetDeadlinePreset(15)}
+                    className="h-10 rounded-xl text-xs font-bold hover:border-[#E2661D] hover:text-[#E2661D]"
+                  >
+                    +15 Dias (2 Sem)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={savingDeadline}
+                    onClick={() => handleSetDeadlinePreset(30)}
+                    className="h-10 rounded-xl text-xs font-bold hover:border-[#E2661D] hover:text-[#E2661D]"
+                  >
+                    +30 Dias (1 Mês)
+                  </Button>
+                </div>
+              </div>
+
+              {/* Seletor Customizado de Data */}
+              <div className="space-y-2 pt-2">
+                <Label className="text-xs font-bold text-gray-700">Ou Selecionar Data Específica:</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={deadlineInput}
+                    onChange={(e) => setDeadlineInput(e.target.value)}
+                    className="h-10 rounded-xl text-xs flex-1"
+                  />
+                  <Button
+                    type="button"
+                    disabled={savingDeadline || !deadlineInput}
+                    onClick={handleSaveCustomDeadline}
+                    className="h-10 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold px-4"
+                  >
+                    Salvar Data
+                  </Button>
+                </div>
+              </div>
+
+              {/* Atribuição de Técnico Responsável */}
+              <div className="pt-4 border-t border-gray-200 space-y-2">
+                <Label className="text-xs font-bold text-gray-700 flex items-center justify-between">
+                  <span>Técnico Responsável:</span>
+                  <span className="text-[11px] font-normal text-gray-500">
+                    Atual: {order.assignedCollaborator?.name || 'Não atribuído'}
+                  </span>
+                </Label>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedTechId}
+                    onChange={(e) => setSelectedTechId(e.target.value)}
+                    className="flex-1 h-10 px-3 rounded-xl border border-gray-300 text-xs bg-white font-medium"
+                  >
+                    <option value="">Selecione um técnico da equipe...</option>
+                    {usersCatalog.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={savingTech || !selectedTechId}
+                    onClick={() => handleAssignTechnician(selectedTechId)}
+                    className="h-10 px-4 rounded-xl bg-[#E2661D] hover:bg-[#d05a18] text-white text-xs font-bold"
+                  >
+                    Atribuir
+                  </Button>
+                </div>
+              </div>
+
+              {/* Progresso Técnico 0 - 100% */}
+              <div className="pt-4 border-t border-gray-200 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <Label className="font-bold text-gray-700">Progresso Técnico da OS:</Label>
+                  <span className="font-black text-sm text-[#E2661D]">{quickProgress}%</span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
                   <div
                     className="bg-[#E2661D] h-2 rounded-full transition-all"
-                    style={{ width: `${order.progress || 0}%` }}
-                  ></div>
+                    style={{ width: `${quickProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-1 pt-1">
+                  {[0, 25, 50, 75, 100].map((pct) => (
+                    <Button
+                      key={pct}
+                      type="button"
+                      variant={quickProgress === pct ? 'default' : 'outline'}
+                      size="sm"
+                      disabled={savingProgress}
+                      onClick={() => handleUpdateProgressQuick(pct)}
+                      className={`h-8 rounded-lg text-xs font-bold flex-1 ${
+                        quickProgress === pct ? 'bg-[#E2661D] hover:bg-[#d05a18]' : ''
+                      }`}
+                    >
+                      {pct}%
+                    </Button>
+                  ))}
                 </div>
               </div>
             </Card>
 
-            <div className="space-y-4">
-              <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 mb-4 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#E2661D]" /> Linha do Tempo do Status
-                </h3>
-                <StatusTimeline currentStatus={order.status} />
-              </Card>
+            {/* CARD 2: FLUXO DE STATUS DA OS & AÇÕES IMEDIATAS */}
+            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-xl">
+                    <CheckCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 tracking-tight">Fluxo de Status da OS</h3>
+                    <p className="text-xs text-gray-500">Transição direta entre etapas da ordem de serviço</p>
+                  </div>
+                </div>
+              </div>
 
-              {user && (
-                <StatusManager
-                  currentStatus={order.status}
-                  userRole={user.role}
-                  onStatusChange={handleStatusChange}
-                />
-              )}
-            </div>
+              {/* Status Atual em Destaque */}
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase text-gray-500">Status Atual</p>
+                  <p className="text-sm font-black text-gray-900 mt-0.5">
+                    {SERVICE_ORDER_STATUS_CONFIG[order.status]?.label || order.status}
+                  </p>
+                </div>
+                <span
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl ${serviceOrderStatusBadgeClass(order.status)}`}
+                >
+                  {SERVICE_ORDER_STATUS_CONFIG[order.status]?.label || order.status}
+                </span>
+              </div>
+
+              {/* Linha do Tempo Visual */}
+              <div className="py-2">
+                <StatusTimeline currentStatus={order.status} />
+              </div>
+
+              {/* Ações Diretas de Próximo Passo */}
+              <div className="pt-4 border-t border-gray-200 space-y-3">
+                <Label className="text-xs font-bold text-gray-700">Avançar para a Próxima Etapa (1 Clique):</Label>
+
+                {order.status === ServiceOrderStatus.AWAITING_MATERIALS && (
+                  <Button
+                    type="button"
+                    disabled={savingStatusTransition}
+                    onClick={() => handleDirectStatusTransition(ServiceOrderStatus.IN_PROGRESS)}
+                    className="w-full h-12 rounded-xl bg-[#E2661D] hover:bg-[#d05a18] text-white font-bold text-xs gap-2 shadow-xs transition-transform active:scale-[0.99]"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    Iniciar Execução da OS (Mudar para "Em Andamento")
+                  </Button>
+                )}
+
+                {order.status === ServiceOrderStatus.IN_PROGRESS && (
+                  <div className="space-y-2">
+                    <Button
+                      type="button"
+                      disabled={savingStatusTransition}
+                      onClick={() => handleDirectStatusTransition(ServiceOrderStatus.COMPLETED)}
+                      className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-2 shadow-xs transition-transform active:scale-[0.99]"
+                    >
+                      <Check className="h-4 w-4" />
+                      Finalizar e Concluir Ordem de Serviço
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingStatusTransition}
+                      onClick={() => handleDirectStatusTransition(ServiceOrderStatus.AWAITING_MATERIALS)}
+                      className="w-full h-10 rounded-xl border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold text-xs gap-2"
+                    >
+                      Pausar / Retornar para "Aguardando Materiais"
+                    </Button>
+                  </div>
+                )}
+
+                {order.status !== ServiceOrderStatus.COMPLETED &&
+                  order.status !== ServiceOrderStatus.CANCELLED && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={savingStatusTransition}
+                      onClick={() => {
+                        if (window.confirm('Deseja realmente cancelar esta OS?')) {
+                          handleDirectStatusTransition(ServiceOrderStatus.CANCELLED);
+                        }
+                      }}
+                      className="w-full h-9 rounded-xl text-red-600 hover:bg-red-50 text-xs font-bold"
+                    >
+                      Cancelar Ordem de Serviço
+                    </Button>
+                  )}
+
+                {order.status === ServiceOrderStatus.COMPLETED && (
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
+                    <p className="text-xs font-bold text-emerald-800">Esta Ordem de Serviço está CONCLUÍDA.</p>
+                    <p className="text-[11px] text-emerald-600 mt-0.5">
+                      Concluída em {order.completedAt ? formatDateBR(order.completedAt) : formatDateBR(order.updatedAt)}
+                    </p>
+                  </div>
+                )}
+
+                {/* Campo Opcional de Observação */}
+                {order.status !== ServiceOrderStatus.COMPLETED && order.status !== ServiceOrderStatus.CANCELLED && (
+                  <div className="pt-2">
+                    <Input
+                      placeholder="Observação da mudança (opcional)..."
+                      value={statusComment}
+                      onChange={(e) => setStatusComment(e.target.value)}
+                      className="h-9 rounded-xl text-xs"
+                    />
+                  </div>
+                )}
+              </div>
+            </Card>
           </div>
         </TabsContent>
 
         {/* ======================================================== */}
-        {/* ABA 5: ART & VISITAS                                     */}
+        {/* ABA 5: ART & VISITAS TÉCNICAS - MULTI-CRUD COMPLETO       */}
         {/* ======================================================== */}
-        <TabsContent value="art" className="mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ArtCard
-              serviceOrderId={order.id}
-              art={order.art}
-              onIssued={(art) => setOrder({ ...order, art })}
-            />
+        <TabsContent value="art" className="mt-4 space-y-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* SEÇÃO 1: MULTI-CRUD DE ART */}
+            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-xl">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 tracking-tight">ART - Responsabilidade Técnica</h3>
+                    <p className="text-xs text-gray-500">Anotação e registro formal da equipe técnica com CREA</p>
+                  </div>
+                </div>
+                {order.art && !isEditingArt && (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-bold text-xs">
+                    ART Ativa
+                  </Badge>
+                )}
+              </div>
 
-            <Card className="p-6 space-y-4 rounded-2xl border border-gray-200 shadow-xs bg-white">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                <Link2 className="h-4 w-4 text-[#E2661D]" /> Visitas Técnicas Vinculadas
-              </h3>
-
-              {(order.linkedVisits || []).length === 0 ? (
-                <p className="text-xs text-gray-400 italic py-3">Nenhuma visita técnica vinculada.</p>
-              ) : (
-                <div className="space-y-2">
-                  {order.linkedVisits!.map((link) => (
-                    <div key={link.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs">
-                      <div>
-                        <p className="font-bold text-gray-800">
-                          {link.technicalVisit?.visitDate ? formatDateBR(link.technicalVisit.visitDate) : '-'}
-                        </p>
-                        <p className="text-[11px] text-gray-500">Tipo: {link.technicalVisit?.visitType || 'Inspeção'} · {link.technicalVisit?.status}</p>
-                      </div>
-                      <button
-                        onClick={() => handleUnlinkVisit(link.technicalVisitId)}
-                        className="text-gray-400 hover:text-red-600 transition-colors p-1"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+              {/* Exibição da ART Existente (Read / Delete / Edit) */}
+              {order.art && !isEditingArt ? (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase text-gray-500">Número da ART</span>
+                      <span className="text-sm font-black text-gray-900">{order.art.number}</span>
                     </div>
-                  ))}
+                    <div className="flex items-center justify-between border-t border-gray-200/60 pt-2">
+                      <span className="text-[11px] font-bold uppercase text-gray-500">Engenheiro / Resp. Técnico</span>
+                      <span className="text-xs font-semibold text-gray-800">{order.art.engineerName}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-gray-200/60 pt-2">
+                      <span className="text-[11px] font-bold uppercase text-gray-500">Registro CREA</span>
+                      <span className="text-xs font-semibold text-gray-800">{order.art.creaNumber}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-gray-200/60 pt-2">
+                      <span className="text-[11px] font-bold uppercase text-gray-500">Data de Emissão</span>
+                      <span className="text-xs font-semibold text-gray-800">{formatDateBR(order.art.issueDate)}</span>
+                    </div>
+                  </div>
+
+                  {order.art.fileUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => openAuthedFile(order.art!.fileUrl!)}
+                      className="w-full h-10 rounded-xl font-bold text-xs gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <FileDown className="h-4 w-4" />
+                      Visualizar / Baixar Documento PDF da ART
+                    </Button>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setArtNumber(order.art?.number || '');
+                        setArtEngineer(order.art?.engineerName || '');
+                        setArtCrea(order.art?.creaNumber || '');
+                        setArtIssueDate(order.art?.issueDate ? order.art.issueDate.slice(0, 10) : '');
+                        setIsEditingArt(true);
+                      }}
+                      className="flex-1 h-10 rounded-xl font-bold text-xs gap-1.5"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                      Editar Dados
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={savingArt}
+                      onClick={handleDeleteArt}
+                      className="h-10 rounded-xl font-bold text-xs gap-1.5 text-red-600 hover:bg-red-50 border-red-200"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir ART
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                /* Formulário de Criação / Edição de ART (Create / Update) */
+                <form onSubmit={handleSaveArt} className="space-y-3.5">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-gray-700">Número da ART *</Label>
+                    <Input
+                      placeholder="Ex: ART-2026-009876"
+                      value={artNumber}
+                      onChange={(e) => setArtNumber(e.target.value)}
+                      className="h-9 rounded-xl text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-gray-700">Engenheiro Responsável *</Label>
+                      <Input
+                        placeholder="Ex: Eng. Marcelo Rocha"
+                        value={artEngineer}
+                        onChange={(e) => setArtEngineer(e.target.value)}
+                        className="h-9 rounded-xl text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-gray-700">Registro CREA *</Label>
+                      <Input
+                        placeholder="Ex: SP-50607080"
+                        value={artCrea}
+                        onChange={(e) => setArtCrea(e.target.value)}
+                        className="h-9 rounded-xl text-xs"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-gray-700">Data de Emissão</Label>
+                      <Input
+                        type="date"
+                        value={artIssueDate}
+                        onChange={(e) => setArtIssueDate(e.target.value)}
+                        className="h-9 rounded-xl text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-bold text-gray-700">Arquivo PDF da ART</Label>
+                      <Input
+                        type="file"
+                        accept=".pdf,image/*"
+                        onChange={(e) => setArtFile(e.target.files?.[0])}
+                        className="h-9 rounded-xl text-xs file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-gray-100"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-3 border-t border-gray-100">
+                    {isEditingArt && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsEditingArt(false)}
+                        className="flex-1 h-10 rounded-xl text-xs font-bold"
+                      >
+                        Cancelar
+                      </Button>
+                    )}
+                    <Button
+                      type="submit"
+                      disabled={savingArt}
+                      className="flex-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-2"
+                    >
+                      <Save className="h-4 w-4" />
+                      {order.art ? 'Salvar Alterações' : 'Emitir e Vincular ART'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </Card>
+
+            {/* SEÇÃO 2: MULTI-CRUD DE VISITAS TÉCNICAS */}
+            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
+                    <Link2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-gray-900 tracking-tight">Visitas Técnicas de Campo</h3>
+                    <p className="text-xs text-gray-500">Agende, vincule e gerencie vistorias presenciais</p>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowAddVisitModal(!showAddVisitModal)}
+                  className="rounded-xl font-bold text-xs h-9 bg-[#E2661D] hover:bg-[#d05a18] text-white gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Nova Visita
+                </Button>
+              </div>
+
+              {/* Formulário Inline de Nova Visita Técnica (Create) */}
+              {showAddVisitModal && (
+                <form
+                  onSubmit={handleCreateAndLinkVisit}
+                  className="p-4 rounded-xl bg-orange-50/50 border border-orange-200/70 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-gray-900 flex items-center gap-1.5">
+                      <CalendarDays className="h-4 w-4 text-[#E2661D]" /> Agendar Visita para esta OS
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddVisitModal(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-700">Data e Hora *</Label>
+                      <Input
+                        type="datetime-local"
+                        value={newVisitDate}
+                        onChange={(e) => setNewVisitDate(e.target.value)}
+                        className="h-8 rounded-lg text-xs bg-white"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-700">Tipo da Visita</Label>
+                      <select
+                        value={newVisitType}
+                        onChange={(e) => setNewVisitType(e.target.value)}
+                        className="w-full h-8 px-2.5 rounded-lg border border-gray-300 text-xs bg-white font-medium"
+                      >
+                        <option value="PREVENTIVE">Manutenção Preventiva</option>
+                        <option value="CORRECTIVE">Manutenção Corretiva</option>
+                        <option value="EMERGENCY">Atendimento Emergencial</option>
+                        <option value="INSPECTION">Inspeção Técnica</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-700">Técnico Designado</Label>
+                      <select
+                        value={newVisitTechId}
+                        onChange={(e) => setNewVisitTechId(e.target.value)}
+                        className="w-full h-8 px-2.5 rounded-lg border border-gray-300 text-xs bg-white font-medium"
+                      >
+                        <option value="">Selecione um técnico...</option>
+                        {usersCatalog.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-700">Escopo / Descrição</Label>
+                      <Input
+                        placeholder="Ex: Troca de filtros e óleo"
+                        value={newVisitDesc}
+                        onChange={(e) => setNewVisitDesc(e.target.value)}
+                        className="h-8 rounded-lg text-xs bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddVisitModal(false)}
+                      className="flex-1 h-8 rounded-lg text-xs font-bold"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={savingNewVisit || !newVisitDate}
+                      className="flex-1 h-8 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold"
+                    >
+                      {savingNewVisit ? 'Salvando...' : 'Salvar e Vincular'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {/* Lista de Visitas Técnicas Vinculadas (Read / Update / Delete) */}
+              {(order.linkedVisits || []).length === 0 ? (
+                <div className="p-6 text-center rounded-xl bg-gray-50 border border-dashed border-gray-200 text-gray-400 text-xs">
+                  Nenhuma visita técnica vinculada a esta OS.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {order.linkedVisits!.map((link) => {
+                    const v = link.technicalVisit;
+                    const isDone = v?.status === 'COMPLETED';
+
+                    return (
+                      <div
+                        key={link.id}
+                        className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-black text-gray-900">
+                              {v?.visitDate ? formatDateBR(v.visitDate) : 'Data a definir'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-100 text-[#E2661D]">
+                              {v?.visitType || 'Atendimento'}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'
+                              }`}
+                            >
+                              {v?.status || 'SCHEDULED'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            {v?.id ? `ID Visita: ${v.id.slice(0, 8)}...` : ''}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 self-end sm:self-center">
+                          {!isDone && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUpdateVisitStatus(link.technicalVisitId, 'COMPLETED')}
+                              className="h-7 px-2.5 rounded-lg text-[11px] font-bold text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                            >
+                              Concluir
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnlinkVisit(link.technicalVisitId)}
+                            className="h-7 px-2 rounded-lg text-[11px] text-gray-500 hover:text-red-600 hover:bg-red-50"
+                            title="Desvincular da OS"
+                          >
+                            Desvincular
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteVisit(link.technicalVisitId)}
+                            className="h-7 w-7 p-0 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            title="Excluir Visita"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
+              {/* Seletor de Vinculação Rápida com Visitas Existentes */}
               <div className="flex gap-2 pt-3 border-t border-gray-200">
                 <select
                   value={visitToLink}
                   onChange={(e) => setVisitToLink(e.target.value)}
-                  className="flex-1 h-9 px-3 rounded-xl border border-gray-300 text-xs bg-white"
+                  className="flex-1 h-9 px-3 rounded-xl border border-gray-300 text-xs bg-white font-medium"
                 >
-                  <option value="">Selecione uma visita do cliente</option>
+                  <option value="">Vincular visita existente do cliente...</option>
                   {clientVisits
                     .filter((v) => !(order.linkedVisits || []).some((l) => l.technicalVisitId === v.id))
                     .map((v) => (
                       <option key={v.id} value={v.id}>
-                        {formatDateBR(v.visitDate)} — {v.visitType}
+                        {formatDateBR(v.visitDate)} — {v.visitType} ({v.status})
                       </option>
                     ))}
                 </select>
-                <Button size="sm" disabled={!visitToLink || linkingVisit} onClick={handleLinkVisit} className="rounded-xl text-xs h-9 bg-gray-900 hover:bg-gray-800">
+                <Button
+                  size="sm"
+                  disabled={!visitToLink || linkingVisit}
+                  onClick={handleLinkVisit}
+                  className="rounded-xl text-xs h-9 bg-gray-900 hover:bg-gray-800 text-white font-bold px-4"
+                >
                   Vincular
                 </Button>
               </div>
