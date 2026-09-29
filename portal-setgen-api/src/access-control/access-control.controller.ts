@@ -3,23 +3,6 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
-const MODULE_ROLE_ACCESS: Record<string, string[]> = {
-  SETTINGS: ['ADMIN'],
-  USERS: ['ADMIN'],
-  CONFIGURADOR: ['ADMIN'],
-  FINANCIAL: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-  RH: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-  COMMERCIAL: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-  PROCUREMENT: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-  INVENTORY: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-  WAREHOUSE: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-  EQUIPMENTS: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-  SERVICE_ORDERS: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'],
-  FLEET: ['ADMIN', 'MANAGER', 'WAREHOUSE'],
-  CLIENTS: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'],
-  DASHBOARD: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'],
-};
-
 @ApiTags('Access Control - Modules')
 @Controller('access-control')
 @UseGuards(JwtAuthGuard)
@@ -28,50 +11,121 @@ export class AccessControlController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get('me/modules')
-  @ApiOperation({ summary: 'Obter módulos disponíveis para o usuário autenticado' })
+  @ApiOperation({ summary: 'Obter módulos disponíveis para o usuário autenticado com base em permissões reais' })
   async getUserModules(@Req() req: any) {
+    const userId = req.user?.id || req.user?.sub;
     const userRole = (req.user?.role || 'TECHNICIAN').toUpperCase();
     const isAdmin = userRole === 'ADMIN';
 
-    // Buscar módulos cadastrados no banco
+    // 1. Se for ADMIN, tem acesso irrestrito a todos os módulos ativos cadastrados
+    if (isAdmin) {
+      const dbModules = await this.prisma.systemModule.findMany({
+        where: { isActive: true },
+        orderBy: [{ orderIndex: 'asc' }, { name: 'asc' }],
+        include: {
+          _count: {
+            select: { permissions: true },
+          },
+        },
+      });
+
+      return {
+        isAdmin: true,
+        modules: dbModules.map((m) => ({
+          id: m.id,
+          code: m.code,
+          name: m.name,
+          description: m.description || '',
+          route: m.route,
+          icon: m.icon || 'Layers',
+          isEnabled: true,
+          activityCount: m._count.permissions,
+        })),
+      };
+    }
+
+    // 2. Para usuários não-ADMIN, busca as permissões ativas reais do usuário e do seu cargo no banco
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roleRef: {
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        },
+        permissions: {
+          include: { permission: true },
+        },
+      },
+    });
+
+    const userPermNames = new Set<string>([
+      ...(user?.roleRef?.permissions.map((p) => p.permission.name) || []),
+      ...(user?.permissions.map((p) => p.permission.name) || []),
+    ]);
+
     const dbModules = await this.prisma.systemModule.findMany({
       where: { isActive: true },
       orderBy: [{ orderIndex: 'asc' }, { name: 'asc' }],
       include: {
+        permissions: true,
         _count: {
           select: { permissions: true },
         },
       },
     });
 
-    if (dbModules.length > 0) {
-      const mapped = dbModules
-        .map((m) => {
-          const allowedRoles = MODULE_ROLE_ACCESS[m.code] || [];
-          const isAllowed = isAdmin || allowedRoles.includes(userRole);
+    const mapped = dbModules
+      .map((m) => {
+        // Bloquear configurações, usuários e perfis para qualquer usuário que não seja ADMIN
+        if (m.code === 'SETTINGS' || m.code === 'CONFIGURADOR' || m.code === 'USERS') {
+          return null;
+        }
 
+        // Dashboard geral é concedido a todos os usuários autenticados
+        if (m.code === 'DASHBOARD') {
           return {
             id: m.id,
             code: m.code,
             name: m.name,
             description: m.description || '',
             route: m.route,
-            icon: m.icon || 'Layers',
-            isEnabled: isAllowed,
+            icon: m.icon || 'LayoutGrid',
+            isEnabled: true,
             activityCount: m._count.permissions,
           };
-        })
-        .filter((m) => isAdmin || m.isEnabled);
+        }
 
-      return {
-        isAdmin,
-        modules: mapped,
-      };
-    }
+        // Se o módulo possui permissões no banco, o usuário PRECISA ter pelo menos uma permissão ativa
+        let hasAccess = false;
+        if (m.permissions.length > 0) {
+          hasAccess = m.permissions.some((p) => userPermNames.has(p.name));
+        } else if (m.code === 'COMMERCIAL') {
+          hasAccess = userPermNames.has('clients:view') || userPermNames.has('quotes:view');
+        }
+
+        if (!hasAccess) {
+          return null;
+        }
+
+        return {
+          id: m.id,
+          code: m.code,
+          name: m.name,
+          description: m.description || '',
+          route: m.route,
+          icon: m.icon || 'Layers',
+          isEnabled: true,
+          activityCount: m._count.permissions,
+        };
+      })
+      .filter((m): m is NonNullable<typeof m> => m !== null);
 
     return {
-      isAdmin,
-      modules: [],
+      isAdmin: false,
+      modules: mapped,
     };
   }
 }
