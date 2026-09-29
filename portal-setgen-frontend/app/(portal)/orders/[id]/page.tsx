@@ -322,7 +322,7 @@ export default function OrderDetailsPage() {
         role: "TECHNICIAN",
       });
 
-      const freshUsers = await usersApi.getAll().catch(() => []);
+      const freshUsers = await usersApi.getSelectable().catch(() => []);
       setUsersCatalog(freshUsers);
       setNewLaborUserId(created.id);
       setNewLaborRate(String(rate));
@@ -358,7 +358,7 @@ export default function OrderDetailsPage() {
       const [prods, svcs, usrs, tmpls] = await Promise.all([
         inventoryApi.getAll().catch(() => []),
         servicesApi.getAll().catch(() => []),
-        usersApi.getAll().catch(() => []),
+        usersApi.getSelectable().catch(() => []),
         checklistTemplatesApi.getAll().catch(() => []),
       ]);
       setProductsCatalog(prods);

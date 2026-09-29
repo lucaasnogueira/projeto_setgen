@@ -46,7 +46,10 @@ export const usersApi = {
     try {
       const { data } = await api.get('/users');
       return data;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.response?.status === 403) {
+        return this.getSelectable();
+      }
       console.error('Erro ao buscar usuários:', error);
       return [];
     }

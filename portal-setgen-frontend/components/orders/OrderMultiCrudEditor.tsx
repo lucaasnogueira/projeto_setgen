@@ -166,7 +166,7 @@ export function OrderMultiCrudEditor({
         role: "TECHNICIAN",
       });
 
-      const freshUsers = await usersApi.getAll().catch(() => []);
+      const freshUsers = await usersApi.getSelectable().catch(() => []);
       setUsersList(freshUsers);
       setResponsibleIds(prev => [...prev, created.id]);
       setShowQuickUserModal(false);
@@ -196,7 +196,7 @@ export function OrderMultiCrudEditor({
       try {
         const [p, u, t, qList] = await Promise.all([
           inventoryApi.getAll(),
-          usersApi.getAll(),
+          usersApi.getSelectable(),
           checklistTemplatesApi.getAll(),
           quotesApi.getAll().catch(() => []),
         ]);
