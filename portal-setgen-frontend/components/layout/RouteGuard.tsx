@@ -27,7 +27,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
   // Se o usuário estiver autenticado e não tiver autorização para a rota atual
   const effectiveRoleName = user?.roleName || (user as any)?.roleRef?.name;
-  if (user && !isUserAuthorizedForRoute(user.role, pathname, effectiveRoleName)) {
+  if (user && !isUserAuthorizedForRoute(user.role, pathname, effectiveRoleName, user.permissions)) {
     const defaultRoute = getDefaultRouteForRole(user.role, effectiveRoleName);
 
     return (
