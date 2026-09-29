@@ -39,19 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (permResponse?.data) {
           setUserPermissions(permResponse.data);
         } else {
-          // Fallback gracioso
+          // Fallback seguro: nenhuma permissão extra concedida se a API não retornar
           setUserPermissions({
             userId: uid,
             userName: meResponse.data.name,
-            totalPermissions: 10,
-            permissions: [
-              { id: 1, key: "users.view", description: "Ver usuários", category: "Users", source: "mandatory_activity", activityName: "Gestão de Usuários", moduleName: "Configurações" },
-              { id: 2, key: "users.create", description: "Criar usuários", category: "Users", source: "optional_activity", activityName: "Gestão de Usuários", moduleName: "Configurações" },
-              { id: 3, key: "users.edit", description: "Editar usuários", category: "Users", source: "optional_activity", activityName: "Gestão de Usuários", moduleName: "Configurações" },
-              { id: 4, key: "permissions.manage", description: "Gerenciar matriz de permissões", category: "Permissions", source: "optional_activity", activityName: "Matriz de Permissões", moduleName: "Configurações" },
-              { id: 5, key: "orders.view", description: "Visualizar ordens de serviço", category: "Orders", source: "mandatory_activity", activityName: "Listagem de OS", moduleName: "Ordens de Serviço" },
-              { id: 6, key: "quotes.view", description: "Visualizar orçamentos", category: "Quotes", source: "mandatory_activity", activityName: "Listagem de Orçamentos", moduleName: "Orçamentos (Comercial)" },
-            ],
+            totalPermissions: 0,
+            permissions: [],
           });
         }
       }

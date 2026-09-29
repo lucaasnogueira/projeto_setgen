@@ -43,6 +43,7 @@ export interface ModuleDefinition {
   name: string;
   badge: string;
   prefixes: string[];
+  roles: string[];
   items: {
     name: string;
     href: string;
@@ -58,8 +59,9 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Comercial & Propostas',
     badge: 'COMERCIAL',
     prefixes: ['/quotes', '/clients', '/art', '/purchase-orders'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
     items: [
-      { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view', 'orders:create'] },
+      { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['quotes:view'] },
       { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'] },
       { name: 'Ordens de Compra (Clientes)', href: '/purchase-orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
     ],
@@ -69,6 +71,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Ordens de Serviço & Campo',
     badge: 'O.S. & CAMPO',
     prefixes: ['/orders', '/visits', '/deliveries', '/fleet', '/fuel-requests'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'],
     items: [
       { name: 'Ordens de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
       { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'], permissions: ['visits:view'] },
@@ -81,6 +84,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Estoque & Armazém',
     badge: 'ESTOQUE',
     prefixes: ['/inventory', '/warehouse', '/equipment'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
     items: [
       { name: 'Estoque de Peças', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['inventory:view'] },
       { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['material-requests:view'] },
@@ -92,6 +96,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Compras & Suprimentos',
     badge: 'COMPRAS',
     prefixes: ['/procurement', '/suppliers'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
     items: [
       { name: 'Pedidos de Compra (Peças)', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'], permissions: ['procurement:view'] },
       { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['suppliers:view'] },
@@ -102,9 +107,10 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Financeiro & Faturamento',
     badge: 'FINANCEIRO',
     prefixes: ['/financial', '/invoices', '/approvals'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
     items: [
       { name: 'Despesas & Caixa', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['expenses:view'] },
-      { name: 'Faturamento Fiscal', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
+      { name: 'Faturamento Fiscal', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['invoices:view'] },
       { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'], permissions: ['orders:approve', 'expenses:approve'] },
     ],
   },
@@ -113,6 +119,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Recursos Humanos',
     badge: 'RH',
     prefixes: ['/rh'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
     items: [
       { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['rh:view'] },
     ],
@@ -122,6 +129,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Dashboard & Análises',
     badge: 'DASHBOARD',
     prefixes: ['/dashboard', '/reports'],
+    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'],
     items: [
       { name: 'Painel Geral', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'], permissions: DASHBOARD_PERMISSIONS },
       { name: 'Relatórios', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
@@ -132,12 +140,13 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     name: 'Configurações',
     badge: 'SISTEMA',
     prefixes: ['/users', '/roles', '/settings', '/config-permissoes'],
+    roles: ['ADMIN'],
     items: [
       { name: 'Usuários & Permissões', href: '/users', icon: UserCog, roles: ['ADMIN'], permissions: ['users:view'] },
       { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'], permissions: ['roles:view'] },
       { name: 'Módulos e Acessos', href: '/settings/modules', icon: Layers, roles: ['ADMIN'], permissions: ['roles:view'] },
-      { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN', 'MANAGER'] },
-      { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN', 'MANAGER'] },
+      { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN'] },
+      { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN'] },
     ],
   },
 ];
@@ -166,22 +175,31 @@ export default function Sidebar() {
 
   const isAdmin = user?.role === UserRole.ADMIN;
 
+  // Filtra apenas módulos aos quais o usuário tem acesso permitido
+  const allowedModules = useMemo(() => {
+    if (!user?.role) return [];
+    if (isAdmin) return SYSTEM_MODULES;
+    return SYSTEM_MODULES.filter((mod) => mod.roles.includes(user.role));
+  }, [user?.role, isAdmin]);
+
   // Identifica dinamicamente o módulo atual a partir do pathname
   const currentModule = useMemo(() => {
-    const found = SYSTEM_MODULES.find((mod) =>
+    const found = allowedModules.find((mod) =>
       mod.prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
     );
-    return found || SYSTEM_MODULES[0]; // Fallback para Comercial
-  }, [pathname]);
+    return found || allowedModules[0] || SYSTEM_MODULES[0];
+  }, [pathname, allowedModules]);
 
   // Filtra itens apenas pertinentes ao módulo ativo e com permissão
   const visibleItems = useMemo(() => {
+    if (!currentModule) return [];
     return currentModule.items.filter((item) => {
       if (isAdmin) return true;
+      if (!user?.role || !item.roles.includes(user.role)) return false;
       if (item.permissions?.length) {
         return item.permissions.some((p) => user?.permissions?.includes(p));
       }
-      return !!user?.role && item.roles.includes(user.role);
+      return true;
     });
   }, [currentModule, isAdmin, user]);
 
@@ -267,7 +285,7 @@ export default function Sidebar() {
               <div className="text-[10px] font-semibold text-sidebar-fg-dim px-2 py-1">
                 Trocar de Ambiente:
               </div>
-              {SYSTEM_MODULES.map((mod) => (
+              {allowedModules.map((mod) => (
                 <button
                   key={mod.id}
                   onClick={() => {

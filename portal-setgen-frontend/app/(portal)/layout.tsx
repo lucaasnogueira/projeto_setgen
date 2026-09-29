@@ -1,5 +1,6 @@
 import Sidebar from '@/components/layout/sidebar';
 import Topbar from '@/components/layout/topbar';
+import { RouteGuard } from '@/components/layout/RouteGuard';
 
 export default function PortalLayout({
   children,
@@ -12,7 +13,7 @@ export default function PortalLayout({
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar />
         <main className="flex-1 overflow-y-auto px-8 pt-7 pb-12">
-          {children}
+          <RouteGuard>{children}</RouteGuard>
         </main>
       </div>
     </div>

@@ -23,8 +23,10 @@ interface ModuleCardProps {
 
 export function ModuleCard({ module, iconComponent: Icon, isActive = false }: ModuleCardProps) {
   const router = useRouter();
+  const isEnabled = module.isEnabled !== false;
 
   const handleNavigate = () => {
+    if (!isEnabled) return;
     router.push(module.route);
   };
 
