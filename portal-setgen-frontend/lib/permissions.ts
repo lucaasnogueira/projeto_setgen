@@ -9,26 +9,41 @@ export function normalizeRoleKey(role?: string | null, roleName?: string | null)
     .toLowerCase()
     .trim();
 
-  if (normRole === "ADMIN" || normName.includes("admin")) return "ADMIN";
-  if (normRole === "MANAGER" || normName.includes("gestor") || normName.includes("gerente")) return "MANAGER";
-  if (normName.includes("financeiro")) return "FINANCEIRO";
-  if (normName.includes("compras") || normName.includes("administrativo")) return "ADMINISTRATIVO_COMPRAS";
-  if (normRole === "WAREHOUSE" || normName.includes("almoxarife") || normName.includes("estoque")) return "ALMOXARIFE";
-  if (normName.includes("atendimento")) return "ATENDIMENTO";
-  if (normRole === "TECHNICIAN" || normName.includes("tecnico")) return "TECNICO";
-  if (normRole === "ADMINISTRATIVE") return "ADMINISTRATIVO_COMPRAS";
+  // ATENÇÃO CRÍTICA: "administrativo" contém a substring "admin"!
+  // Devemos testar "administrativo" e "compras" ANTES de qualquer teste de "admin"!
+  if (normName.includes("administrativo") || normName.includes("compras") || normRole === "ADMINISTRATIVE") {
+    return "ADMINISTRATIVO_COMPRAS";
+  }
+  if (normName.includes("financeiro")) {
+    return "FINANCEIRO";
+  }
+  if (normRole === "ADMIN" || normName.includes("administrador") || normName === "admin") {
+    return "ADMIN";
+  }
+  if (normRole === "MANAGER" || normName.includes("gestor") || normName.includes("gerente")) {
+    return "MANAGER";
+  }
+  if (normRole === "WAREHOUSE" || normName.includes("almoxarife") || normName.includes("estoque")) {
+    return "ALMOXARIFE";
+  }
+  if (normName.includes("atendimento")) {
+    return "ATENDIMENTO";
+  }
+  if (normRole === "TECHNICIAN" || normName.includes("tecnico")) {
+    return "TECNICO";
+  }
 
   return normRole || "TECNICO";
 }
 
 /**
- * Apenas ADMIN, Gestor e Financeiro podem visualizar valores monetários e custos.
- * Técnicos, Almoxarifes, Atendimento e colaboradores operacionais NÃO visualizam.
+ * Apenas ADMIN, Gestor, Financeiro e Administrativo/Compras podem visualizar valores monetários e custos.
+ * Técnicos, Almoxarifes, Atendimento e RH NÃO visualizam.
  */
 export function canViewFinancialValues(role?: string | null, roleName?: string | null): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
-  return key === "ADMIN" || key === "MANAGER" || key === "FINANCEIRO";
+  return key === "ADMIN" || key === "MANAGER" || key === "FINANCEIRO" || key === "ADMINISTRATIVO_COMPRAS";
 }
 
 export function useCanViewValues(): boolean {
@@ -154,6 +169,16 @@ export function isUserAuthorizedForRoute(
   const key = normalizeRoleKey(role, roleName);
   if (key === "ADMIN") return true;
 
+  // Bloqueio rigoroso de telas administrativas para qualquer usuário não-admin
+  if (
+    pathname.startsWith("/users") ||
+    pathname.startsWith("/roles") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/config-permissoes")
+  ) {
+    return false;
+  }
+
   const allowedRoutes = ROLE_ALLOWED_ROUTES[key];
   if (!allowedRoutes) return false;
 
@@ -171,10 +196,16 @@ export function isUserAuthorizedForModule(
   const key = normalizeRoleKey(role, roleName);
   if (key === "ADMIN") return true;
 
+  const code = moduleCode.trim().toUpperCase();
+  // Bloqueio estrito de Configurador e Usuários para não-admin
+  if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
+    return false;
+  }
+
   const allowedModules = ROLE_ALLOWED_MODULES[key];
   if (!allowedModules) return false;
 
-  return allowedModules.includes(moduleCode.trim().toUpperCase());
+  return allowedModules.includes(code);
 }
 
 export function getDefaultRouteForRole(

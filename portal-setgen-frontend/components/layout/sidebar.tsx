@@ -176,17 +176,21 @@ export default function Sidebar() {
     router.push('/auth/login');
   };
 
-  const isAdmin = user?.role === UserRole.ADMIN;
-
   const roleName = user?.roleName || (user as any)?.roleRef?.name;
+  const normRoleName = (roleName || "").toLowerCase().trim();
+  const isAdmin =
+    user?.role === UserRole.ADMIN &&
+    !normRoleName.includes("administrativo") &&
+    !normRoleName.includes("compras");
 
   // Filtra apenas módulos aos quais o usuário tem acesso permitido
   const allowedModules = useMemo(() => {
     if (!user?.role && !roleName) return [];
     if (isAdmin) return SYSTEM_MODULES;
-    return SYSTEM_MODULES.filter((mod) =>
-      isUserAuthorizedForModule(user?.role, mod.id, roleName)
-    );
+    return SYSTEM_MODULES.filter((mod) => {
+      if (mod.id === "settings") return false;
+      return isUserAuthorizedForModule(user?.role, mod.id, roleName);
+    });
   }, [user?.role, roleName, isAdmin]);
 
   // Identifica dinamicamente o módulo atual a partir do pathname

@@ -60,11 +60,11 @@ function formatNameToLogin(name: string): string {
 
 function mapRoleNameToUserRole(roleName: string): string {
   const norm = (roleName || "").toLowerCase();
-  if (norm.includes("admin")) return "ADMIN";
+  if (norm.includes("administrativo") || norm.includes("compras")) return "ADMINISTRATIVE";
+  if (norm.includes("financeiro")) return "ADMINISTRATIVE";
+  if (norm.includes("administrador") || norm === "admin") return "ADMIN";
   if (norm.includes("gestor") || norm.includes("gerente")) return "MANAGER";
   if (norm.includes("almoxarife") || norm.includes("estoque")) return "WAREHOUSE";
-  if (norm.includes("financeiro")) return "ADMINISTRATIVE";
-  if (norm.includes("compras") || norm.includes("administrativo")) return "ADMINISTRATIVE";
   if (norm.includes("atendimento")) return "TECHNICIAN";
   if (norm.includes("técnico") || norm.includes("tecnico")) return "TECHNICIAN";
   return "TECHNICIAN";
@@ -72,10 +72,10 @@ function mapRoleNameToUserRole(roleName: string): string {
 
 function getBadgeStyle(roleName: string) {
   const norm = (roleName || "").toLowerCase();
-  if (norm.includes("admin")) return { label: "Administrador", bg: "bg-purple-50", text: "text-purple-700" };
-  if (norm.includes("gestor") || norm.includes("gerente")) return { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" };
+  if (norm.includes("administrativo") || norm.includes("compras")) return { label: "Administrativo / Compras", bg: "bg-teal-50", text: "text-teal-700" };
   if (norm.includes("financeiro")) return { label: "Financeiro", bg: "bg-emerald-50", text: "text-emerald-700" };
-  if (norm.includes("compras") || norm.includes("administrativo")) return { label: "Administrativo / Compras", bg: "bg-teal-50", text: "text-teal-700" };
+  if (norm.includes("administrador") || norm === "admin") return { label: "Administrador", bg: "bg-purple-50", text: "text-purple-700" };
+  if (norm.includes("gestor") || norm.includes("gerente")) return { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" };
   if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarifado", bg: "bg-orange-50", text: "text-orange-700" };
   if (norm.includes("atendimento")) return { label: "Atendimento", bg: "bg-sky-50", text: "text-sky-700" };
   if (norm.includes("técnico") || norm.includes("tecnico")) return { label: "Técnico", bg: "bg-blue-50", text: "text-blue-700" };

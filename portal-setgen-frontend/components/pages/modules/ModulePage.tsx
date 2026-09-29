@@ -192,11 +192,21 @@ export function ModulePage({ announcement }: ModulePageProps) {
 
     const userRole = user?.role;
     const userRoleName = user?.roleName || (user as any)?.roleRef?.name;
-    const isAdmin = userRole === "ADMIN" || (userRoleName && userRoleName.toLowerCase().includes("admin"));
+    const normRoleName = (userRoleName || "").toLowerCase().trim();
+    const isAdmin =
+      userRole === "ADMIN" ||
+      (normRoleName !== "" &&
+        !normRoleName.includes("administrativo") &&
+        !normRoleName.includes("compras") &&
+        (normRoleName.includes("administrador") || normRoleName === "admin"));
 
-    const filteredDefaults = DEFAULT_MODULES.filter(
-      (m) => isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName)
-    ).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+    const filteredDefaults = DEFAULT_MODULES.filter((m) => {
+      const code = (m.code || "").toUpperCase();
+      if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
+        return isAdmin;
+      }
+      return isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName);
+    }).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
     try {
       const response = await api.get("/access-control/me/modules").catch(() => {
@@ -219,7 +229,10 @@ export function ModulePage({ announcement }: ModulePageProps) {
       const isAdminUser = isAdmin || data.isAdmin === true;
       const enabledModules = rawModules
         .filter((mod: any) => {
-          const code = mod.code || mod.name;
+          const code = (mod.code || mod.name || "").toUpperCase();
+          if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
+            return isAdminUser;
+          }
           const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName);
           const active = isAdminUser || mod.isEnabled === true || mod.active === true;
           return authorized && active;
