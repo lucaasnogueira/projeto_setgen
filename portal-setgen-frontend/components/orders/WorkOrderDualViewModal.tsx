@@ -31,6 +31,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { formatDateBR, formatDateTimeBR } from "@/lib/date";
+import { useCanViewValues } from "@/lib/permissions";
 
 interface WorkOrderDualViewModalProps {
   orderId: string | null;
@@ -40,11 +41,13 @@ interface WorkOrderDualViewModalProps {
 }
 
 export function WorkOrderDualViewModal({
+
   orderId,
   open,
   onOpenChange,
   onUpdated,
 }: WorkOrderDualViewModalProps) {
+  const canViewValues = useCanViewValues();
   const [activeTab, setActiveTab] = useState<"client" | "internal">("client");
   const [clientView, setClientView] = useState<any>(null);
   const [internalView, setInternalView] = useState<any>(null);
@@ -278,7 +281,7 @@ export function WorkOrderDualViewModal({
                       <tbody className="divide-y">
                         {(clientView?.itemServices || []).length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-4 text-center text-muted-foreground italic">
+                            <td colSpan={canViewValues ? 4 : 2} className="py-4 text-center text-muted-foreground italic">
                               Nenhum serviço registrado.
                             </td>
                           </tr>
@@ -320,7 +323,7 @@ export function WorkOrderDualViewModal({
                       <tbody className="divide-y">
                         {(clientView?.items || []).length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-4 text-center text-muted-foreground italic">
+                            <td colSpan={canViewValues ? 4 : 2} className="py-4 text-center text-muted-foreground italic">
                               Nenhuma peça faturada diretamente.
                             </td>
                           </tr>

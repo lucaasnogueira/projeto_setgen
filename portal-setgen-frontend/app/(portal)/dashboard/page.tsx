@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { canSeeDashboard } from '@/lib/dashboard-access';
+import { canViewFinancialValues } from '@/lib/permissions';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -110,7 +111,7 @@ export default function DashboardPage() {
 
   if (!stats) return null;
 
-  const canSeeFinancials = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const canSeeFinancials = canViewFinancialValues(user?.role);
   const canSeeBillingAlerts = canSeeFinancials || user?.role === 'ADMINISTRATIVE';
   const canCreateClient = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'ADMINISTRATIVE';
   const canCreateVisit = user?.role !== 'WAREHOUSE';

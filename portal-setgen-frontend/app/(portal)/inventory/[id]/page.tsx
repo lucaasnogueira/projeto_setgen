@@ -6,6 +6,7 @@ import { inventoryApi } from '@/lib/api/inventory';
 import { Product, UserRole, MovementType } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { formatDateTime, formatCurrency } from '@/lib/utils';
+import { useCanViewValues } from '@/lib/permissions';
 import {
   Package,
   Layers,
@@ -54,6 +55,7 @@ const emptyMovement = {
 };
 
 export default function ProductDetailsPage() {
+  const canViewValues = useCanViewValues();
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
@@ -299,7 +301,7 @@ export default function ProductDetailsPage() {
               </TableHeader>
               <TableBody>
                 {movements.length === 0 ? (
-                  <TableEmpty colSpan={6} message="Nenhuma movimentação registrada ainda" />
+                  <TableEmpty colSpan={canViewValues ? 6 : 5} message="Nenhuma movimentação registrada ainda" />
                 ) : (
                   movements.map((m) => {
                     const inbound = INBOUND_TYPES.includes(m.type);

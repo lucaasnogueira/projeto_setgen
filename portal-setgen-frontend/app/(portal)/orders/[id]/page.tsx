@@ -83,6 +83,7 @@ import { SignaturePad } from '../components/SignaturePad';
 import { SERVICE_ORDER_STATUS_CONFIG, serviceOrderStatusBadgeClass, isServiceOrderEditable } from '@/lib/status-config';
 import { formatDateBR, formatDateTimeBR } from '@/lib/date';
 import { toast } from 'sonner';
+import { useCanViewValues } from '@/lib/permissions';
 
 const PUBLIC_QUOTE_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -107,10 +108,17 @@ export default function OrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthStore();
+  const canViewValues = useCanViewValues();
   const [order, setOrder] = useState<ServiceOrder | null>(null);
   const [internalView, setInternalView] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("externa");
+
+  useEffect(() => {
+    if (!canViewValues && activeTab === "interna") {
+      setActiveTab("externa");
+    }
+  }, [canViewValues, activeTab]);
   const [auditLog, setAuditLog] = useState<ServiceOrderAuditLogEntry[]>([]);
   const [clientVisits, setClientVisits] = useState<TechnicalVisit[]>([]);
   const [visitToLink, setVisitToLink] = useState('');
@@ -1371,7 +1379,7 @@ export default function OrderDetailsPage() {
                   <p className="text-sm font-bold text-gray-900">
                     Orçamento #{order.quote.quoteNumber}{' '}
                     <span className="font-normal text-gray-500">
-                      · Contratado em {formatDateBR(order.createdAt)} · Valor Total: {formatMoney(externalTotals.grandTotal)}
+                      · Contratado em {formatDateBR(order.createdAt)}{canViewValues && ` · Valor Total: ${formatMoney(externalTotals.grandTotal)}`}
                     </span>
                   </p>
                 </div>
@@ -1386,7 +1394,7 @@ export default function OrderDetailsPage() {
 
       {/* Tabs Principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="no-print grid grid-cols-2 md:grid-cols-5 p-1.5 bg-gray-100/90 rounded-2xl border border-gray-200/80 h-auto gap-1">
+        <TabsList className={`no-print grid p-1.5 bg-gray-100/90 rounded-2xl border border-gray-200/80 h-auto gap-1 ${canViewValues ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4"}`}>
           <TabsTrigger
             value="externa"
             className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-xs transition-all"
@@ -1395,16 +1403,18 @@ export default function OrderDetailsPage() {
             OS Externa (Cliente)
           </TabsTrigger>
 
-          <TabsTrigger
-            value="interna"
-            className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-[#1e293b] data-[state=active]:text-white data-[state=active]:shadow-xs transition-all relative"
-          >
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
-            OS Interna
-            <span className="ml-1 px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 data-[state=active]:text-emerald-300 text-[10px] rounded-full font-black">
-              DRE Real
-            </span>
-          </TabsTrigger>
+          {canViewValues && (
+            <TabsTrigger
+              value="interna"
+              className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-[#1e293b] data-[state=active]:text-white data-[state=active]:shadow-xs transition-all relative"
+            >
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              OS Interna
+              <span className="ml-1 px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 data-[state=active]:text-emerald-300 text-[10px] rounded-full font-black">
+                DRE Real
+              </span>
+            </TabsTrigger>
+          )}
 
           <TabsTrigger
             value="execucao"
@@ -1525,9 +1535,11 @@ export default function OrderDetailsPage() {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
                   <Package className="h-4 w-4 text-[#E2661D]" /> Materiais, Insumos e Peças Fornecidas
                 </h3>
-                <span className="text-xs text-gray-500 font-bold">
-                  Total: {formatMoney(externalTotals.materials)}
-                </span>
+                {canViewValues && (
+                  <span className="text-xs text-gray-500 font-bold">
+                    Total: {formatMoney(externalTotals.materials)}
+                  </span>
+                )}
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -1536,8 +1548,8 @@ export default function OrderDetailsPage() {
                     <tr>
                       <th className="py-3 px-4 text-left">Item / Produto</th>
                       <th className="py-3 px-4 text-center">Qtd</th>
-                      <th className="py-3 px-4 text-right">Valor Unitário</th>
-                      <th className="py-3 px-4 text-right">Subtotal</th>
+                      {canViewValues && <th className="py-3 px-4 text-right">Valor Unitário</th>}
+                      {canViewValues && <th className="py-3 px-4 text-right">Subtotal</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1554,17 +1566,21 @@ export default function OrderDetailsPage() {
                               <td className="py-3 px-4 text-center font-bold text-gray-700">
                                 {item.quantity} un
                               </td>
-                              <td className="py-3 px-4 text-right text-gray-600">
-                                {formatMoney(Number(item.unitValue || 0))}
-                              </td>
-                              <td className="py-3 px-4 text-right font-black text-gray-900">
-                                {formatMoney(Number(item.totalValue || 0))}
-                              </td>
+                              {canViewValues && (
+                                <td className="py-3 px-4 text-right text-gray-600">
+                                  {formatMoney(Number(item.unitValue || 0))}
+                                </td>
+                              )}
+                              {canViewValues && (
+                                <td className="py-3 px-4 text-right font-black text-gray-900">
+                                  {formatMoney(Number(item.totalValue || 0))}
+                                </td>
+                              )}
                             </tr>
                           ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="py-6 text-center text-gray-400 italic">
+                          <td colSpan={canViewValues ? 4 : 2} className="py-6 text-center text-gray-400 italic">
                             Nenhum produto ou peça faturada nesta OS.
                           </td>
                         </tr>
@@ -1579,12 +1595,16 @@ export default function OrderDetailsPage() {
                           <td className="py-3 px-4 text-center font-bold text-gray-700">
                             {item.quantity} {item.product?.unit || 'un'}
                           </td>
-                          <td className="py-3 px-4 text-right text-gray-600">
-                            {formatMoney(Number(item.unitPrice || 0))}
-                          </td>
-                          <td className="py-3 px-4 text-right font-black text-gray-900">
-                            {formatMoney(Number(item.totalPrice || (item.quantity * Number(item.unitPrice || 0))))}
-                          </td>
+                          {canViewValues && (
+                            <td className="py-3 px-4 text-right text-gray-600">
+                              {formatMoney(Number(item.unitPrice || 0))}
+                            </td>
+                          )}
+                          {canViewValues && (
+                            <td className="py-3 px-4 text-right font-black text-gray-900">
+                              {formatMoney(Number(item.totalPrice || (item.quantity * Number(item.unitPrice || 0))))}
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -1599,9 +1619,11 @@ export default function OrderDetailsPage() {
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
                   <Wrench className="h-4 w-4 text-[#E2661D]" /> Serviços Técnicos Especializados
                 </h3>
-                <span className="text-xs text-gray-500 font-bold">
-                  Total: {formatMoney(externalTotals.services)}
-                </span>
+                {canViewValues && (
+                  <span className="text-xs text-gray-500 font-bold">
+                    Total: {formatMoney(externalTotals.services)}
+                  </span>
+                )}
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -1610,8 +1632,8 @@ export default function OrderDetailsPage() {
                     <tr>
                       <th className="py-3 px-4 text-left">Serviço / Atividade Técnica</th>
                       <th className="py-3 px-4 text-center">Qtd</th>
-                      <th className="py-3 px-4 text-right">Valor Unitário</th>
-                      <th className="py-3 px-4 text-right">Subtotal</th>
+                      {canViewValues && <th className="py-3 px-4 text-right">Valor Unitário</th>}
+                      {canViewValues && <th className="py-3 px-4 text-right">Subtotal</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1628,17 +1650,21 @@ export default function OrderDetailsPage() {
                               <td className="py-3 px-4 text-center font-bold text-gray-700">
                                 {svc.quantity}
                               </td>
-                              <td className="py-3 px-4 text-right text-gray-600">
-                                {formatMoney(Number(svc.unitValue || 0))}
-                              </td>
-                              <td className="py-3 px-4 text-right font-black text-gray-900">
-                                {formatMoney(Number(svc.totalValue || 0))}
-                              </td>
+                              {canViewValues && (
+                                <td className="py-3 px-4 text-right text-gray-600">
+                                  {formatMoney(Number(svc.unitValue || 0))}
+                                </td>
+                              )}
+                              {canViewValues && (
+                                <td className="py-3 px-4 text-right font-black text-gray-900">
+                                  {formatMoney(Number(svc.totalValue || 0))}
+                                </td>
+                              )}
                             </tr>
                           ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="py-6 text-center text-gray-400 italic">
+                          <td colSpan={canViewValues ? 4 : 2} className="py-6 text-center text-gray-400 italic">
                             Nenhum serviço faturado listado separadamente nesta OS.
                           </td>
                         </tr>
@@ -1655,12 +1681,16 @@ export default function OrderDetailsPage() {
                           <td className="py-3 px-4 text-center font-bold text-gray-700">
                             {svc.quantity}
                           </td>
-                          <td className="py-3 px-4 text-right text-gray-600">
-                            {formatMoney(Number(svc.unitPrice || 0))}
-                          </td>
-                          <td className="py-3 px-4 text-right font-black text-gray-900">
-                            {formatMoney(Number(svc.quantity || 1) * Number(svc.unitPrice || 0))}
-                          </td>
+                          {canViewValues && (
+                            <td className="py-3 px-4 text-right text-gray-600">
+                              {formatMoney(Number(svc.unitPrice || 0))}
+                            </td>
+                          )}
+                          {canViewValues && (
+                            <td className="py-3 px-4 text-right font-black text-gray-900">
+                              {formatMoney(Number(svc.quantity || 1) * Number(svc.unitPrice || 0))}
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -1670,19 +1700,21 @@ export default function OrderDetailsPage() {
             </div>
 
             {/* Totalização Comercial Formal */}
-            <div className="p-6 bg-gradient-to-r from-gray-50 via-orange-50/30 to-gray-50 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="space-y-1 text-xs text-gray-500">
-                <p>• Prazo de Execução: <strong className="text-gray-800">{order.deadline ? formatDateBR(order.deadline) : 'Conforme cronograma técnico'}</strong></p>
-                <p>• Garantia dos Serviços e Peças: <strong className="text-gray-800">90 dias a contar da data de entrega</strong></p>
-                <p>• Condições de Pagamento: <strong className="text-gray-800">Faturado 28 DDL / Conforme Proposta</strong></p>
+            {canViewValues && (
+              <div className="p-6 bg-gradient-to-r from-gray-50 via-orange-50/30 to-gray-50 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-xs text-gray-500">
+                  <p>• Prazo de Execução: <strong className="text-gray-800">{order.deadline ? formatDateBR(order.deadline) : 'Conforme cronograma técnico'}</strong></p>
+                  <p>• Garantia dos Serviços e Peças: <strong className="text-gray-800">90 dias a contar da data de entrega</strong></p>
+                  <p>• Condições de Pagamento: <strong className="text-gray-800">Faturado 28 DDL / Conforme Proposta</strong></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Valor Total da Ordem de Serviço</p>
+                  <p className="text-2xl font-black text-[#E2661D]">
+                    {formatMoney(externalTotals.grandTotal)}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Valor Total da Ordem de Serviço</p>
-                <p className="text-2xl font-black text-[#E2661D]">
-                  {formatMoney(externalTotals.grandTotal)}
-                </p>
-              </div>
-            </div>
+            )}
 
             {/* Termo de Aceite & Assinatura Digital do Cliente */}
             <div className="p-6 space-y-4">
@@ -1760,6 +1792,7 @@ export default function OrderDetailsPage() {
         {/* ======================================================== */}
         {/* ABA 2: OS INTERNA (CUSTOS & LUCRO / DRE COM LANÇAMENTOS DRE)  */}
         {/* ======================================================== */}
+        {canViewValues && (
         <TabsContent value="interna" className="mt-4 space-y-5">
           {/* Header do DRE Executivo */}
           <div className="p-5 rounded-2xl bg-slate-900 text-white shadow-md space-y-5 border border-slate-800">
@@ -2634,6 +2667,7 @@ export default function OrderDetailsPage() {
             </div>
           </Card>
         </TabsContent>
+        )}
 
         {/* ======================================================== */}
         {/* ABA 3: CHECKLIST & EXECUÇÃO TÉCNICA - MULTI-CRUD NA TELA */}

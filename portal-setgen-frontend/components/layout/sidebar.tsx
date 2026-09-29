@@ -59,7 +59,7 @@ const SYSTEM_MODULES: ModuleDefinition[] = [
     badge: 'COMERCIAL',
     prefixes: ['/quotes', '/clients', '/art', '/purchase-orders'],
     items: [
-      { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view', 'orders:create'] },
+      { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view', 'orders:create'] },
       { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'] },
       { name: 'Ordens de Compra (Clientes)', href: '/purchase-orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
     ],

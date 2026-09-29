@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { inventoryApi } from "@/lib/api/inventory";
 import { Product, MovementType } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { useCanViewValues } from "@/lib/permissions";
 import {
   Package,
   Plus,
@@ -46,6 +47,7 @@ import {
 } from "@/components/ui/table";
 
 export default function InventoryPage() {
+  const canViewValues = useCanViewValues();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -236,7 +238,7 @@ export default function InventoryPage() {
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableEmpty colSpan={8} icon={Package} message="Nenhum produto cadastrado" />
+              <TableEmpty colSpan={canViewValues ? 8 : 7} icon={Package} message="Nenhum produto cadastrado" />
             ) : (
               filtered.map((item) => {
                 const status = statusOf(item);

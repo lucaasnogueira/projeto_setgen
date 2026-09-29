@@ -20,6 +20,7 @@ import { inventoryApi } from "@/lib/api/inventory";
 import { procurementOrdersApi, CreateProcurementOrderPayload } from "@/lib/api/procurement-orders";
 import { Supplier, Product, ProcurementOrder } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { useCanViewValues } from "@/lib/permissions";
 
 interface ItemRow {
   productId: string;
@@ -37,6 +38,7 @@ interface NewProcurementOrderModalProps {
 }
 
 export function NewProcurementOrderModal({
+
   isOpen,
   onClose,
   onSuccess,
@@ -44,6 +46,7 @@ export function NewProcurementOrderModal({
   initialQuantity = 1,
   initialMaterialRequestId,
 }: NewProcurementOrderModalProps) {
+  const canViewValues = useCanViewValues();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingInitial, setLoadingInitial] = useState(true);

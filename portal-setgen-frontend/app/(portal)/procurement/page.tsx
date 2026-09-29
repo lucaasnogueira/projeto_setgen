@@ -6,6 +6,7 @@ import { procurementOrdersApi } from "@/lib/api/procurement-orders";
 import { suppliersApi } from "@/lib/api/suppliers";
 import { ProcurementOrder, ProcurementOrderStatus, Supplier } from "@/types";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { useCanViewValues } from "@/lib/permissions";
 import {
   ShoppingCart,
   Truck,
@@ -73,6 +74,7 @@ const STATUS_BADGES: Record<
 };
 
 export default function ProcurementPage() {
+  const canViewValues = useCanViewValues();
   const router = useRouter();
   const searchParams = useSearchParams();
 
