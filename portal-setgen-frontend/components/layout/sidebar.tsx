@@ -178,19 +178,10 @@ export default function Sidebar() {
 
   const roleName = user?.roleName || (user as any)?.roleRef?.name;
   const normRoleName = (roleName || "").toLowerCase().trim();
-  const isExplicitNonAdmin =
-    normRoleName.includes("administrativo") ||
-    normRoleName.includes("compras") ||
-    normRoleName.includes("financeiro") ||
-    normRoleName.includes("almoxarife") ||
-    normRoleName.includes("tecnico") ||
-    normRoleName.includes("atendimento");
-
   const isAdmin =
-    !isExplicitNonAdmin &&
-    (user?.role === UserRole.ADMIN || normRoleName.includes("administrador") || normRoleName === "admin");
-
-  const userPerms = (user as any)?.permissions || [];
+    user?.role === UserRole.ADMIN &&
+    !normRoleName.includes("administrativo") &&
+    !normRoleName.includes("compras");
 
   // Filtra apenas módulos aos quais o usuário tem acesso permitido
   const allowedModules = useMemo(() => {
@@ -198,9 +189,9 @@ export default function Sidebar() {
     if (isAdmin) return SYSTEM_MODULES;
     return SYSTEM_MODULES.filter((mod) => {
       if (mod.id === "settings") return false;
-      return isUserAuthorizedForModule(user?.role, mod.id, roleName, userPerms);
+      return isUserAuthorizedForModule(user?.role, mod.id, roleName);
     });
-  }, [user?.role, roleName, isAdmin, userPerms]);
+  }, [user?.role, roleName, isAdmin]);
 
   // Identifica dinamicamente o módulo atual a partir do pathname
   const currentModule = useMemo(() => {

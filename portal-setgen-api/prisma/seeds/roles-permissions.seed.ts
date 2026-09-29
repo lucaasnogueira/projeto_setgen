@@ -49,7 +49,7 @@ const ROLE_DEFINITIONS: { name: string; description: string; permissionIds: stri
     ],
   },
   {
-    name: 'Administrativo/Compras',
+    name: 'Administrativo / Compras',
     description: 'Compras a fornecedor e administração geral',
     permissionIds: [
       PERMISSIONS.EQUIPMENT_VIEW,
@@ -106,7 +106,7 @@ const ROLE_DEFINITIONS: { name: string; description: string; permissionIds: stri
 // mas roleId nulo perde acesso a tudo que exigir permissão de cargo.
 const LEGACY_ROLE_TO_CARGO: Record<string, string> = {
   MANAGER: 'Gestor',
-  ADMINISTRATIVE: 'Administrativo/Compras',
+  ADMINISTRATIVE: 'Administrativo / Compras',
   WAREHOUSE: 'Almoxarife',
   TECHNICIAN: 'Técnico',
 };
@@ -133,15 +133,17 @@ export async function seedRolesAndPermissions() {
     });
     roleIdByName.set(role.name, role.id);
 
-    // Idempotente: substitui o conjunto de permissões do cargo pelo definido acima.
-    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
-    await prisma.rolePermission.createMany({
-      data: roleDef.permissionIds.map((permissionName) => ({
-        roleId: role.id,
-        permissionId: permissionIdByName.get(permissionName)!,
-      })),
-      skipDuplicates: true,
-    });
+    // Se o cargo já possui permissões cadastradas pelo usuário, NÃO apaga!
+    const existingCount = await prisma.rolePermission.count({ where: { roleId: role.id } });
+    if (existingCount === 0) {
+      await prisma.rolePermission.createMany({
+        data: roleDef.permissionIds.map((permissionName) => ({
+          roleId: role.id,
+          permissionId: permissionIdByName.get(permissionName)!,
+        })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   console.log(`✅ ${ROLE_DEFINITIONS.length} cargos operacionais com permissões sincronizados`);

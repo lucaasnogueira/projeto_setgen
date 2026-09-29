@@ -25,7 +25,9 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const user = await this.usersService.findByEmailOrLogin(email);
+    const user = (await this.usersService.findByEmail(
+      email,
+    )) as AuthUser | null;
 
     if (!user || !user.active) {
       throw new UnauthorizedException('Usuário ou senha inválidos');
@@ -37,14 +39,10 @@ export class AuthService {
       throw new UnauthorizedException('Usuário ou senha inválidos');
     }
 
-    const userWithPerms = await this.usersService.findMe(user.id);
-
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
-      roleName: user.roleRef?.name,
-      roleId: user.roleId,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -55,12 +53,7 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        login: user.login,
         role: user.role,
-        roleId: user.roleId,
-        roleName: user.roleRef?.name,
-        roleRef: user.roleRef ? { id: user.roleRef.id, name: user.roleRef.name } : null,
-        permissions: userWithPerms.permissions || [],
       },
     };
   }

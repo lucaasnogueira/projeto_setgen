@@ -337,20 +337,10 @@ export class UsersService {
 
     const { roleRef, permissions, ...rest } = user;
 
-    const roleNameLower = (roleRef?.name || '').toLowerCase();
-    const isExplicitNonAdmin =
-      roleNameLower.includes('administrativo') ||
-      roleNameLower.includes('compras') ||
-      roleNameLower.includes('financeiro') ||
-      roleNameLower.includes('almoxarife') ||
-      roleNameLower.includes('tecnico') ||
-      roleNameLower.includes('atendimento');
-
-    const isAdmin =
-      !isExplicitNonAdmin &&
-      (user.role === UserRole.ADMIN || roleNameLower.includes('administrador') || roleNameLower === 'admin');
-
-    if (isAdmin) {
+    // ADMIN ignora o PermissionsGuard por completo; devolver a lista inteira
+    // mantém o menu coerente com isso. Sem esta linha o admin semeado — que
+    // não tem nenhuma permissão gravada — ficaria sem menu algum.
+    if (user.role === UserRole.ADMIN) {
       const all = await this.prisma.permission.findMany({
         select: { name: true },
       });
