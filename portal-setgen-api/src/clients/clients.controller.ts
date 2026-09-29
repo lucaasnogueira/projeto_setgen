@@ -84,4 +84,50 @@ export class ClientsController {
   remove(@Param('id') id: string) {
     return this.clientsService.remove(id);
   }
+
+  @Post(':id/addresses')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar endereço ao cliente' })
+  addAddress(
+    @Param('id') id: string,
+    @Body() data: {
+      label?: string;
+      streetAddress: string;
+      complement?: string;
+      latitude?: number;
+      longitude?: number;
+      sourceExtraction?: string;
+    },
+  ) {
+    return this.clientsService.addAddress(id, data);
+  }
+
+  @Delete('addresses/:addressId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover endereço do cliente' })
+  deleteAddress(@Param('addressId') addressId: string) {
+    return this.clientsService.deleteAddress(addressId);
+  }
+
+  @Post(':id/contacts')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar contato corporativo ao cliente' })
+  addContact(
+    @Param('id') id: string,
+    @Body() data: {
+      contactType: string;
+      value: string;
+      label?: string;
+      name?: string;
+    },
+  ) {
+    return this.clientsService.addContact(id, data);
+  }
+
+  @Delete('contacts/:contactId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover contato corporativo do cliente' })
+  deleteContact(@Param('contactId') contactId: string) {
+    return this.clientsService.deleteContact(contactId);
+  }
 }

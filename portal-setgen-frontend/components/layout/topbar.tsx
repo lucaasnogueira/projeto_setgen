@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/lib/api/auth';
-import { Search, Bell, User, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { Search, Bell, User, Settings, LogOut, ChevronRight, Home } from 'lucide-react';
 import { CommandMenu } from './CommandMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationCenter } from './NotificationCenter';
@@ -71,12 +71,14 @@ export default function Topbar() {
   return (
     <header className="bg-card border-b border-border sticky top-0 z-20 h-16 shrink-0">
       <div className="h-full px-6 flex items-center justify-between">
-        {/* Breadcrumb */}
+        {/* Breadcrumb com botão Início apontando para /modules */}
         <div className="flex items-center gap-2 text-[13.5px]">
           <button
-            onClick={() => router.push('/dashboard')}
-            className="text-text-muted font-semibold hover:text-foreground transition-colors"
+            onClick={() => router.push('/modules')}
+            className="text-text-muted font-semibold hover:text-foreground transition-colors flex items-center gap-1.5"
+            title="Ir para a seleção de módulos"
           >
+            <Home className="w-3.5 h-3.5 text-primary" />
             Início
           </button>
           {breadcrumb.map((item, index) => (

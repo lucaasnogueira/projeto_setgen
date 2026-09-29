@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Setgen — Design System Aurora & Telas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #0F172A; }
+    .screen-card { background-color: #1E293B; border: 1px solid #334155; }
+  </style>
+</head>
+<body class="text-slate-100 p-8">
+
+  <!-- Header -->
+  <div class="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+    <div class="flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-[#E2661D] flex items-center justify-center text-white shadow-lg shadow-orange-950/40">
+        <i data-lucide="zap" class="w-6 h-6"></i>
+      </diqv>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-black tracking-tight text-white">SETGEN PORTAL</h1>
+          <span class="px-2.5 py-0.5 text-xs font-bold bg-[#E2661D]/20 text-[#E2661D] rounded-full border border-[#E2661D]/30">AURORA DESIGN SYSTEM</span>
+        </div>
+        <p class="text-sm text-slate-400 mt-1">6 Telas reformuladas com o padrão Aurora (Orion) + Identidade Setgen</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="flow_preview.html" class="px-3.5 py-1.5 rounded-lg bg-[#E2661D] hover:bg-[#C85514] text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-orange-500/30 transition-all">
+        <i data-lucide="layers" class="w-4 h-4"></i>
+        Ver Protótipo Interativo do Fluxo de Módulos &rarr;
+      </a>
+      <span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        Ativo no Canvas Pencil (.pen)
+      </span>
+    </div>
+  </div>
+
+  <!-- Screen Gallery -->
+  <div class="max-w-7xl mx-auto space-y-12">
+
+    <!-- TELA 1 -->
+    <div class="screen-card rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <span class="text-xs font-bold text-[#E2661D] uppercase tracking-wider">Tela 01</span>
+          <h2 class="text-xl font-bold text-white">Dashboard Geral Setgen</h2>
+          <p class="text-sm text-slate-400">Sidebar fixa Navy #1C2733, Topbar, 4 StatusCards KPI e Grid de Visitas/Armazém</p>
+        </div>
+        <span class="px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-300 font-medium">1440 × 980 px</span>
+      </div>
+      <div class="bg-[#F3F5F8] rounded-xl p-4 text-slate-800 overflow-hidden shadow-inner flex gap-4 min-h-[440px]">
+        <!-- Sidebar Preview -->
+        <div class="w-56 bg-[#1C2733] text-white p-4 rounded-lg flex flex-col justify-between shrink-0">
+          <div class="space-y-4">
+            <div class="flex items-center gap-2 font-bold text-base">
+              <span class="w-6 h-6 rounded bg-[#E2661D] flex items-center justify-center text-xs">⚡</span> SETGEN
+            </div>
+            <div class="space-y-1 text-xs">
+              <div class="px-3 py-2 rounded-md bg-[#E2661D] font-bold text-white flex items-center gap-2">
+                <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Dashboard
+              </div>
+              <div class="px-3 py-2 text-slate-300 flex items-center gap-2">
+                <i data-lucide="users" class="w-3.5 h-3.5"></i> Clientes
+              </div>
+              <div class="px-3 py-2 text-slate-300 flex items-center gap-2">
+                <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i> Visitas
+              </div>
+              <div class="px-3 py-2 text-slate-300 flex items-center gap-2">
+                <i data-lucide="warehouse" class="w-3.5 h-3.5"></i> Armazém
+              </div>
+            </div>
+          </div>
+          <div class="bg-[#263443] p-2.5 rounded-lg flex items-center gap-2 text-xs">
+            <div class="w-7 h-7 rounded-full bg-[#E2661D] text-white font-bold flex items-center justify-center text-[10px]">LS</div>
+            <div>
+              <p class="font-bold text-white">Lucas Silva</p>
+              <p class="text-[10px] text-slate-400">Admin</p>
+            </div>
+          </div>
+        </div>
+        <!-- Content Area -->
+        <div class="flex-1 flex flex-col gap-4">
+          <div class="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+              <h3 class="font-bold text-lg text-[#1B2834]">Painel Geral Setgen</h3>
+              <p class="text-xs text-slate-500">Visão consolidada de operações e atendimentos</p>
+            </div>
+            <button class="px-3.5 py-2 rounded-lg bg-[#E2661D] text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-orange-500/20">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nova Operação
+            </button>
+          </div>
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-4 gap-3">
+            <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+              <div>
+                <p class="text-xs text-slate-500 font-bold">Visitas Hoje</p>
+                <p class="text-xl font-bold text-[#1B2834]">24</p>
+              </div>
+              <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><i data-lucide="calendar-check" class="w-4 h-4"></i></span>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+              <div>
+                <p class="text-xs text-slate-500 font-bold">Ordens Ativas</p>
+                <p class="text-xl font-bold text-[#1B2834]">142</p>
+              </div>
+              <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i data-lucide="shopping-cart" class="w-4 h-4"></i></span>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+              <div>
+                <p class="text-xs text-slate-500 font-bold">Alertas Armazém</p>
+                <p class="text-xl font-bold text-[#1B2834]">3</p>
+              </div>
+              <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center"><i data-lucide="triangle-alert" class="w-4 h-4"></i></span>
+            </div>
+            <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+              <div>
+                <p class="text-xs text-slate-500 font-bold">Frota em Rota</p>
+                <p class="text-xl font-bold text-[#1B2834]">18</p>
+              </div>
+              <span class="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center"><i data-lucide="truck" class="w-4 h-4"></i></span>
+            </div>
+          </div>
+          <!-- 2 Col Grid -->
+          <div class="grid grid-cols-2 gap-4 flex-1">
+            <div class="bg-white p-4 rounded-xl shadow-sm">
+              <div class="flex justify-between items-center mb-3">
+                <p class="font-bold text-sm text-[#1B2834]">Próximas Visitas</p>
+                <span class="text-xs text-[#E2661D] font-bold">Ver Todas →</span>
+              </div>
+              <div class="space-y-2 text-xs">
+                <div class="p-2.5 rounded-lg bg-slate-50 flex justify-between items-center border border-slate-100">
+                  <div>
+                    <p class="font-bold text-[#1B2834]">Hospital Samaritano S/A</p>
+                    <p class="text-[10px] text-slate-500">Carlos Mendes • 14:00</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">Em Rota</span>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-50 flex justify-between items-center border border-slate-100">
+                  <div>
+                    <p class="font-bold text-[#1B2834]">Metalúrgica Alvorada</p>
+                    <p class="text-[10px] text-slate-500">Mariana Souza • 15:30</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Agendada</span>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm">
+              <div class="flex justify-between items-center mb-3">
+                <p class="font-bold text-sm text-[#1B2834]">Movimentações de Armazém</p>
+                <span class="text-xs text-[#E2661D] font-bold">Estoque →</span>
+              </div>
+              <div class="space-y-2 text-xs">
+                <div class="p-2.5 rounded-lg bg-slate-50 flex justify-between items-center border border-slate-100">
+                  <div>
+                    <p class="font-bold text-[#1B2834]">Gerador Diesel 150kVA</p>
+                    <p class="text-[10px] text-slate-500">ARM-8941 • Doca 02</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">Preparação</span>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-50 flex justify-between items-center border border-slate-100">
+                  <div>
+                    <p class="font-bold text-[#1B2834]">Cabo de Alta Tensão 50m</p>
+                    <p class="text-[10px] text-slate-500">ARM-8940 • Prateleira B-14</p>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Recebido</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELA 2 -->
+    <div class="screen-card rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <span class="text-xs font-bold text-[#E2661D] uppercase tracking-wider">Tela 02</span>
+          <h2 class="text-xl font-bold text-white">Clientes (Padrão Aurora CRUD Completo)</h2>
+          <p class="text-sm text-slate-400">PageHeader, InlineClientForm Multi-Step (3 etapas com stepper), Filtros, StatusCards e DataTable</p>
+        </div>
+        <span class="px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-300 font-medium">1440 × 1180 px</span>
+      </div>
+      <div class="bg-[#F3F5F8] rounded-xl p-5 text-slate-800 overflow-hidden shadow-inner flex flex-col gap-4">
+        <!-- PageHeader -->
+        <div class="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-lg text-[#1B2834]">Clientes & Parceiros</h3>
+            <p class="text-xs text-slate-500">Gestão cadastral, contratos ativos, limite de crédito e histórico</p>
+          </div>
+          <button class="px-4 py-2 rounded-lg bg-[#E2661D] text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-orange-500/20">
+            <i data-lucide="plus" class="w-4 h-4"></i> Novo Cliente
+          </button>
+        </div>
+        <!-- Inline Form Aurora Multi-Step -->
+        <div class="bg-white p-5 rounded-xl border-2 border-[#FFF3EC] shadow-sm space-y-4">
+          <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-3">
+              <span class="w-9 h-9 rounded-lg bg-[#FFF3EC] text-[#E2661D] flex items-center justify-center"><i data-lucide="building-2" class="w-5 h-5"></i></span>
+              <div>
+                <h4 class="font-bold text-sm text-[#1B2834]">Novo Registro de Cliente</h4>
+                <p class="text-xs text-slate-500">Etapa 1 de 3: Identificação e Dados Principais</p>
+              </div>
+            </div>
+            <button class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"><i data-lucide="x" class="w-4 h-4"></i></button>
+          </div>
+          <!-- Stepper Visual -->
+          <div class="bg-slate-50 p-2 rounded-lg flex justify-between items-center text-xs">
+            <div class="flex items-center gap-2 font-bold text-[#E2661D]">
+              <span class="w-6 h-6 rounded-full bg-[#E2661D] text-white flex items-center justify-center text-xs">1</span> 1. Identificação
+            </div>
+            <div class="flex items-center gap-2 text-slate-500">
+              <span class="w-6 h-6 rounded-full bg-white text-slate-600 border flex items-center justify-center text-xs">2</span> 2. Contato & Endereço
+            </div>
+            <div class="flex items-center gap-2 text-slate-500">
+              <span class="w-6 h-6 rounded-full bg-white text-slate-600 border flex items-center justify-center text-xs">3</span> 3. Condições Comerciais
+            </div>
+          </div>
+          <!-- Inputs Step 1 -->
+          <div class="grid grid-cols-3 gap-4 text-xs">
+            <div>
+              <label class="font-bold text-slate-700 block mb-1">Razão Social *</label>
+              <input type="text" value="Hospital Samaritano S/A" class="w-full h-10 px-3 rounded-lg bg-slate-50 border border-slate-200 text-[#1B2834]" readonly />
+            </div>
+            <div>
+              <label class="font-bold text-slate-700 block mb-1">Nome Fantasia</label>
+              <input type="text" value="Samaritano Saúde" class="w-full h-10 px-3 rounded-lg bg-slate-50 border border-slate-200 text-[#1B2834]" readonly />
+            </div>
+            <div>
+              <label class="font-bold text-slate-700 block mb-1">CNPJ *</label>
+              <input type="text" value="60.448.243/0001-56" class="w-full h-10 px-3 rounded-lg bg-slate-50 border border-slate-200 text-[#1B2834]" readonly />
+            </div>
+          </div>
+          <!-- Footer Buttons -->
+          <div class="flex justify-between items-center pt-2">
+            <button class="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold">← Cancelar</button>
+            <button class="px-5 py-2 rounded-lg bg-[#E2661D] text-white text-xs font-bold">Próxima Etapa: Contato & Endereço →</button>
+          </div>
+        </div>
+
+        <!-- StatusCards Aurora -->
+        <div class="grid grid-cols-4 gap-3">
+          <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+              <p class="text-xs text-slate-500 font-bold">Todos os Clientes</p>
+              <p class="text-xl font-bold text-[#1B2834]">328</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center"><i data-lucide="layers" class="w-4 h-4"></i></span>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+              <p class="text-xs text-slate-500 font-bold">Clientes Ativos</p>
+              <p class="text-xl font-bold text-[#1B2834]">294</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><i data-lucide="check-circle" class="w-4 h-4"></i></span>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+              <p class="text-xs text-slate-500 font-bold">Em Prospecção</p>
+              <p class="text-xl font-bold text-[#1B2834]">22</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center"><i data-lucide="clock" class="w-4 h-4"></i></span>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl shadow-sm flex justify-between items-center">
+            <div>
+              <p class="text-xs text-slate-500 font-bold">Inativos / Bloqueados</p>
+              <p class="text-xl font-bold text-[#1B2834]">12</p>
+            </div>
+            <span class="w-8 h-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center"><i data-lucide="ban" class="w-4 h-4"></i></span>
+          </div>
+        </div>
+
+        <!-- DataTable Aurora -->
+        <div class="bg-white rounded-xl shadow-sm p-4 space-y-2 text-xs">
+          <div class="grid grid-cols-12 gap-2 text-slate-400 font-bold px-3 py-2 border-b">
+            <div class="col-span-5">CLIENTE / CNPJ</div>
+            <div class="col-span-3">SEGMENTO</div>
+            <div class="col-span-2">STATUS</div>
+            <div class="col-span-2 text-right">AÇÕES</div>
+          </div>
+          <div class="grid grid-cols-12 gap-2 items-center p-3 bg-slate-50 rounded-lg">
+            <div class="col-span-5 flex items-center gap-3">
+              <span class="w-9 h-9 rounded-lg bg-[#FFF3EC] text-[#E2661D] flex items-center justify-center"><i data-lucide="building-2" class="w-4 h-4"></i></span>
+              <div>
+                <p class="font-bold text-[#1B2834]">Hospital Samaritano S/A</p>
+                <p class="text-[10px] text-slate-500">CNPJ: 60.448.243/0001-56</p>
+              </div>
+            </div>
+            <div class="col-span-3 text-slate-700">Saúde / Hospitalar</div>
+            <div class="col-span-2"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Ativo</span></div>
+            <div class="col-span-2 flex justify-end gap-2">
+              <span class="p-1.5 bg-white rounded border border-slate-200 text-[#E2661D]"><i data-lucide="file-text" class="w-4 h-4"></i></span>
+              <span class="p-1.5 bg-white rounded border border-slate-200 text-slate-600"><i data-lucide="pencil" class="w-4 h-4"></i></span>
+            </div>
+          </div>
+          <div class="grid grid-cols-12 gap-2 items-center p-3 bg-slate-50 rounded-lg">
+            <div class="col-span-5 flex items-center gap-3">
+              <span class="w-9 h-9 rounded-lg bg-[#FFF3EC] text-[#E2661D] flex items-center justify-center"><i data-lucide="building-2" class="w-4 h-4"></i></span>
+              <div>
+                <p class="font-bold text-[#1B2834]">Indústria Metalúrgica Alvorada</p>
+                <p class="text-[10px] text-slate-500">CNPJ: 18.234.918/0001-22</p>
+              </div>
+            </div>
+            <div class="col-span-3 text-slate-700">Indústria Pesada</div>
+            <div class="col-span-2"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">Ativo</span></div>
+            <div class="col-span-2 flex justify-end gap-2">
+              <span class="p-1.5 bg-white rounded border border-slate-200 text-[#E2661D]"><i data-lucide="file-text" class="w-4 h-4"></i></span>
+              <span class="p-1.5 bg-white rounded border border-slate-200 text-slate-600"><i data-lucide="pencil" class="w-4 h-4"></i></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELA 3 -->
+    <div class="screen-card rounded-2xl p-6 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <span class="text-xs font-bold text-[#E2661D] uppercase tracking-wider">Tela 03</span>
+          <h2 class="text-xl font-bold text-white">Detalhes do Cliente (ClientDetailsCard Modal)</h2>
+          <p class="text-sm text-slate-400">Modal flutuante com backdrop blur, dados de doca de geradores, limite corporativo e exclusão</p>
+        </div>
+        <span class="px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-300 font-medium">Modal Overlay 1440 × 980 px</span>
+      </div>
+      <div class="bg-slate-950/80 p-8 rounded-xl flex items-center justify-center">
+        <div class="bg-white text-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl border border-slate-200">
+          <div class="p-5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+              <span class="w-10 h-10 rounded-xl bg-[#FFF3EC] text-[#E2661D] flex items-center justify-center"><i data-lucide="building-2" class="w-5 h-5"></i></span>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-base text-[#1B2834]">Hospital Samaritano S/A</h3>
+                  <span class="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-full">ATIVO</span>
+                </div>
+                <p class="text-xs text-slate-500">CNPJ: 60.448.243/0001-56 • Higienópolis - São Paulo / SP</p>
+              </div>
+            </div>
+            <button class="w-8 h-8 rounded-full bg-white border text-slate-400 flex items-center justify-center"><i data-lucide="x" class="w-4 h-4"></i></button>
+          </div>
+          <div class="p-6 space-y-4 text-xs">
+            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+              <p class="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Contatos & Responsáveis</p>
+              <div class="grid grid-cols-3 gap-2">
+                <div><span class="text-slate-500 block">E-mail</span><span class="font-bold text-[#1B2834]">financeiro@samaritano.com.br</span></div>
+                <div><span class="text-slate-500 block">Telefone</span><span class="font-bold text-[#1B2834]">(11) 3821-5000</span></div>
+                <div><span class="text-slate-500 block">Consultor</span><span class="font-bold text-[#1B2834]">Carlos Mendes</span></div>
+              </div>
+            </div>
+            <div class="p-3.5 bg-blue-50/80 rounded-xl border border-blue-100 flex justify-between items-center text-blue-900">
+              <div>
+                <p class="font-bold text-xs">Condição Comercial: Tabela Corporativa Saúde</p>
+                <p class="text-[11px] text-blue-700">Faturamento 30 DDL • Locação prioritária de geradores</p>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] block text-blue-700">Limite Aprovado</span>
+                <span class="text-base font-bold text-blue-950">R$ 350.000,00</span>
+              </div>
+            </div>
+            <p class="text-[10px] text-slate-400">Criado em 14/03/2023 por Carlos Mendes • Última atualização por Lucas Silva em 20/09/2026</p>
+          </div>
+          <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs">
+            <button class="px-3.5 py-2 rounded-lg bg-red-50 text-red-600 font-bold flex items-center gap-1.5"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Excluir Cliente</button>
+            <div class="flex gap-2">
+              <button class="px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 font-bold">Fechar</button>
+              <button class="px-4 py-2 rounded-lg bg-[#E2661D] text-white font-bold flex items-center gap-1.5"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar Cadastro</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELAS 4, 5, 6, 07, 08 E LOGIN EM CARDS -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      
+      <!-- LOGIN -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl border-orange-500/30">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-bold text-[#E2661D] uppercase">Acesso / Auth</span>
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">Split-Screen</span>
+        </div>
+        <h3 class="text-base font-bold text-white mt-1">Tela de Login Executiva</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Painel de marca à esquerda com identidade Setgen e formulário com segurança TLS à direita.</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Layout</span><span class="font-bold text-white">44% Marca / 56% Form</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Segurança</span><span class="font-bold text-emerald-400">Criptografia TLS</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Ação pós-login</span><span class="font-bold text-orange-400">Hub (/modules)</span></div>
+        </div>
+      </div>
+
+      <!-- TELA 07 -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl border-orange-500/30">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-bold text-[#E2661D] uppercase">Tela 07</span>
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Hub Central</span>
+        </div>
+        <h3 class="text-base font-bold text-white mt-1">Hub de Módulos (/modules)</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Apresentação centralizada com cards minimalistas e redirecionamento direto.</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Título</span><span class="font-bold text-white">Centralizado</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Cards</span><span class="font-bold text-orange-400">6 Módulos Operacionais</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Estilo</span><span class="font-bold text-emerald-400">Clean White 1px</span></div>
+        </div>
+      </div>
+
+      <!-- TELA 08 -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl border-orange-500/30">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs font-bold text-[#E2661D] uppercase">Tela 08</span>
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Workspace</span>
+        </div>
+        <h3 class="text-base font-bold text-white mt-1">Workspace Operacional</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Header com Breadcrumb navegável, sidebar dark retrátil, abas minimalistas e botão [+].</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Breadcrumb</span><span class="font-bold text-white">SETGEN / Módulos / ...</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Navegação</span><span class="font-bold text-blue-400">Abas + Botão [+]</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Formulários</span><span class="font-bold text-emerald-400">Sem perda de estado</span></div>
+        </div>
+      </div>
+
+      <!-- TELA 04 -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl">
+        <span class="text-xs font-bold text-[#E2661D] uppercase">Tela 04</span>
+        <h3 class="text-base font-bold text-white mt-1">Visitas Comerciais</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Agenda de consultores técnicos e rotas em tempo real com check-in.</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Total no Mês</span><span class="font-bold text-white">148</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Em Rota</span><span class="font-bold text-blue-400">32</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Realizadas</span><span class="font-bold text-emerald-400">112</span></div>
+        </div>
+      </div>
+
+      <!-- TELA 05 -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl">
+        <span class="text-xs font-bold text-[#E2661D] uppercase">Tela 05</span>
+        <h3 class="text-base font-bold text-white mt-1">Armazém & Estoque</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Geradores a diesel, quadros QTA, cabos e posições de docas.</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Total Ativos</span><span class="font-bold text-white">842</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Prontos</span><span class="font-bold text-emerald-400">614</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Estoque Crítico</span><span class="font-bold text-red-400">42</span></div>
+        </div>
+      </div>
+
+      <!-- TELA 06 -->
+      <div class="screen-card rounded-2xl p-5 shadow-xl">
+        <span class="text-xs font-bold text-[#E2661D] uppercase">Tela 06</span>
+        <h3 class="text-base font-bold text-white mt-1">Usuários & RH</h3>
+        <p class="text-xs text-slate-400 mt-1 mb-3">Gestão de colaboradores internos, perfis de acesso e autenticação 2FA.</p>
+        <div class="bg-slate-900/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-800">
+          <div class="flex justify-between"><span class="text-slate-400">Contas</span><span class="font-bold text-white">64</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Ativos</span><span class="font-bold text-emerald-400">58</span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Super Admins</span><span class="font-bold text-purple-400">6</span></div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>
+

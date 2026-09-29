@@ -107,4 +107,42 @@ export class UsersController {
   resetPassword(@Param('id') id: string, @Body() resetPasswordDto: ResetPasswordDto) {
     return this.usersService.resetPassword(id, resetPasswordDto);
   }
+
+  @Get(':id/permissions')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Buscar matriz de permissões do colaborador' })
+  getPermissions(@Param('id') id: string) {
+    return this.usersService.getCollaboratorPermissions(id);
+  }
+
+  @Patch(':id/permissions')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Atualizar matriz de permissões do colaborador' })
+  updatePermissions(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.updateCollaboratorPermissions(id, data);
+  }
+
+  @Patch(':id/operational')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Atualizar dados operacionais do colaborador' })
+  updateOperational(@Param('id') id: string, @Body() data: any) {
+    return this.usersService.updateCollaboratorOperational(id, data);
+  }
+
+  @Post(':id/attachments')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Adicionar anexo ao colaborador' })
+  addAttachment(
+    @Param('id') id: string,
+    @Body() fileData: { fileName: string; fileUrl: string; fileSize?: bigint; mimeType?: string },
+  ) {
+    return this.usersService.addCollaboratorAttachment(id, fileData);
+  }
+
+  @Delete('attachments/:attachmentId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Excluir anexo do colaborador' })
+  deleteAttachment(@Param('attachmentId') attachmentId: string) {
+    return this.usersService.deleteCollaboratorAttachment(attachmentId);
+  }
 }

@@ -11,6 +11,7 @@ import {
   Tags,
   ClipboardCheck,
   ChevronRight,
+  Layers,
 } from 'lucide-react';
 
 interface SettingsLink {
@@ -43,6 +44,13 @@ const ADMIN_LINKS: SettingsLink[] = [
     description: 'Definir papéis e o que cada um pode acessar',
     href: '/roles',
     icon: Shield,
+    roles: ['ADMIN'],
+  },
+  {
+    title: 'Módulos e Acessos',
+    description: 'Controle granular de acesso a módulos por colaborador',
+    href: '/settings/modules',
+    icon: Layers,
     roles: ['ADMIN'],
   },
   {

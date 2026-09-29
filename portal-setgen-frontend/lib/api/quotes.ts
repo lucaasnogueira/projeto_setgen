@@ -69,4 +69,59 @@ export const quotesApi = {
     const { data } = await api.get('/quotes/statistics');
     return data;
   },
+
+  async approve(id: string): Promise<{ quote: Quote; serviceOrder: any }> {
+    const { data } = await api.post(`/quotes/${id}/approve`);
+    return data;
+  },
+
+  async addItemProduct(quoteId: string, item: { productId: string; quantity: number; unitPrice: number; discountAmount?: number }) {
+    const { data } = await api.post(`/quotes/${quoteId}/item-products`, item);
+    return data;
+  },
+
+  async removeItemProduct(quoteId: string, itemId: string) {
+    const { data } = await api.delete(`/quotes/${quoteId}/item-products/${itemId}`);
+    return data;
+  },
+
+  async addItemService(quoteId: string, item: { serviceId: string; quantity: number; unitPrice: number; discountAmount?: number; customObservation?: string }) {
+    const { data } = await api.post(`/quotes/${quoteId}/item-services`, item);
+    return data;
+  },
+
+  async removeItemService(quoteId: string, itemId: string) {
+    const { data } = await api.delete(`/quotes/${quoteId}/item-services/${itemId}`);
+    return data;
+  },
+
+  async addAdditionalCost(quoteId: string, cost: { description: string; amount: number }) {
+    const { data } = await api.post(`/quotes/${quoteId}/additional-costs`, cost);
+    return data;
+  },
+
+  async removeAdditionalCost(quoteId: string, costId: string) {
+    const { data } = await api.delete(`/quotes/${quoteId}/additional-costs/${costId}`);
+    return data;
+  },
+
+  async addTask(quoteId: string, task: { taskCode?: string; taskType: string; executionDate: string; assignedCollaboratorId?: string }) {
+    const { data } = await api.post(`/quotes/${quoteId}/tasks`, task);
+    return data;
+  },
+
+  async removeTask(quoteId: string, taskId: string) {
+    const { data } = await api.delete(`/quotes/${quoteId}/tasks/${taskId}`);
+    return data;
+  },
+
+  async addAttachment(quoteId: string, attachment: { fileName: string; fileUrl: string; showToClient?: boolean }) {
+    const { data } = await api.post(`/quotes/${quoteId}/attachments`, attachment);
+    return data;
+  },
+
+  async removeAttachment(quoteId: string, attachmentId: string) {
+    const { data } = await api.delete(`/quotes/${quoteId}/attachments/${attachmentId}`);
+    return data;
+  },
 };

@@ -1,50 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { suppliersApi } from "@/lib/api/suppliers";
 import { Supplier } from "@/types";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { SupplierForm } from "../../components/SupplierForm";
+import { SupplierMultiCrudEditor } from "@/components/suppliers/SupplierMultiCrudEditor";
+import { Loader2 } from "lucide-react";
 
 export default function EditSupplierPage() {
   const params = useParams();
   const router = useRouter();
+  const supplierId = params.id as string;
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (params.id) {
-      suppliersApi
-        .getOne(params.id as string)
+    if (supplierId) {
+      suppliersApi.getOne(supplierId)
         .then(setSupplier)
-        .catch((error) => {
-          console.error("Erro ao carregar fornecedor:", error);
-          alert("Erro ao carregar fornecedor");
+        .catch(() => {
+          alert("Erro ao carregar dados do fornecedor");
           router.push("/suppliers");
         })
         .finally(() => setLoading(false));
     }
-  }, [params.id]);
-
-  const handleSubmit = async (data: any) => {
-    setSubmitting(true);
-    try {
-      await suppliersApi.update(params.id as string, data);
-      alert("Fornecedor atualizado com sucesso!");
-      router.push("/suppliers");
-    } catch (error: any) {
-      alert(error.response?.data?.message || "Erro ao atualizar fornecedor");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  }, [supplierId, router]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <Loader2 className="animate-spin h-8 w-8 text-[#E2661D]" />
       </div>
     );
   }
@@ -52,15 +37,12 @@ export default function EditSupplierPage() {
   if (!supplier) return null;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-12">
-      <PageHeader title={`Editar ${supplier.name}`} subtitle="Atualize os dados do fornecedor" />
-
-      <SupplierForm
+    <div className="flex flex-col" style={{ height: "calc(100vh - 64px)" }}>
+      <SupplierMultiCrudEditor
+        supplierId={supplierId}
         initialData={supplier}
-        onSubmit={handleSubmit}
-        onCancel={() => router.back()}
-        loading={submitting}
-        submitLabel="Salvar Alterações"
+        onClose={() => router.push("/suppliers")}
+        onSuccess={() => router.push("/suppliers")}
       />
     </div>
   );

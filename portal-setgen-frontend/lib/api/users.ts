@@ -96,4 +96,33 @@ export const usersApi = {
     const { data } = await api.patch('/users/me/notifications', prefs);
     return data;
   },
+
+  async getPermissions(id: string): Promise<any> {
+    const { data } = await api.get(`/users/${id}/permissions`);
+    return data;
+  },
+
+  async updatePermissions(id: string, permissions: Record<string, boolean>): Promise<any> {
+    const { data } = await api.patch(`/users/${id}/permissions`, permissions);
+    return data;
+  },
+
+  async updateOperational(id: string, opData: any): Promise<any> {
+    const { data } = await api.patch(`/users/${id}/operational`, opData);
+    return data;
+  },
+
+  async getAttachments(id: string): Promise<any[]> {
+    const { data } = await api.get(`/users/${id}/attachments`);
+    return data;
+  },
+
+  async addAttachment(id: string, fileData: { fileName: string; fileUrl: string; fileSize?: number; fileType?: string }): Promise<any> {
+    const { data } = await api.post(`/users/${id}/attachments`, fileData);
+    return data;
+  },
+
+  async deleteAttachment(id: string, attachmentId: string): Promise<void> {
+    await api.delete(`/users/${id}/attachments/${attachmentId}`);
+  },
 };

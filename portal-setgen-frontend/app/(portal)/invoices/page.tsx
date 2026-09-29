@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -6,11 +6,13 @@ import { Invoice } from '@/types';
 import { fiscalApi } from '@/lib/api/fiscal';
 import { FiscalDetailsModal } from './components/FiscalDetailsModal';
 import { Badge } from '@/components/ui/badge';
-import { Plus, FileText, Calendar, Building2, Search, X, Eye } from 'lucide-react';
+import { Plus, FileText, Calendar, Building2, Search, X, Eye, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/PageHeader';
-import Link from 'next/link';
+import { StatusCard } from '@/components/ui/status-card';
+import { Card } from '@/components/ui/card';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -30,7 +32,6 @@ export default function InvoicesPage() {
     if (status !== 'ALL') filters.status = status;
     if (startDate) filters.startDate = startDate;
     if (endDate) filters.endDate = endDate;
-    // clientSearch filtrado no frontend por enquanto para performance ou via backend se payload crescer
 
     fiscalApi.getAll(filters)
       .then(setInvoices)
@@ -43,7 +44,7 @@ export default function InvoicesPage() {
 
   const filteredInvoices = clientSearch
     ? invoices.filter(inv => {
-        const clientName = inv.client?.companyName || '';
+        const clientName = inv.client?.companyName || inv.client?.tradeName || '';
         return clientName.toLowerCase().includes(clientSearch.toLowerCase()) ||
                inv.invoiceNumber?.toLowerCase().includes(clientSearch.toLowerCase()) ||
                inv.chaveAcesso?.includes(clientSearch);
@@ -57,33 +58,61 @@ export default function InvoicesPage() {
     setClientSearch('');
   };
 
-  if (loading && invoices.length === 0) return <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div></div>;
+  const totalAutorizadas = invoices.filter(i => i.status === 'AUTORIZADA').length;
+  const totalProcessando = invoices.filter(i => i.status === 'PROCESSANDO').length;
+  const totalRejeitadas = invoices.filter(i => i.status === 'REJEITADA' || i.status === 'CANCELADA').length;
+
+  if (loading && invoices.length === 0) {
+    return (
+      <div className="flex justify-center p-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E2661D]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Faturamento — Notas de Mercadoria"
-        subtitle="Emissão de NF-e e integração SEFAZ-AM"
+        title="Faturamento & Notas Fiscais"
+        subtitle={`${filteredInvoices.length} notas fiscais de mercadoria emitidas e integradas à SEFAZ-AM`}
+        actions={
+          <Button
+            onClick={() => router.push('/invoices/new')}
+            className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white"
+          >
+            <Plus className="h-4 w-4" />
+            Emitir Nova Nota
+          </Button>
+        }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Filtros */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="bg-card rounded-[14px] border border-border p-4 flex flex-wrap gap-4 items-center">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por cliente, número ou chave..."
-                  className="pl-10"
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
-                />
-              </div>
-            </div>
+      {/* 4 StatusCards KPI Padrão Setgen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatusCard label="Total de Notas" value={invoices.length} icon={FileText} variant="orange" />
+        <StatusCard label="NF-e Autorizadas" value={totalAutorizadas} icon={CheckCircle} variant="emerald" />
+        <StatusCard label="Em Processamento" value={totalProcessando} icon={Clock} variant="blue" />
+        <StatusCard label="Rejeitadas / Canceladas" value={totalRejeitadas} icon={AlertCircle} variant="red" />
+      </div>
 
+      {/* Barra de Filtros Full Width */}
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex-1 min-w-[240px] max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por cliente, número ou chave de acesso..."
+                className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[160px] h-9 text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -95,17 +124,17 @@ export default function InvoicesPage() {
               </SelectContent>
             </Select>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Input
                 type="date"
-                className="w-[150px]"
+                className="w-[140px] h-9 text-xs"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
-              <span className="text-muted-foreground">até</span>
+              <span>até</span>
               <Input
                 type="date"
-                className="w-[150px]"
+                className="w-[140px] h-9 text-xs"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -121,115 +150,85 @@ export default function InvoicesPage() {
             )}
           </div>
         </div>
+      </Card>
 
-        {/* Ação */}
-        <div className="flex flex-col gap-2">
-          <Link href="/invoices/new" className="w-full">
-            <button className="w-full h-full min-h-[50px] bg-primary text-white rounded-[10px] hover:bg-primary/90 flex items-center justify-center gap-2 shadow-lg font-bold transition-all active:scale-95">
-              <Plus className="h-5 w-5" />
-              Emitir Nota Fiscal
-            </button>
-          </Link>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-[14px] border border-border overflow-hidden">
+      {/* Tabela de Notas */}
+      <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-muted/50 border-b">
-                <th className="px-8 py-5 text-left text-xs font-black text-muted-foreground uppercase tracking-widest">Documento</th>
-                <th className="px-8 py-5 text-left text-xs font-black text-muted-foreground uppercase tracking-widest">Cliente</th>
-                <th className="px-8 py-5 text-left text-xs font-black text-muted-foreground uppercase tracking-widest">Valores</th>
-                <th className="px-8 py-5 text-left text-xs font-black text-muted-foreground uppercase tracking-widest">Emissão</th>
-                <th className="px-8 py-5 text-left text-xs font-black text-muted-foreground uppercase tracking-widest">Status / SEFAZ</th>
-                <th className="px-8 py-5 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Ações</th>
+              <tr className="bg-gray-50 border-b border-border">
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-600">Documento / Chave</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-600">Destinatário</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-600">Valor Total</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-600">Emissão</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-600">Status / SEFAZ</th>
+                <th className="px-6 py-3.5 text-right text-xs font-bold text-gray-600">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-8 py-20 text-center">
-                    <div className="flex flex-col items-center opacity-40">
-                      <div className="bg-emerald-50 p-6 rounded-full mb-4">
-                        <FileText className="h-12 w-12 text-emerald-600" />
-                      </div>
-                      <p className="text-muted-foreground font-bold text-lg">Nenhuma nota fiscal encontrada</p>
-                      <p className="text-muted-foreground text-sm">Tente ajustar seus filtros de busca</p>
+                  <td colSpan={6} className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center opacity-60">
+                      <FileText className="h-10 w-10 text-gray-400 mb-2" />
+                      <p className="font-bold text-sm text-gray-700">Nenhuma nota fiscal encontrada</p>
+                      <p className="text-xs text-gray-400">Tente ajustar seus filtros de busca</p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map(invoice => (
+                filteredInvoices.map((invoice) => (
                   <tr
                     key={invoice.id}
-                    className="group hover:bg-emerald-50/30 transition-all cursor-pointer"
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer"
                     onClick={() => router.push(`/invoices/${invoice.id}`)}
                   >
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
-                          <FileText className="h-6 w-6" />
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-orange-50 text-[#E2661D] font-bold shrink-0">
+                          <FileText className="h-4 w-4" />
                         </div>
-                        <div className="max-w-[220px]">
-                          <p className="font-black text-foreground leading-none mb-1 text-lg">#{invoice.invoiceNumber}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono truncate mt-1.5">
-                            {invoice.chaveAcesso || 'Sem chave de acesso'}
+                        <div className="max-w-[200px]">
+                          <p className="font-bold text-gray-900 text-xs font-mono">#{invoice.invoiceNumber}</p>
+                          <p className="text-[10px] text-gray-400 font-mono truncate">
+                            {invoice.chaveAcesso || 'Sem chave gerada'}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center border-2 border-white shadow-sm">
-                           <Building2 className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                        <span className="text-sm font-bold text-foreground leading-tight">
-                          {invoice.client?.tradeName || invoice.client?.companyName || 'Cliente removido'}
-                        </span>
+                    <td className="px-6 py-3.5">
+                      <div className="text-xs font-semibold text-gray-900">
+                        {invoice.client?.tradeName || invoice.client?.companyName || 'Cliente sem nome'}
                       </div>
                     </td>
-                    <td className="px-8 py-5">
-                      <div>
-                        <p className="font-black text-foreground text-lg">
-                          {invoice.value?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </p>
-                        {invoice.splitPayment && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-                             <p className="text-[10px] text-emerald-600 font-black">Split Ativo</p>
-                          </div>
-                        )}
-                      </div>
+                    <td className="px-6 py-3.5">
+                      <p className="font-bold text-gray-900 text-xs">
+                        {invoice.value?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
                     </td>
-                    <td className="px-8 py-5">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2 text-sm text-foreground font-bold">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {new Date(invoice.issueDate).toLocaleDateString('pt-BR')}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground mt-1">Série: {invoice.serie || '001'}</span>
-                      </div>
+                    <td className="px-6 py-3.5 text-xs text-gray-500">
+                      {new Date(invoice.issueDate).toLocaleDateString('pt-BR')}
                     </td>
-                    <td className="px-8 py-5">
-                      <Badge
+                    <td className="px-6 py-3.5">
+                      <span
                         className={`
-                          ${invoice.status === 'AUTORIZADA' ? 'bg-green-500 text-white' :
-                            invoice.status === 'REJEITADA' ? 'bg-red-500 text-white' :
-                            invoice.status === 'PROCESSANDO' ? 'bg-blue-500 text-white animate-pulse' :
-                            invoice.status === 'CANCELADA' ? 'bg-gray-800 text-white' :
-                            'bg-gray-200 text-muted-foreground'
+                          ${invoice.status === 'AUTORIZADA' ? 'bg-emerald-50 text-emerald-700' :
+                            invoice.status === 'REJEITADA' ? 'bg-red-50 text-red-700' :
+                            invoice.status === 'PROCESSANDO' ? 'bg-blue-50 text-blue-700 animate-pulse' :
+                            invoice.status === 'CANCELADA' ? 'bg-gray-100 text-gray-700' :
+                            'bg-gray-100 text-gray-600'
                           }
-                          font-black text-[11px] px-4 py-1.5 rounded-xl border-none shadow-sm uppercase tracking-tighter
+                          font-bold text-[11px] px-2.5 py-0.5 rounded-full inline-block
                         `}
                       >
                         {invoice.status}
-                      </Badge>
+                      </span>
                     </td>
-                    <td className="px-8 py-5 text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-6 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => router.push(`/invoices/${invoice.id}`)}
-                        className="p-2 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                        className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Ver detalhes"
                       >
                         <Eye className="h-4 w-4" />
@@ -241,7 +240,7 @@ export default function InvoicesPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
 
       <FiscalDetailsModal
         isOpen={!!selectedInvoice}

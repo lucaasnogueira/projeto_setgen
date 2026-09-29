@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { equipmentApi } from "@/lib/api/equipment";
 import { Equipment, EquipmentType } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, Zap, Box } from "lucide-react";
+import { Plus, Search, Zap, Box, Building2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { StatusCard } from "@/components/ui/status-card";
 import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
 import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
 import {
@@ -62,10 +63,14 @@ export default function EquipmentPage() {
     );
   });
 
+  const totalGenerators = equipments.filter(e => e.type === EquipmentType.GENERATOR).length;
+  const totalSubstations = equipments.filter(e => e.type === EquipmentType.SUBSTATION).length;
+  const totalOther = equipments.filter(e => e.type === EquipmentType.OTHER).length;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#E2661D]"></div>
       </div>
     );
   }
@@ -74,25 +79,36 @@ export default function EquipmentPage() {
     <div className="space-y-5">
       <PageHeader
         title="Equipamentos"
-        subtitle={`${filtered.length} equipamentos cadastrados`}
+        subtitle={`${filtered.length} geradores e equipamentos industriais monitorados`}
         actions={
-          <Button onClick={() => router.push("/equipment/new")} className="rounded-[9px] font-bold gap-2">
+          <Button
+            onClick={() => router.push("/equipment/new")}
+            className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white"
+          >
             <Plus className="h-4 w-4" />
             Novo Equipamento
           </Button>
         }
       />
 
+      {/* 4 StatusCards KPI Padrão Setgen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatusCard label="Total de Equipamentos" value={equipments.length} icon={Zap} variant="orange" />
+        <StatusCard label="Grupos Geradores" value={totalGenerators} icon={Zap} variant="amber" />
+        <StatusCard label="Subestações / QTA" value={totalSubstations} icon={Building2} variant="blue" />
+        <StatusCard label="Outros / Especiais" value={totalOther} icon={Box} variant="slate" />
+      </div>
+
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
-          <div className="relative w-60">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+          <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar por marca, modelo, cliente..."
+              placeholder="Buscar por marca, modelo, série, cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
         </div>
@@ -116,27 +132,27 @@ export default function EquipmentPage() {
               filtered.map((eq) => (
                 <TableRow
                   key={eq.id}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-gray-50/50"
                   onClick={() => router.push(`/equipment/${eq.id}`)}
                 >
                   <TableCell>
                     <div className="flex items-center gap-2.5">
-                      <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center shrink-0 bg-orange-50 text-orange-700">
+                      <div className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center shrink-0 bg-orange-50 text-[#E2661D] font-bold">
                         {eq.type === EquipmentType.GENERATOR ? <Zap className="h-4 w-4" /> : <Box className="h-4 w-4" />}
                       </div>
                       <div className="min-w-0">
                         <div className="text-[13px] font-bold text-foreground truncate">{eq.brand || "Sem marca"} {eq.model}</div>
                         {eq.serialNumber && (
-                          <div className="text-[11.5px] text-text-muted truncate">SN: {eq.serialNumber}</div>
+                          <div className="text-[11.5px] font-mono text-muted-foreground truncate">SN: {eq.serialNumber}</div>
                         )}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-[12.5px] text-text-secondary">{EQUIPMENT_TYPE_LABELS[eq.type]}</TableCell>
-                  <TableCell className="text-[12.5px] text-text-secondary">{eq.client?.companyName || "-"}</TableCell>
-                  <TableCell className="text-[12.5px] text-text-secondary">{eq.powerRating || "-"}</TableCell>
-                  <TableCell className="text-[12.5px] text-text-secondary">{eq.installLocation || "-"}</TableCell>
-                  <TableCell className="text-[12.5px] text-text-secondary">{formatDate(eq.createdAt)}</TableCell>
+                  <TableCell className="text-[12.5px] text-muted-foreground">{EQUIPMENT_TYPE_LABELS[eq.type]}</TableCell>
+                  <TableCell className="text-[12.5px] text-foreground font-medium">{eq.client?.companyName || "—"}</TableCell>
+                  <TableCell className="text-[12.5px] font-semibold text-orange-600">{eq.powerRating || "—"}</TableCell>
+                  <TableCell className="text-[12.5px] text-muted-foreground">{eq.installLocation || "—"}</TableCell>
+                  <TableCell className="text-[12.5px] text-muted-foreground">{formatDate(eq.createdAt)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <InlineDeleteAction
                       confirming={confirmId === eq.id}

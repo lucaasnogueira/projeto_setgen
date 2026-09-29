@@ -161,4 +161,206 @@ export class ServiceOrdersController {
   getAuditLog(@Param('id') id: string) {
     return this.serviceOrdersService.getAuditLog(id);
   }
+
+  @Get(':id/client-view')
+  @ApiOperation({ summary: 'Visão do Cliente (OS Digital externa e escopo acordado)' })
+  getClientView(@Param('id') id: string) {
+    return this.serviceOrdersService.getClientView(id);
+  }
+
+  @Post(':id/client-signature')
+  @ApiOperation({ summary: 'Coleta de assinatura digital do cliente na OS' })
+  collectSignature(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      signerName: string;
+      signerDocument: string;
+      signatureImageUrl: string;
+      ipAddress?: string;
+      latitude?: number;
+      longitude?: number;
+    },
+  ) {
+    return this.serviceOrdersService.collectClientSignature(id, dto);
+  }
+
+  @Get(':id/internal-view')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Visão Interna da OS (apuração de horas, KM, custos e rentabilidade)' })
+  getInternalView(@Param('id') id: string) {
+    return this.serviceOrdersService.getInternalView(id);
+  }
+
+  @Post(':id/expenses')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Lançar despesa operacional direta da OS (alimentação, pedágio, combustível)' })
+  addExpense(
+    @Param('id') id: string,
+    @Body() dto: { description: string; amount: number; categoryName?: string },
+    @Request() req,
+  ) {
+    return this.serviceOrdersService.addExpenseToOrder(id, req.user.id, dto);
+  }
+
+  @Post(':id/start-displacement')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Registrar início de deslocamento operacional' })
+  startDisplacement(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() data: { latitude?: number; longitude?: number; odometerKm?: number; notes?: string },
+  ) {
+    return this.serviceOrdersService.startDisplacement(id, req.user.id, data);
+  }
+
+  @Post(':id/checkin')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Registrar check-in operacional na OS' })
+  checkin(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() data: { latitude?: number; longitude?: number; notes?: string },
+  ) {
+    return this.serviceOrdersService.checkin(id, req.user.id, data);
+  }
+
+  @Post(':id/checkout')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
+  @ApiOperation({ summary: 'Registrar check-out operacional e baixa de estoque' })
+  checkout(
+    @Param('id') id: string,
+    @Request() req,
+    @Body()
+    data: {
+      latitude?: number;
+      longitude?: number;
+      odometerKm?: number;
+      notes?: string;
+      totalKmTraveled?: number;
+    },
+  ) {
+    return this.serviceOrdersService.checkout(id, req.user.id, data);
+  }
+
+  @Patch(':id/km')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar quilometragem rodada da OS' })
+  updateKm(@Param('id') id: string, @Body() body: { km: number }) {
+    return this.serviceOrdersService.updateKm(id, Number(body.km));
+  }
+
+  @Patch(':id/hours')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar horas trabalhadas da OS' })
+  updateWorkedHours(@Param('id') id: string, @Body() body: { hours: number }) {
+    return this.serviceOrdersService.updateWorkedHours(id, Number(body.hours));
+  }
+
+  // --- MULTI-CRUD: DESPESAS DE CAMPO ---
+  @Patch(':id/expenses/:expenseId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar despesa operacional da OS' })
+  updateExpense(
+    @Param('id') id: string,
+    @Param('expenseId') expenseId: string,
+    @Body() dto: { description?: string; amount?: number; categoryName?: string },
+  ) {
+    return this.serviceOrdersService.updateExpense(id, expenseId, dto);
+  }
+
+  @Delete(':id/expenses/:expenseId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Excluir despesa operacional da OS' })
+  deleteExpense(@Param('id') id: string, @Param('expenseId') expenseId: string) {
+    return this.serviceOrdersService.deleteExpense(id, expenseId);
+  }
+
+  // --- MULTI-CRUD: PEÇAS & MATERIAIS (CMV) ---
+  @Post(':id/items')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar produto/material à OS' })
+  addItem(
+    @Param('id') id: string,
+    @Body() dto: { productId: string; quantity: number; unitPrice: number },
+  ) {
+    return this.serviceOrdersService.addItemToOrder(id, dto);
+  }
+
+  @Patch(':id/items/:itemId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar produto/material da OS' })
+  updateItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: { quantity?: number; unitPrice?: number },
+  ) {
+    return this.serviceOrdersService.updateOrderItem(id, itemId, dto);
+  }
+
+  @Delete(':id/items/:itemId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover produto/material da OS' })
+  deleteItem(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.serviceOrdersService.deleteOrderItem(id, itemId);
+  }
+
+  // --- MULTI-CRUD: SERVIÇOS TÉCNICOS ---
+  @Post(':id/services')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar serviço técnico à OS' })
+  addService(
+    @Param('id') id: string,
+    @Body() dto: { serviceId: string; quantity: number; unitPrice: number; scopeObservation?: string },
+  ) {
+    return this.serviceOrdersService.addServiceToOrder(id, dto);
+  }
+
+  @Patch(':id/services/:serviceId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar serviço técnico da OS' })
+  updateService(
+    @Param('id') id: string,
+    @Param('serviceId') serviceId: string,
+    @Body() dto: { quantity?: number; unitPrice?: number; scopeObservation?: string },
+  ) {
+    return this.serviceOrdersService.updateOrderService(id, serviceId, dto);
+  }
+
+  @Delete(':id/services/:serviceId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover serviço técnico da OS' })
+  deleteService(@Param('id') id: string, @Param('serviceId') serviceId: string) {
+    return this.serviceOrdersService.deleteOrderService(id, serviceId);
+  }
+
+  // --- MULTI-CRUD: MÃO DE OBRA & DESLOCAMENTO (LOGS DETALHADOS) ---
+  @Post(':id/labor-logs')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar registro de mão de obra técnica na OS' })
+  addLaborLog(
+    @Param('id') id: string,
+    @Body() dto: { userId: string; hours: number; hourlyRate: number; description: string },
+    @Request() req,
+  ) {
+    return this.serviceOrdersService.addLaborLog(id, req.user.id, dto);
+  }
+
+  @Delete(':id/execution-logs/:logId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover log operacional (mão de obra ou deslocamento) da OS' })
+  deleteExecutionLog(@Param('id') id: string, @Param('logId') logId: string) {
+    return this.serviceOrdersService.deleteExecutionLog(id, logId);
+  }
+
+  @Post(':id/displacement-logs')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Adicionar trecho de deslocamento/frota na OS' })
+  addDisplacementLog(
+    @Param('id') id: string,
+    @Body() dto: { route: string; km: number; kmRate: number; notes?: string },
+    @Request() req,
+  ) {
+    return this.serviceOrdersService.addDisplacementLog(id, req.user.id, dto);
+  }
 }

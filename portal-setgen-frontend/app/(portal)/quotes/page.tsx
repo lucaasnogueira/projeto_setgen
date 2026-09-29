@@ -3,16 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { quotesApi } from '@/lib/api/quotes';
-import { Quote, UserRole } from '@/types';
+import { Quote, QuoteStatus, UserRole } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import { QUOTE_STATUS_CONFIG, quoteStatusBadgeClass } from '@/lib/status-config';
 import { getInitials, getAvatarColor, formatDate } from '@/lib/utils';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, FileEdit, FileText, CheckCircle, XCircle, Clock, Pencil, FileDown } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { StatusCard } from '@/components/ui/status-card';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
-import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
 import {
   Select,
   SelectContent,
@@ -35,13 +35,12 @@ export default function QuotesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
   const { user } = useAuthStore();
   const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
-  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
-    (id) => quotesApi.delete(id),
-    (id) => setQuotes((prev) => prev.filter((q) => q.id !== id))
-  );
+  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER || user?.role === UserRole.ADMINISTRATIVE;
 
   useEffect(() => {
     loadQuotes();
@@ -60,10 +59,33 @@ export default function QuotesPage() {
 
   const filteredQuotes = quotes.filter(quote => {
     const matchesSearch = quote.quoteNumber.includes(searchTerm) ||
-      quote.client?.companyName.toLowerCase().includes(searchTerm.toLowerCase());
+      quote.client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || quote.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const totalOpen = quotes.filter(q =>
+    q.status === QuoteStatus.PENDING_APPROVAL || q.status === QuoteStatus.DRAFT
+  ).length;
+  const totalApproved = quotes.filter(q =>
+    q.status === QuoteStatus.APPROVED || q.status === QuoteStatus.ACCEPTED
+  ).length;
+  const totalRejected = quotes.filter(q =>
+    q.status === QuoteStatus.REJECTED || q.status === QuoteStatus.CANCELLED || q.status === QuoteStatus.EXPIRED
+  ).length;
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await quotesApi.delete(id);
+      setQuotes(prev => prev.filter(q => q.id !== id));
+    } catch (error) {
+      console.error('Erro ao excluir orçamento:', error);
+    } finally {
+      setDeletingId(null);
+      setConfirmingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -79,12 +101,23 @@ export default function QuotesPage() {
         title="Orçamentos"
         subtitle={`${filteredQuotes.length} orçamentos`}
         actions={
-          <Button onClick={() => router.push('/quotes/new')} className="rounded-[9px] font-bold gap-2">
+          <Button
+            onClick={() => router.push('/quotes/new')}
+            className="rounded-[9px] font-bold gap-2 bg-primary hover:bg-primary/90 text-white"
+          >
             <Plus className="h-4 w-4" />
             Novo Orçamento
           </Button>
         }
       />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatusCard label="Total de Orçamentos" value={quotes.length} icon={FileText} variant="orange" />
+        <StatusCard label="Em Aberto / Rascunho" value={totalOpen} icon={Clock} variant="amber" />
+        <StatusCard label="Aprovados / Aceitos" value={totalApproved} icon={CheckCircle} variant="emerald" />
+        <StatusCard label="Rejeitados / Expirados" value={totalRejected} icon={XCircle} variant="red" />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
@@ -94,94 +127,120 @@ export default function QuotesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Todos os status</SelectItem>
-              {Object.entries(QUOTE_STATUS_CONFIG).map(([status, config]) => (
-                <SelectItem key={status} value={status}>{config.label}</SelectItem>
+              {Object.entries(QUOTE_STATUS_CONFIG).map(([key, cfg]) => (
+                <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <div className="relative w-60">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-muted" />
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar por número ou cliente..."
+              placeholder="Pesquisar orçamentos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
+              className="w-full h-9 pl-9 pr-4 text-[12.5px] rounded-[8px] border border-input bg-background outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
 
         <Table>
           <TableHeader>
-            <TableRow className="border-t-0 hover:bg-transparent">
-              <TableHead>Orçamento</TableHead>
+            <TableRow>
+              <TableHead>Nº</TableHead>
               <TableHead>Cliente</TableHead>
-              <TableHead>Responsável</TableHead>
+              <TableHead>Data</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>OS gerada</TableHead>
-              <TableHead>Criado em</TableHead>
-              <TableHead className="w-[96px] text-right">Ações</TableHead>
+              <TableHead>Resp. Comercial</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredQuotes.length === 0 ? (
-              <TableEmpty colSpan={7} message="Nenhum orçamento encontrado" />
+              <TableEmpty colSpan={6} message="Nenhum orçamento encontrado." />
             ) : (
-              filteredQuotes.map((quote) => {
-                const respName = quote.createdBy?.name ?? '—';
-                const color = getAvatarColor(respName);
-                return (
-                  <TableRow key={quote.id}>
-                    <TableCell>
-                      <div className="text-[13px] font-bold text-foreground">{quote.quoteNumber}</div>
-                      <div className="text-[11.5px] text-text-muted">
-                        {quote.type === 'VISIT_REPORT' ? 'Visita' : 'Execução'}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-[12.5px] text-text-secondary">{quote.client?.companyName}</TableCell>
-                    <TableCell>
+              filteredQuotes.map((quote) => (
+                <TableRow
+                  key={quote.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/quotes/${quote.id}/edit`)}
+                >
+                  <TableCell className="font-mono font-semibold text-primary">
+                    {quote.quoteNumber}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {quote.client ? (
+                        <>
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${getAvatarColor(quote.client.companyName)}`}>
+                            {getInitials(quote.client.companyName)}
+                          </div>
+                          <span className="font-medium text-foreground">{quote.client.companyName}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground italic">Sem cliente</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(quote.createdAt)}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${quoteStatusBadgeClass(quote.status)}`}>
+                      {QUOTE_STATUS_CONFIG[quote.status]?.label ?? quote.status}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {quote.salesRep ? (
                       <div className="flex items-center gap-2">
-                        <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center font-bold text-[10.5px] shrink-0 ${color.bg} ${color.fg}`}>
-                          {getInitials(respName)}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${getAvatarColor(quote.salesRep.name)}`}>
+                          {getInitials(quote.salesRep.name)}
                         </div>
-                        <span className="text-[12.5px] text-text-secondary">{respName}</span>
+                        <span className="text-sm text-muted-foreground">{quote.salesRep.name}</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-block text-[11.5px] font-bold px-2.5 py-1 rounded-full ${quoteStatusBadgeClass(quote.status)}`}>
-                        {QUOTE_STATUS_CONFIG[quote.status].label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-[12.5px] text-text-secondary">
-                      {quote.serviceOrder ? (
-                        <button
-                          className="font-bold text-primary hover:underline"
-                          onClick={() => router.push(`/orders/${quote.serviceOrder!.id}`)}
-                        >
-                          {quote.serviceOrder.orderNumber}
-                        </button>
-                      ) : '—'}
-                    </TableCell>
-                    <TableCell className="text-[12.5px] text-text-secondary">{formatDate(quote.createdAt)}</TableCell>
-                    <TableCell>
-                      <InlineDeleteAction
-                        confirming={confirmId === quote.id}
-                        deleting={deleting}
-                        onView={() => router.push(`/quotes/${quote.id}`)}
-                        onEdit={
-                          quote.status === 'DRAFT' || quote.status === 'REJECTED'
-                            ? () => router.push(`/quotes/${quote.id}/edit`)
-                            : undefined
-                        }
-                        onRequestDelete={canDelete && !quote.serviceOrder ? () => requestDelete(quote.id) : undefined}
-                        onConfirmDelete={() => confirmDelete(quote.id)}
-                        onCancelDelete={cancelDelete}
-                      />
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+                    ) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const pdfUrl = `${window.location.origin.replace(":3000", ":3001")}/public/quotes/${quote.id}`;
+                          window.open(pdfUrl, "_blank");
+                        }}
+                        title="Visualizar / Imprimir PDF da Proposta"
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/quotes/${quote.id}/edit`);
+                        }}
+                        title="Editar Orçamento"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+
+                      {canDelete && (
+                        <InlineDeleteAction
+                          confirming={confirmingId === quote.id}
+                          deleting={deletingId === quote.id}
+                          onRequestDelete={() => setConfirmingId(quote.id)}
+                          onCancelDelete={() => setConfirmingId(null)}
+                          onConfirmDelete={() => handleDelete(quote.id)}
+                        />
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

@@ -460,6 +460,8 @@ export interface Quote {
   purchaseOrders?: PurchaseOrder[];
   quoteLines?: QuoteLine[];
   serviceOrder?: Pick<ServiceOrder, 'id' | 'orderNumber' | 'status' | 'progress'>;
+  itemProducts?: any[];
+  itemServices?: any[];
 }
 
 // Fase de execução: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
@@ -494,6 +496,23 @@ export interface ServiceOrder {
   delivery?: Delivery;
   materialRequests?: MaterialRequest[];
   notasFiscais?: Invoice[];
+  equipment?: any;
+  assignedCollaborator?: any;
+  assignedCollaboratorId?: string;
+  signature?: any;
+  expenses?: any[];
+  itemServices?: any[];
+  checkinTime?: string;
+  checkoutTime?: string;
+  totalWorkedHours?: number;
+  hourlyRateSnapshot?: number;
+  laborCostReal?: number;
+  totalKmTraveled?: number;
+  kmRateSnapshot?: number;
+  displacementCostReal?: number;
+  totalMaterialCostReal?: number;
+  grossRevenueReal?: number;
+  grossProfitReal?: number;
 }
 
 export interface ServiceOrderVisitLink {

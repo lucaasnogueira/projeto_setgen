@@ -109,6 +109,8 @@ export class ClientsService {
           take: 5,
           orderBy: { createdAt: 'desc' },
         },
+        addresses: true,
+        contactList: true,
         responsibleUser: { select: { id: true, name: true } },
         responsibleTeam: { select: { id: true, name: true } },
         group: { select: { id: true, name: true, color: true } },
@@ -266,6 +268,70 @@ export class ClientsService {
         ],
       },
       take: 10,
+    });
+  }
+
+  async addAddress(clientId: string, data: {
+    label?: string;
+    streetAddress: string;
+    complement?: string;
+    latitude?: number;
+    longitude?: number;
+    sourceExtraction?: string;
+  }) {
+    await this.findOne(clientId);
+    return this.prisma.clientAddress.create({
+      data: {
+        clientId,
+        label: data.label || 'Principal',
+        streetAddress: data.streetAddress,
+        complement: data.complement || null,
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
+        sourceExtraction: data.sourceExtraction || 'MANUAL',
+      },
+    });
+  }
+
+  async deleteAddress(addressId: string) {
+    const address = await this.prisma.clientAddress.findUnique({
+      where: { id: addressId },
+    });
+    if (!address) {
+      throw new NotFoundException('Endereço não encontrado');
+    }
+    return this.prisma.clientAddress.delete({
+      where: { id: addressId },
+    });
+  }
+
+  async addContact(clientId: string, data: {
+    contactType: string;
+    value: string;
+    label?: string;
+    name?: string;
+  }) {
+    await this.findOne(clientId);
+    return this.prisma.clientContact.create({
+      data: {
+        clientId,
+        contactType: data.contactType,
+        value: data.value,
+        label: data.label || null,
+        name: data.name || null,
+      },
+    });
+  }
+
+  async deleteContact(contactId: string) {
+    const contact = await this.prisma.clientContact.findUnique({
+      where: { id: contactId },
+    });
+    if (!contact) {
+      throw new NotFoundException('Contato não encontrado');
+    }
+    return this.prisma.clientContact.delete({
+      where: { id: contactId },
     });
   }
 }

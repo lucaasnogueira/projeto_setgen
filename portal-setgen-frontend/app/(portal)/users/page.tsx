@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
+import { CollaboratorFormModal } from '@/components/users/CollaboratorFormModal';
 
 export default function UsersPage() {
   const router = useRouter();
@@ -38,6 +39,10 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [collaboratorModal, setCollaboratorModal] = useState<{ open: boolean; id: string | null }>({
+    open: false,
+    id: null,
+  });
   const { confirmId, deleting: inlineDeleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
     (id) => usersApi.delete(id),
     (id) => {
@@ -156,9 +161,12 @@ export default function UsersPage() {
               <FileDown className="h-4 w-4" />
               Exportar Excel
             </Button>
-            <Button onClick={() => router.push('/users/new')} className="rounded-[9px] font-bold gap-2">
+            <Button
+              onClick={() => setCollaboratorModal({ open: true, id: null })}
+              className="rounded-[9px] font-bold gap-2 bg-primary hover:bg-primary/90 text-white"
+            >
               <Plus className="h-4 w-4" />
-              Novo Usuário
+              Novo Colaborador
             </Button>
           </>
         }
@@ -293,9 +301,9 @@ export default function UsersPage() {
                       ) : (
                         <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => router.push(`/users/${user.id}`)}
-                            className="p-2 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                            title="Editar"
+                            onClick={() => setCollaboratorModal({ open: true, id: user.id })}
+                            className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                            title="Editar Colaborador (Painel & RBAC)"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
@@ -405,6 +413,13 @@ export default function UsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CollaboratorFormModal
+        collaboratorId={collaboratorModal.id}
+        open={collaboratorModal.open}
+        onOpenChange={(open) => setCollaboratorModal((prev) => ({ ...prev, open }))}
+        onSaved={loadUsers}
+      />
     </div>
   );
 }

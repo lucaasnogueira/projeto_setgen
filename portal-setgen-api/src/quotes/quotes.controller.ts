@@ -72,7 +72,7 @@ export class QuotesController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.TECHNICIAN)
   @ApiOperation({ summary: 'Atualizar status do orçamento (aprovar/rejeitar/enviar/aceitar)' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateQuoteStatusDto, @Request() req) {
     return this.quotesService.updateStatus(id, dto, req.user.id, req.user.role);
@@ -114,5 +114,114 @@ export class QuotesController {
   @ApiOperation({ summary: 'Histórico de alterações do orçamento (audit log)' })
   getAuditLog(@Param('id') id: string) {
     return this.quotesService.getAuditLog(id);
+  }
+
+  // --- MultiCRUD por Abas ---
+  @Post(':id/item-products')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Incluir produto no orçamento' })
+  addItemProduct(
+    @Param('id') id: string,
+    @Body() dto: { productId: string; quantity: number; unitPrice: number; discountAmount?: number },
+  ) {
+    return this.quotesService.addItemProduct(id, dto);
+  }
+
+  @Delete(':id/item-products/:itemId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover produto do orçamento' })
+  removeItemProduct(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.quotesService.removeItemProduct(id, itemId);
+  }
+
+  @Post(':id/item-services')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Incluir serviço no orçamento' })
+  addItemService(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      serviceId: string;
+      quantity: number;
+      unitPrice: number;
+      discountAmount?: number;
+      customObservation?: string;
+    },
+  ) {
+    return this.quotesService.addItemService(id, dto);
+  }
+
+  @Delete(':id/item-services/:itemId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover serviço do orçamento' })
+  removeItemService(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.quotesService.removeItemService(id, itemId);
+  }
+
+  @Post(':id/additional-costs')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Incluir custo adicional no orçamento' })
+  addAdditionalCost(
+    @Param('id') id: string,
+    @Body() dto: { description: string; amount: number },
+  ) {
+    return this.quotesService.addAdditionalCost(id, dto);
+  }
+
+  @Delete(':id/additional-costs/:costId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover custo adicional do orçamento' })
+  removeAdditionalCost(@Param('id') id: string, @Param('costId') costId: string) {
+    return this.quotesService.removeAdditionalCost(id, costId);
+  }
+
+  @Post(':id/tasks')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Associar tarefa ao orçamento' })
+  addTask(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      taskCode?: string;
+      taskType: string;
+      executionDate: Date;
+      assignedCollaboratorId?: string;
+    },
+  ) {
+    return this.quotesService.addTask(id, dto);
+  }
+
+  @Delete(':id/tasks/:taskId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Desvincular tarefa do orçamento' })
+  removeTask(@Param('id') id: string, @Param('taskId') taskId: string) {
+    return this.quotesService.removeTask(id, taskId);
+  }
+
+  @Post(':id/attachments')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Incluir anexo no orçamento' })
+  addAttachment(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() dto: { fileName: string; fileUrl: string; showToClient?: boolean },
+  ) {
+    return this.quotesService.addAttachment(id, req.user.id, dto);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Remover anexo do orçamento' })
+  removeAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.quotesService.removeAttachment(id, attachmentId);
+  }
+
+  @Post(':id/approve')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE, UserRole.TECHNICIAN)
+  @ApiOperation({
+    summary: 'Aprovar orçamento e instanciar automaticamente a Ordem de Serviço de execução',
+  })
+  approveQuote(@Param('id') id: string, @Request() req) {
+    return this.quotesService.approveAndCreateWorkOrder(id, req.user.id);
   }
 }

@@ -8,8 +8,7 @@ import { clientsApi } from '@/lib/api/clients';
 import { visitsApi } from '@/lib/api/visits';
 import { ordersApi } from '@/lib/api/orders';
 import { useToast } from '@/components/ui/use-toast';
-import { ArrowLeft } from 'lucide-react';
-import Link from 'next/link';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function NewExpensePage() {
   const router = useRouter();
@@ -54,9 +53,6 @@ export default function NewExpensePage() {
   const handleSubmit = async (expenseData: any) => {
     setIsLoading(true);
     try {
-      console.log('🚀 Submitting expense data (raw):', JSON.stringify(expenseData, null, 2));
-      
-      // Sanitize data: convert empty strings to undefined for optional fields
       const sanitizedData = {
         ...expenseData,
         costCenterId: expenseData.costCenterId || undefined,
@@ -67,35 +63,18 @@ export default function NewExpensePage() {
         documentNumber: expenseData.documentNumber || undefined,
         notes: expenseData.notes || undefined,
         supplier: expenseData.supplier || undefined,
-        recurringId: expenseData.recurringId || undefined,
-        totalInstallments: expenseData.totalInstallments || undefined,
+        totalInstallments: expenseData.totalInstallments ? Number(expenseData.totalInstallments) : undefined,
+        installmentDaysOffsetsText: expenseData.installmentDaysOffsetsText || undefined,
       };
-      
-      console.log('🧹 Sanitized data:', JSON.stringify(sanitizedData, null, 2));
-      console.log('📊 Data types:', {
-        description: typeof sanitizedData.description,
-        type: typeof sanitizedData.type,
-        amount: typeof sanitizedData.amount,
-        categoryId: typeof sanitizedData.categoryId,
-        date: typeof sanitizedData.date,
-        dueDate: typeof sanitizedData.dueDate,
-        competenceDate: typeof sanitizedData.competenceDate,
-      });
-      
+
       await expensesApi.create(sanitizedData);
-      
       toast({
         title: 'Sucesso',
         description: 'Despesa criada com sucesso!',
       });
       router.push('/financial/expenses');
-      router.refresh(); // Refresh to show new item in list
+      router.refresh();
     } catch (error: any) {
-      console.error('❌ Error creating expense:', error);
-      console.error('📋 Error response:', error.response?.data);
-      console.error('📋 Error status:', error.response?.status);
-      console.error('📋 Error message:', error.response?.data?.message);
-      
       toast({
         title: 'Erro',
         description: error.response?.data?.message || 'Não foi possível criar a despesa.',
@@ -108,20 +87,12 @@ export default function NewExpensePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link 
-          href="/financial/expenses" 
-          className="p-2 hover:bg-muted rounded-full transition-colors"
-        >
-          <ArrowLeft className="h-6 w-6 text-muted-foreground" />
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold">Nova Despesa</h1>
-          <p className="text-muted-foreground">Registre uma nova despesa no sistema</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Nova Despesa"
+        subtitle="Registre uma nova despesa ou conta a pagar no sistema financeiro"
+      />
 
-      <div className="bg-card rounded-xl shadow-lg p-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs">
         <ExpenseForm
           categories={data.categories}
           clients={data.clients}

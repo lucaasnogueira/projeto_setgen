@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   CreditCard,
   ExternalLink,
+  Printer,
   ShoppingCart,
   ArrowRightCircle,
   ClipboardCheck,
@@ -161,6 +162,14 @@ export default function QuoteDetailsPage() {
                 </Button>
               </a>
             )}
+            <Button
+              variant="outline"
+              onClick={() => window.print()}
+              className="rounded-[9px] font-bold gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir / PDF
+            </Button>
             {canEdit && (
               <Link href={`/quotes/${quote.id}/edit`}>
                 <Button variant="outline" className="rounded-[9px] font-bold gap-2">

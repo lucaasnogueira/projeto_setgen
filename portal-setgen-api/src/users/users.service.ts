@@ -110,6 +110,32 @@ export class UsersService {
         active: true,
         createdAt: true,
         updatedAt: true,
+        avatarUrl: true,
+        login: true,
+        jobTitle: true,
+        phone: true,
+        auvochatEnabled: true,
+        monitoringIntervalMin: true,
+        basePointAddress: true,
+        basePointLat: true,
+        basePointLng: true,
+        checkinType: true,
+        hourlyRate: true,
+        kmRate: true,
+        language: true,
+        workShiftType: true,
+        workShiftSchedule: true,
+        notifyApprovalWeb: true,
+        notifyApprovalEmail: true,
+        defaultScreen: true,
+        collaboratorPermissions: true,
+        collaboratorAttachments: true,
+        teams: {
+          select: { id: true, name: true },
+        },
+        managedTeams: {
+          select: { id: true, name: true },
+        },
         roleRef: {
           include: {
             permissions: {
@@ -389,5 +415,99 @@ export class UsersService {
     });
 
     return { message: 'Senha alterada com sucesso' };
+  }
+
+  async getCollaboratorPermissions(userId: string) {
+    await this.findOne(userId);
+    let perms = await this.prisma.collaboratorPermission.findUnique({
+      where: { userId },
+    });
+
+    if (!perms) {
+      perms = await this.prisma.collaboratorPermission.create({
+        data: { userId },
+      });
+    }
+
+    return perms;
+  }
+
+  async updateCollaboratorPermissions(userId: string, data: any) {
+    await this.findOne(userId);
+    return this.prisma.collaboratorPermission.upsert({
+      where: { userId },
+      update: data,
+      create: {
+        ...data,
+        userId,
+      },
+    });
+  }
+
+  async updateCollaboratorOperational(userId: string, data: any) {
+    await this.findOne(userId);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
+        ...(data.login !== undefined && { login: data.login }),
+        ...(data.jobTitle !== undefined && { jobTitle: data.jobTitle }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.auvochatEnabled !== undefined && { auvochatEnabled: data.auvochatEnabled }),
+        ...(data.monitoringIntervalMin !== undefined && { monitoringIntervalMin: data.monitoringIntervalMin }),
+        ...(data.basePointAddress !== undefined && { basePointAddress: data.basePointAddress }),
+        ...(data.basePointLat !== undefined && { basePointLat: data.basePointLat }),
+        ...(data.basePointLng !== undefined && { basePointLng: data.basePointLng }),
+        ...(data.checkinType !== undefined && { checkinType: data.checkinType }),
+        ...(data.hourlyRate !== undefined && { hourlyRate: data.hourlyRate }),
+        ...(data.kmRate !== undefined && { kmRate: data.kmRate }),
+        ...(data.language !== undefined && { language: data.language }),
+        ...(data.workShiftType !== undefined && { workShiftType: data.workShiftType }),
+        ...(data.workShiftSchedule !== undefined && { workShiftSchedule: data.workShiftSchedule }),
+        ...(data.notifyApprovalWeb !== undefined && { notifyApprovalWeb: data.notifyApprovalWeb }),
+        ...(data.notifyApprovalEmail !== undefined && { notifyApprovalEmail: data.notifyApprovalEmail }),
+        ...(data.defaultScreen !== undefined && { defaultScreen: data.defaultScreen }),
+      },
+      select: {
+        id: true,
+        name: true,
+        login: true,
+        jobTitle: true,
+        hourlyRate: true,
+        kmRate: true,
+        basePointAddress: true,
+        basePointLat: true,
+        basePointLng: true,
+        monitoringIntervalMin: true,
+        auvochatEnabled: true,
+        workShiftType: true,
+        defaultScreen: true,
+      },
+    });
+  }
+
+  async addCollaboratorAttachment(userId: string, fileData: { fileName: string; fileUrl: string; fileSize?: bigint; mimeType?: string }) {
+    await this.findOne(userId);
+    return this.prisma.collaboratorAttachment.create({
+      data: {
+        userId,
+        fileName: fileData.fileName,
+        fileUrl: fileData.fileUrl,
+        fileSize: fileData.fileSize,
+        mimeType: fileData.mimeType,
+      },
+    });
+  }
+
+  async deleteCollaboratorAttachment(attachmentId: string) {
+    const attachment = await this.prisma.collaboratorAttachment.findUnique({
+      where: { id: attachmentId },
+    });
+    if (!attachment) {
+      throw new NotFoundException('Anexo não encontrado');
+    }
+    return this.prisma.collaboratorAttachment.delete({
+      where: { id: attachmentId },
+    });
   }
 }

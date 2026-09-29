@@ -34,7 +34,7 @@ const ClientLocationMap = dynamic(
 
 const clientSchema = z.object({
   cnpjCpf: z.string().min(11, "Mínimo 11 caracteres").max(18, "Máximo 18 caracteres"),
-  companyName: z.string().min(3, "Razão Social deve ter no mínimo 3 caracteres"),
+  companyName: z.string().min(3, "Razão Social deve ter não mínimo 3 caracteres"),
   tradeName: z.string().optional(),
   externalCode: z.string().optional(),
   email: z.string().email("E-mail inválido"),
@@ -45,8 +45,8 @@ const clientSchema = z.object({
   responsibleTeamId: z.string().optional(),
   groupId: z.string().optional(),
   segmentId: z.string().optional(),
-  notes: z.string().optional(),
-  internalNotes: z.string().optional(),
+  nãotes: z.string().optional(),
+  internalNãotes: z.string().optional(),
   icmsTaxpayerType: z.nativeEnum(IcmsTaxpayerType).optional(),
   stateRegistration: z.string().optional(),
   municipalRegistration: z.string().optional(),
@@ -115,8 +115,8 @@ export function ClientForm({
       responsibleTeamId: initialData?.responsibleTeamId || "",
       groupId: initialData?.groupId || "",
       segmentId: initialData?.segmentId || "",
-      notes: initialData?.notes || "",
-      internalNotes: initialData?.internalNotes || "",
+      nãotes: initialData?.nãotes || "",
+      internalNãotes: initialData?.internalNãotes || "",
       icmsTaxpayerType: initialData?.icmsTaxpayerType || undefined,
       stateRegistration: initialData?.stateRegistration || "",
       municipalRegistration: initialData?.municipalRegistration || "",
@@ -170,7 +170,7 @@ export function ClientForm({
       const data = await response.json();
 
       setValue("companyName", data.razao_social || "");
-      setValue("tradeName", data.nome_fantasia || "");
+      setValue("tradeName", data.nãome_fantasia || "");
       setValue("address.street", data.logradouro || "");
       setValue("address.number", data.numero || "");
       setValue("address.complement", data.complemento || "");
@@ -319,15 +319,15 @@ export function ClientForm({
               {errors.companyName && <p className="text-xs font-bold text-red-500">{errors.companyName.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Nome Fantasia</Label>
+              <Label className="font-bold text-sm">Nãome Fantasia</Label>
               <Input
-                placeholder="Nome comercial"
+                placeholder="Nãome comercial"
                 className="h-12 rounded-2xl focus:ring-orange-500/20 focus:border-orange-500"
                 {...register("tradeName")}
               />
             </div>
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Código Externo</Label>
+              <Label className="font-bold text-sm">Código Externão</Label>
               <Input
                 placeholder="ID de integração"
                 className="h-12 rounded-2xl focus:ring-orange-500/20 focus:border-orange-500"
@@ -468,7 +468,7 @@ export function ClientForm({
                   <div className="space-y-2">
                     <Label className="font-bold text-sm">Bairro *</Label>
                     <Input
-                      placeholder="Nome do Bairro"
+                      placeholder="Nãome do Bairro"
                       className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
                       {...register("address.neighborhood")}
                     />
@@ -582,11 +582,11 @@ export function ClientForm({
         </CardHeader>
         <CardContent className="p-8 space-y-6">
           <div className="space-y-2">
-            <Label className="font-bold text-sm">Responsável no Local (falar com)</Label>
+            <Label className="font-bold text-sm">Responsável não Local (falar com)</Label>
             <div className="relative group">
               <UserRound className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-orange-600 transition-colors" />
               <Input
-                placeholder="Nome do contato in loco"
+                placeholder="Nãome do contato in loco"
                 className="h-11 pl-10 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
                 {...register("onSiteContact")}
               />
@@ -758,7 +758,7 @@ export function ClientForm({
               placeholder="Visível para a equipe"
               rows={4}
               className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
-              {...register("notes")}
+              {...register("nãotes")}
             />
           </div>
           <div className="space-y-2">
@@ -770,7 +770,7 @@ export function ClientForm({
               placeholder="Não visível ao cliente"
               rows={4}
               className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
-              {...register("internalNotes")}
+              {...register("internalNãotes")}
             />
           </div>
         </CardContent>
@@ -779,7 +779,19 @@ export function ClientForm({
       <StepFooter
         steps={stepDefs}
         activeKey={activeStep}
-        onNext={(k) => setActiveStep(k as StepKey)}
+        onNext={async (nextKey) => {
+          let isValid = false;
+          if (activeStep === "dados") {
+            isValid = await form.trigger(["cnpjCpf", "companyName", "email", "phone"]);
+          } else if (activeStep === "contato") {
+            isValid = await form.trigger(["address.cep", "address.street", "address.neighborhood", "address.city", "address.state", "address.number"]);
+          } else {
+            isValid = true;
+          }
+          if (isValid) {
+            setActiveStep(nextKey as StepKey);
+          }
+        }}
         onCancel={onCancel}
         loading={loading}
         submitLabel={submitLabel}

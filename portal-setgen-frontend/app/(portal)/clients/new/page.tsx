@@ -1,37 +1,16 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { clientsApi } from "@/lib/api/clients";
-import { ClientForm } from "../components/ClientForm";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { useRouter } from 'next/navigation';
+import { ClientMultiCrudEditor } from '@/components/clients/ClientMultiCrudEditor';
 
 export default function NewClientPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (payload: any) => {
-    setLoading(true);
-    try {
-      await clientsApi.create(payload);
-      alert("Cliente cadastrado com sucesso!");
-      router.push("/clients");
-    } catch (error: any) {
-      alert(error.response?.data?.message || "Erro ao cadastrar cliente");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12">
-      <PageHeader title="Novo Cliente" subtitle="Cadastre e gerencie um novo parceiro de negócios" />
-
-      <ClientForm
-        onSubmit={handleSubmit}
-        onCancel={() => router.back()}
-        loading={loading}
-        submitLabel="Salvar Cliente"
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
+      <ClientMultiCrudEditor
+        onClose={() => router.push('/clients')}
+        onSuccess={() => router.push('/clients')}
       />
     </div>
   );

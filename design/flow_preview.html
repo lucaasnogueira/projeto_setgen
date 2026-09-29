@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Setgen — Módulos & Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #090D16;
+      color: #0F172A;
+      -webkit-font-smoothing: antialiased;
+    }
+    .min-canvas {
+      background-color: #FAFAFB;
+    }
+    /* Stepper Minimalista */
+    .btn-step {
+      transition: all 0.15s ease;
+    }
+    .btn-step.active {
+      background-color: #FFFFFF;
+      color: #0F172A;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    /* Abas Minimalistas do Workspace */
+    .min-tab {
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .min-tab.active {
+      color: #0F172A;
+      font-weight: 600;
+      border-bottom: 2px solid #E2661D;
+      background-color: #FFFFFF;
+    }
+    .min-tab:not(.active) {
+      color: #64748B;
+      border-bottom: 2px solid transparent;
+    }
+    .min-tab:not(.active):hover {
+      color: #0F172A;
+      background-color: rgba(241, 245, 249, 0.6);
+    }
+  </style>
+</head>
+<body class="p-3 md:p-8">
+
+  <!-- Barra Superior de Controle do Protótipo (Modo Escuro Discreto) -->
+  <div class="max-w-6xl mx-auto mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800 text-white">
+    <div class="flex items-center gap-2.5">
+      <span class="w-2 h-2 rounded-full bg-[#E2661D]"></span>
+      <span class="text-sm font-semibold tracking-tight text-slate-200">Portal Setgen</span>
+      <span class="text-xs text-slate-500">— Arquitetura Minimalista & Workspace com Abas</span>
+    </div>
+
+    <!-- Stepper Minimalista Segmentado -->
+    <div class="inline-flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800 text-xs">
+      <button onclick="goTo(1)" id="step-btn-1" class="btn-step active px-3 py-1 rounded-md text-slate-400">
+        1. Login
+      </button>
+      <button onclick="goTo(2)" id="step-btn-2" class="btn-step px-3 py-1 rounded-md text-slate-400">
+        2. Hub de Módulos
+      </button>
+      <button onclick="goTo(3)" id="step-btn-3" class="btn-step px-3 py-1 rounded-md text-slate-400">
+        3. Workspace Operacional
+      </button>
+    </div>
+  </div>
+
+  <!-- Janela de Apresentação da Aplicação (Minimal Frame) -->
+  <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl border border-slate-800/80 overflow-hidden">
+    
+    <!-- Topbar Global Minimalista (Presente no Hub de Módulos) -->
+    <header id="global-topbar" class="h-12 bg-white border-b border-gray-100 px-6 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-6 h-6 rounded bg-[#E2661D] flex items-center justify-center text-white font-black text-xs">
+          S
+        </div>
+        <span class="font-bold text-xs tracking-wider text-gray-900 uppercase">SETGEN</span>
+      </div>
+
+      <!-- Lado Direito: Nome do Usuário + Logout Minimalista -->
+      <div class="flex items-center gap-3 text-xs">
+        <span class="font-medium text-gray-600">Lucas Silva</span>
+        <button onclick="goTo(1)" title="Encerrar Sessão" class="w-7 h-7 rounded-md hover:bg-gray-100 text-gray-400 hover:text-gray-900 flex items-center justify-center transition-colors">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Canvas Principal (#FAFAFB) -->
+    <div class="min-canvas min-h-[640px]">
+
+      <!-- ============================================================ -->
+      <!-- ETAPA 1: LOGIN EXECUTIVO SPLIT-SCREEN                        -->
+      <!-- ============================================================ -->
+      <section id="step-1" class="step-content p-4 md:p-8">
+        <div class="max-w-4xl mx-auto my-4 bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden flex flex-col md:flex-row min-h-[520px]">
+          
+          <!-- Painel de Marca Corporativo (Esquerda) -->
+          <div class="md:w-5/12 bg-[linear-gradient(160deg,#1c2733_0%,#20303f_55%,#17212b_100%)] p-8 flex flex-col justify-between text-white relative overflow-hidden">
+            <!-- Efeitos de iluminação radial sutis -->
+            <div class="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[radial-gradient(circle,rgba(226,102,29,0.3),transparent_70%)] pointer-events-none"></div>
+            <div class="absolute -bottom-20 -left-20 w-60 h-60 rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.2),transparent_70%)] pointer-events-none"></div>
+
+            <div class="relative z-10">
+              <div class="flex items-center gap-2.5 mb-8">
+                <div class="w-9 h-9 rounded-lg bg-[#E2661D] flex items-center justify-center text-white shadow-md">
+                  <i data-lucide="zap" class="w-5 h-5 fill-white"></i>
+                </div>
+                <span class="font-extrabold text-lg tracking-wider">SETGEN</span>
+              </div>
+
+              <h1 class="text-xl md:text-2xl font-extrabold leading-snug text-white mb-3">
+                Gestão completa para serviços técnicos em geradores de energia
+              </h1>
+              <p class="text-slate-400 text-xs leading-relaxed mb-6">
+                Clientes, ordens de serviço, estoque e contratos em um único ambiente integrado.
+              </p>
+
+              <div class="space-y-3">
+                <div class="flex items-center gap-2.5 text-xs text-slate-300">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-[#E2661D] shrink-0"></i>
+                  <span>Controle de ordens de serviço em tempo real</span>
+                </div>
+                <div class="flex items-center gap-2.5 text-xs text-slate-300">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-[#E2661D] shrink-0"></i>
+                  <span>Estoque de peças com alertas de reposição</span>
+                </div>
+                <div class="flex items-center gap-2.5 text-xs text-slate-300">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-[#E2661D] shrink-0"></i>
+                  <span>Financeiro e faturamento integrados</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-6 text-[11px] text-slate-500 border-t border-slate-800/80">
+              © 2026 Setgen Serviços Técnicos • Soluções em Energia
+            </div>
+          </div>
+
+          <!-- Formulário de Autenticação Minimalista (Direita) -->
+          <div class="md:w-7/12 p-8 md:p-10 flex flex-col justify-center bg-white">
+            <div class="max-w-sm mx-auto w-full">
+              <div class="mb-6">
+                <h2 class="text-xl font-bold tracking-tight text-gray-900">
+                  Entrar na sua conta
+                </h2>
+                <p class="text-xs text-gray-500 mt-1">
+                  Informe suas credenciais corporativas para acessar os módulos da Setgen.
+                </p>
+              </div>
+
+              <form onsubmit="event.preventDefault(); goTo(2);" class="space-y-4 text-xs">
+                <div>
+                  <label class="block font-semibold text-gray-700 mb-1.5">E-mail Corporativo</label>
+                  <div class="relative">
+                    <i data-lucide="mail" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input type="email" value="lucas.silva@setgen.com.br" required class="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 text-xs focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors">
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex items-center justify-between mb-1.5">
+                    <label class="block font-semibold text-gray-700">Senha de Acesso</label>
+                    <a href="javascript:void(0)" class="text-[11px] font-medium text-orange-600 hover:text-orange-700 hover:underline">Esqueceu a senha?</a>
+                  </div>
+                  <div class="relative">
+                    <i data-lucide="lock" class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input id="login-pwd" type="password" value="••••••••••••" required class="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 text-xs focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-colors">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                      <i id="pwd-icon" data-lucide="eye" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-1">
+                  <label class="flex items-center gap-2 cursor-pointer select-none text-xs text-gray-600">
+                    <input type="checkbox" checked class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                    <span>Lembrar meu acesso</span>
+                  </label>
+                </div>
+
+                <button type="submit" class="w-full mt-2 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+                  <span>Entrar no Portal</span>
+                  <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                </button>
+              </form>
+
+              <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                <span>Acesso protegido por autenticação segura TLS</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+            <!-- ============================================================ -->
+      <!-- ETAPA 2: HUB DE MÓDULOS MINIMALISTA (6 MÓDULOS REAIS)         -->
+      <!-- ============================================================ -->
+      <section id="step-2" class="step-content hidden p-6 md:p-10">
+        <!-- Título Clean Centralizado -->
+        <div class="max-w-5xl mx-auto mb-8 text-center">
+          <h2 class="text-xl font-bold text-gray-900">Módulos do Sistema</h2>
+          <p class="text-xs text-gray-500 mt-1">Selecione o ambiente operacional para iniciar o trabalho.</p>
+        </div>
+
+        <!-- Grid de Cards Minimalistas (2 linhas de 3 colunas) -->
+        <div class="max-w-5xl mx-auto">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <!-- CARD 1: ORDENS DE SERVIÇO & CAMPO (CORE DA SETGEN) -->
+            <div onclick="openModuleWorkspace('os')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-orange-500 hover:shadow-sm transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600 transition-colors">
+                    <i data-lucide="wrench" class="w-4 h-4"></i>
+                  </div>
+                  <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">28 Ativas</span>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Ordens de Serviço & Campo
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Manutenções preventivas e corretivas em geradores, horímetro, QTA, ARTs e checklists.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+            <!-- CARD 2: CLIENTES & PLANTAS INDUSTRIAIS -->
+            <div onclick="openModuleWorkspace('clients')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-400 hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700 group-hover:text-orange-600 group-hover:border-orange-200 transition-colors">
+                    <i data-lucide="building-2" class="w-4 h-4"></i>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 transition-colors"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Clientes & Usinas / Plantas
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Carteira ativa corporativa, plantas industriais com geradores alocados e contratos.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+            <!-- CARD 3: ESTOQUE DE GERADORES & PEÇAS -->
+            <div onclick="openModuleWorkspace('inventory')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-400 hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700 group-hover:text-orange-600 group-hover:border-orange-200 transition-colors">
+                    <i data-lucide="package" class="w-4 h-4"></i>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 transition-colors"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Estoque de Geradores & Peças
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Grupos geradores diesel por kVA, quadros QTA, cabeamento de força e peças de reposição.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+            <!-- CARD 4: ORÇAMENTOS & COMERCIAL -->
+            <div onclick="openModuleWorkspace('os')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-400 hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700 group-hover:text-orange-600 group-hover:border-orange-200 transition-colors">
+                    <i data-lucide="calculator" class="w-4 h-4"></i>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 transition-colors"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Orçamentos & Propostas
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Dimensionamento de carga em kVA, propostas comerciais e conversão em O.S. aprovada.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+            <!-- CARD 5: COMPRAS & SUPRIMENTOS -->
+            <div onclick="openModuleWorkspace('inventory')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-400 hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700 group-hover:text-orange-600 group-hover:border-orange-200 transition-colors">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 transition-colors"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Compras & Suprimentos
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Ordens de compra para fornecedores, cotações de peças e insumos de manutenção.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+            <!-- CARD 6: FINANCEIRO & FATURAMENTO -->
+            <div onclick="openModuleWorkspace('clients')" class="bg-white rounded-xl border border-gray-200 p-5 hover:border-gray-400 hover:shadow-xs transition-all cursor-pointer group flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-700 group-hover:text-orange-600 group-hover:border-orange-200 transition-colors">
+                    <i data-lucide="receipt" class="w-4 h-4"></i>
+                  </div>
+                  <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-900 transition-colors"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                  Financeiro & Faturamento Fiscal
+                </h3>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Emissão dual (NF-e/NFS-e de locação e serviços), despesas de técnicos e fluxo de caixa.
+                </p>
+              </div>
+              <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-end text-[11px] text-gray-400 font-medium">
+                <span class="text-gray-700 group-hover:text-orange-600 font-semibold transition-colors">Acessar ➔</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="mt-12 text-center text-[11px] text-gray-400">
+          © 2026 Setgen — Soluções Técnicas em Geradores de Energia
+        </div>
+      </section>
+
+            <!-- ============================================================ -->
+      <!-- ETAPA 3: WORKSPACE OPERACIONAL COM ABAS                      -->
+      <!-- ============================================================ -->
+      <section id="step-3" class="step-content hidden">
+        <div class="flex flex-col h-[740px] bg-white overflow-hidden">
+          
+          <!-- 1. Header do Módulo Minimalista com Breadcrumb Integrado -->
+          <header class="h-11 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 select-none z-30">
+            <div class="flex items-center gap-3">
+              <div onclick="goTo(2)" title="Voltar aos Módulos" class="flex items-center gap-2 cursor-pointer text-gray-900 hover:opacity-80">
+                <div class="w-5 h-5 rounded bg-[#E2661D] flex items-center justify-center text-white text-[10px] font-bold">
+                  S
+                </div>
+                <span class="font-bold text-xs tracking-wider">SETGEN</span>
+              </div>
+
+              <!-- Separador vertical sutil -->
+              <span class="h-4 w-px bg-gray-200"></span>
+
+              <!-- Breadcrumb Navegável -->
+              <nav aria-label="Breadcrumb" class="flex items-center gap-1.5 text-xs text-gray-500">
+                <button onclick="goTo(2)" class="text-gray-500 hover:text-gray-900 transition-colors font-medium cursor-pointer">
+                  Módulos
+                </button>
+                <i data-lucide="chevron-right" class="w-3 h-3 text-gray-300 shrink-0"></i>
+                <span id="breadcrumb-module-name" class="text-gray-500 font-medium">Ordens de Serviço & Campo</span>
+                <i data-lucide="chevron-right" class="w-3 h-3 text-gray-300 shrink-0"></i>
+                <span id="breadcrumb-page-title" class="font-semibold text-gray-900">Gestão de O.S.</span>
+              </nav>
+            </div>
+
+            <div class="flex items-center gap-3 text-xs">
+              <span class="text-gray-600 font-medium">Lucas Silva</span>
+              <button onclick="goTo(1)" title="Encerrar Sessão" class="w-6 h-6 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-900 flex items-center justify-center transition-colors">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </header>
+
+          <!-- 2. Estrutura: Sidebar Retrátil Dark Minimalista + Workspace -->
+          <div class="flex-1 flex overflow-hidden">
+            
+            <!-- Sidebar Dark Minimalista -->
+            <aside class="w-52 bg-[#0C111D] text-slate-300 flex flex-col justify-between p-3 shrink-0 border-r border-slate-800/80">
+              <div class="space-y-4">
+                <!-- Identificação do Módulo -->
+                <div class="px-2 pt-1 flex items-center gap-2">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#E2661D]"></span>
+                  <span id="sidebar-module-badge" class="text-[11px] font-bold uppercase tracking-wider text-slate-400">O.S. & CAMPO</span>
+                </div>
+
+                <!-- Navegação Clean -->
+                <nav class="space-y-0.5 text-xs">
+                  <!-- Item Voltar aos Módulos -->
+                  <button onclick="goTo(2)" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left">
+                    <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                    <span>Módulos</span>
+                  </button>
+
+                  <div class="my-2 border-t border-slate-800/60"></div>
+
+                  <!-- Item O.S. Principal -->
+                  <button id="nav-os-btn" onclick="selectTab('tab-os-list')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-white font-medium bg-slate-800/70 text-left">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5 text-orange-400"></i>
+                    <span>Ordens de Serviço</span>
+                  </button>
+
+                  <!-- Item Checklists & QTA -->
+                  <button onclick="openFormTab('Checklist QTA & Comutação', 'check-square')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left">
+                    <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                    <span>Checklists & QTA</span>
+                  </button>
+
+                  <!-- Item Técnicos & NR-10/35 -->
+                  <button onclick="openFormTab('Técnicos & Certificações NR', 'shield-check')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                    <span>Técnicos & NRs</span>
+                  </button>
+
+                  <!-- Item Horímetros -->
+                  <button onclick="openFormTab('Apontamento de Horímetro', 'gauge')" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors text-left">
+                    <i data-lucide="gauge" class="w-3.5 h-3.5"></i>
+                    <span>Horímetros & Óleo</span>
+                  </button>
+                </nav>
+              </div>
+
+              <!-- Rodapé da Sidebar Minimalista -->
+              <div class="px-2 py-1 text-[11px] text-slate-500 border-t border-slate-800/60">
+                Lucas Silva • Coordenação
+              </div>
+            </aside>
+
+            <!-- 3. Área de Trabalho do Workspace Minimalista -->
+            <main class="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+              
+              <!-- BARRA DE ABAS MINIMALISTA (Underline Tabs + Botão [+] Discreto) -->
+              <div class="h-10 bg-white border-b border-gray-200 px-4 flex items-center justify-between shrink-0 select-none">
+                
+                <!-- Lista de Abas com Underline Simples -->
+                <div id="tabs-container" class="flex items-center gap-1 h-full overflow-x-auto">
+                  
+                  <!-- Aba 1: Lista de Ordens de Serviço (Base) -->
+                  <button id="tab-os-list-btn" onclick="selectTab('tab-os-list')" class="min-tab active h-full px-3 text-xs flex items-center gap-2 shrink-0">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5 text-orange-600"></i>
+                    <span>Ordens de Serviço</span>
+                    <span class="text-[10px] text-gray-400 font-mono">28</span>
+                  </button>
+
+                  <!-- Aba 2: Nova O.S. Preventiva / Startup (Aba de formulário) -->
+                  <div id="tab-os-form-wrapper" class="h-full flex items-center">
+                    <button id="tab-os-form-btn" onclick="selectTab('tab-os-form')" class="min-tab h-full px-3 text-xs flex items-center gap-2 shrink-0 text-gray-500">
+                      <i data-lucide="file-plus-2" class="w-3.5 h-3.5"></i>
+                      <span id="tab-os-form-title">Nova O.S. Preventiva</span>
+                      <span onclick="event.stopPropagation(); closeTab('tab-os-form');" title="Fechar Aba" class="w-3.5 h-3.5 rounded hover:bg-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 ml-1">
+                        <i data-lucide="x" class="w-2.5 h-2.5"></i>
+                      </span>
+                    </button>
+                  </div>
+
+                  <!-- Aba 3: Relatório Detalhado de Inspeção (OS-2026-0842) -->
+                  <div id="tab-os-detail-wrapper" class="h-full flex items-center">
+                    <button id="tab-os-detail-btn" onclick="selectTab('tab-os-detail')" class="min-tab h-full px-3 text-xs flex items-center gap-2 shrink-0 text-gray-500">
+                      <i data-lucide="file-text" class="w-3.5 h-3.5 text-emerald-600"></i>
+                      <span>OS-2026-0842 (Vale 500kVA)</span>
+                      <span onclick="event.stopPropagation(); closeTab('tab-os-detail');" title="Fechar Aba" class="w-3.5 h-3.5 rounded hover:bg-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 ml-1">
+                        <i data-lucide="x" class="w-2.5 h-2.5"></i>
+                      </span>
+                    </button>
+                  </div>
+
+                </div>
+
+                <!-- BOTÃO [+] MINIMALISTA (Dropdown para abrir novos forms técnicos) -->
+                <div class="relative ml-2 shrink-0">
+                  <button id="add-form-btn" onclick="toggleAddMenu()" title="Abrir novo formulário em aba" class="w-7 h-7 rounded-md hover:bg-gray-100 border border-dashed border-gray-300 text-gray-500 hover:text-gray-900 flex items-center justify-center transition-colors">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                  </button>
+
+                  <!-- Dropdown Menu Minimalista -->
+                  <div id="add-menu-dropdown" class="hidden absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 text-xs">
+                    <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                      Novo Formulário Técnico
+                    </div>
+                    <button onclick="openFormTab('Nova O.S. Preventiva / Startup', 'wrench')" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700">
+                      <i data-lucide="wrench" class="w-3.5 h-3.5 text-orange-500"></i>
+                      <span>Nova O.S. de Gerador</span>
+                    </button>
+                    <button onclick="openFormTab('Apontamento de Horímetro & Óleo', 'gauge')" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700">
+                      <i data-lucide="gauge" class="w-3.5 h-3.5 text-gray-400"></i>
+                      <span>Apontamento de Horímetro & Nível</span>
+                    </button>
+                    <button onclick="openFormTab('Requisição de Filtros e Peças', 'package')" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700">
+                      <i data-lucide="package" class="w-3.5 h-3.5 text-gray-400"></i>
+                      <span>Requisição de Peças (Filtros/Óleo)</span>
+                    </button>
+                    <button onclick="openFormTab('Checklist de QTA e Carga', 'clipboard-check')" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700">
+                      <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-gray-400"></i>
+                      <span>Checklist de Transferência QTA</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- ÁREA DE CONTEÚDO MINIMALISTA -->
+              <div class="flex-1 overflow-y-auto p-6 bg-[#FAFAFB]">
+
+                <!-- ========================================== -->
+                <!-- ABA 1: TABELA OPERACIONAL DE O.S. GERADORES-->
+                <!-- ========================================== -->
+                <div id="content-tab-os-list" class="tab-pane space-y-4 max-w-5xl mx-auto">
+                  
+                  <!-- Header do CRUD + Resumo de Regra de Negócio Real -->
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h2 class="text-base font-bold text-gray-900">Ordens de Serviço de Geradores</h2>
+                      <p class="text-xs text-gray-500 mt-0.5">
+                        <span class="font-semibold text-gray-700">28</span> ativas &nbsp;•&nbsp;
+                        <span class="text-emerald-700 font-medium">14 em andamento</span> &nbsp;•&nbsp;
+                        <span class="text-amber-700 font-medium">8 aguardando peças</span> &nbsp;•&nbsp;
+                        <span class="text-blue-700 font-medium">6 startups / QTA</span>
+                      </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs">
+                      <button class="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-white text-xs font-medium">
+                        Exportar Relatório
+                      </button>
+                      <button onclick="openFormTab('Nova O.S. Preventiva / Startup', 'wrench')" class="px-3 py-1.5 rounded-lg bg-gray-900 hover:bg-black text-white text-xs font-medium flex items-center gap-1.5 shadow-2xs">
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                        <span>Nova O.S.</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Barra de Filtros Técnicos Setgen -->
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <div class="md:col-span-2 relative">
+                      <i data-lucide="search" class="w-3.5 h-3.5 text-gray-400 absolute left-3 top-2.5"></i>
+                      <input type="text" placeholder="Buscar por O.S., Cliente, Usina ou Prefixo do Gerador..." class="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-900 focus:outline-none focus:border-gray-900 transition-colors">
+                    </div>
+                    <select class="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-600 focus:outline-none">
+                      <option>Todos os Status</option>
+                      <option>Em Andamento</option>
+                      <option>Aguardando Peças</option>
+                      <option>Concluída</option>
+                    </select>
+                    <select class="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-600 focus:outline-none">
+                      <option>Todas as Potências (kVA)</option>
+                      <option>Até 150 kVA</option>
+                      <option>250 a 500 kVA</option>
+                      <option>750 kVA ou superior</option>
+                    </select>
+                  </div>
+
+                  <!-- Tabela Minimalista de Ordens de Serviço -->
+                  <div class="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-2xs">
+                    <table class="w-full text-left text-xs">
+                      <thead class="bg-gray-50/60 border-b border-gray-100 text-gray-400 font-medium text-[11px]">
+                        <tr>
+                          <th class="py-2.5 px-4">O.S. / Data</th>
+                          <th class="py-2.5 px-4">Cliente / Planta</th>
+                          <th class="py-2.5 px-4">Grupo Gerador (kVA)</th>
+                          <th class="py-2.5 px-4">Escopo & Horímetro</th>
+                          <th class="py-2.5 px-4">Técnico Designado</th>
+                          <th class="py-2.5 px-4">Status</th>
+                          <th class="py-2.5 px-4 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-100 text-gray-700">
+                        <!-- Linha 1: Preventiva Vale 500kVA -->
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                          <td class="py-2.5 px-4">
+                            <span class="font-bold text-gray-900 font-mono">OS-2026-0842</span>
+                            <span class="text-[11px] text-gray-400 block">23/09/2026</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-900">Vale do Ipiranga S/A</span>
+                            <span class="text-[11px] text-gray-400 block">Usina Congonhas</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-800">Scania DC13 • 500 kVA</span>
+                            <span class="text-[10px] text-gray-400 block">Silenciado • GER-08</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Preventiva 500h</span>
+                            <span class="text-[11px] text-gray-400 block">Horímetro: 4.820h (Óleo 15W40)</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Marcos Ribeiro</span>
+                            <span class="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-semibold block">
+                              <i data-lucide="check" class="w-3 h-3"></i> NR-10 & NR-35 OK
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Em Andamento
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4 text-right">
+                            <button onclick="selectTab('tab-os-detail')" class="text-gray-500 hover:text-gray-900 font-medium">
+                              Abrir O.S. ↗
+                            </button>
+                          </td>
+                        </tr>
+
+                        <!-- Linha 2: Concluída Hospital Santa Clara -->
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                          <td class="py-2.5 px-4">
+                            <span class="font-bold text-gray-900 font-mono">OS-2026-0843</span>
+                            <span class="text-[11px] text-gray-400 block">22/09/2026</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-900">Hospital Santa Clara</span>
+                            <span class="text-[11px] text-gray-400 block">Bloco Cirúrgico</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-800">Cummins QSL9 • 250 kVA</span>
+                            <span class="text-[10px] text-gray-400 block">Carenado • GER-14</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Comutação QTA & Carga</span>
+                            <span class="text-[11px] text-gray-400 block">Horímetro: 1.150h</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Rafael Souza</span>
+                            <span class="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-semibold block">
+                              <i data-lucide="check" class="w-3 h-3"></i> NR-10 Válido
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-700">
+                              <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Concluída
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4 text-right">
+                            <button onclick="selectTab('tab-os-detail')" class="text-gray-500 hover:text-gray-900 font-medium">
+                              Abrir O.S. ↗
+                            </button>
+                          </td>
+                        </tr>
+
+                        <!-- Linha 3: Aguardando Peças Arena Mineirão -->
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                          <td class="py-2.5 px-4">
+                            <span class="font-bold text-gray-900 font-mono">OS-2026-0844</span>
+                            <span class="text-[11px] text-gray-400 block">21/09/2026</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-900">Arena Mineirão Eventos</span>
+                            <span class="text-[11px] text-gray-400 block">Subestação Standby</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-800">MWM 12V • 750 kVA</span>
+                            <span class="text-[10px] text-gray-400 block">Aberto • GER-02</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Troca Bomba d'Água</span>
+                            <span class="text-[11px] text-gray-400 block">Correia e Líquido Arrefecimento</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Marcos Ribeiro</span>
+                            <span class="inline-flex items-center gap-1 text-[10px] text-emerald-600 font-semibold block">
+                              <i data-lucide="check" class="w-3 h-3"></i> NR-10 & NR-35 OK
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
+                              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Aguardando Peças
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4 text-right">
+                            <button onclick="selectTab('tab-os-detail')" class="text-gray-500 hover:text-gray-900 font-medium">
+                              Abrir O.S. ↗
+                            </button>
+                          </td>
+                        </tr>
+
+                        <!-- Linha 4: Startup Volvo Cerâmica -->
+                        <tr class="hover:bg-gray-50/70 transition-colors">
+                          <td class="py-2.5 px-4">
+                            <span class="font-bold text-gray-900 font-mono">OS-2026-0845</span>
+                            <span class="text-[11px] text-gray-400 block">20/09/2026</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-900">Cerâmica Barro Forte</span>
+                            <span class="text-[11px] text-gray-400 block">Fornos Contínuos</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="font-semibold text-gray-800">Volvo Penta • 300 kVA</span>
+                            <span class="text-[10px] text-gray-400 block">Silenciado • GER-19</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Startup & Parametrização USCA</span>
+                            <span class="text-[11px] text-gray-400 block">Controlador DSE 7320</span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="text-gray-900 font-medium">Eng. Carlos Eduardo</span>
+                            <span class="inline-flex items-center gap-1 text-[10px] text-purple-600 font-semibold block">
+                              <i data-lucide="award" class="w-3 h-3"></i> CREA/ART Ativa
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700">
+                              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Em Andamento
+                            </span>
+                          </td>
+                          <td class="py-2.5 px-4 text-right">
+                            <button onclick="selectTab('tab-os-detail')" class="text-gray-500 hover:text-gray-900 font-medium">
+                              Abrir O.S. ↗
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                </div>
+
+                <!-- ========================================== -->
+                <!-- ABA 2: FORMULÁRIO TÉCNICO DE NOVA O.S.    -->
+                <!-- ========================================== -->
+                <div id="content-tab-os-form" class="tab-pane hidden max-w-4xl mx-auto space-y-4">
+                  <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-2xs">
+                    
+                    <div class="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+                      <div>
+                        <h3 class="text-sm font-bold text-gray-900">Abertura de O.S. de Gerador</h3>
+                        <p class="text-xs text-gray-400">Informe os dados técnicos de campo, parâmetros de carga e checklist</p>
+                      </div>
+                      <div class="flex items-center gap-2 text-xs">
+                        <button onclick="closeTab('tab-os-form')" class="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                          Descartar
+                        </button>
+                        <button onclick="salvarFormulario()" class="px-3.5 py-1.5 rounded-lg bg-gray-900 hover:bg-black text-white font-medium shadow-2xs">
+                          Emitir Ordem de Serviço
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Campos Técnicos Específicos de Geradores -->
+                    <div class="space-y-4 text-xs">
+                      
+                      <!-- 1. Cliente e Usina -->
+                      <div>
+                        <span class="font-semibold text-gray-400 uppercase tracking-wider text-[10px] block mb-2">1. Localização e Contrato</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Cliente</label>
+                            <select class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 bg-white">
+                              <option>Vale do Ipiranga S/A</option>
+                              <option>Hospital Santa Clara Ltda</option>
+                              <option>Arena Mineirão Eventos</option>
+                              <option>Cerâmica Barro Forte</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Usina / Planta de Operação</label>
+                            <input type="text" value="Usina Congonhas (Mina de Britagem)" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900">
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Tipo de Intervenção</label>
+                            <select class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 bg-white">
+                              <option>Preventiva 500h (Filtros + Óleo)</option>
+                              <option>Preventiva 250h (Inspeção & Níveis)</option>
+                              <option>Corretiva Emergencial</option>
+                              <option>Startup / Comutação QTA</option>
+                              <option>Emissão de ART de Engenharia</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- 2. Especificação do Grupo Gerador -->
+                      <div class="pt-2 border-t border-gray-100">
+                        <span class="font-semibold text-gray-400 uppercase tracking-wider text-[10px] block mb-2">2. Especificações do Grupo Gerador & Horímetro</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Grupo Gerador Alocado</label>
+                            <select class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 bg-white">
+                              <option>GER-08 (Scania DC13 - 500 kVA)</option>
+                              <option>GER-14 (Cummins QSL9 - 250 kVA)</option>
+                              <option>GER-02 (MWM 12V - 750 kVA)</option>
+                              <option>GER-19 (Volvo TAD - 300 kVA)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Horímetro Atual (h)</label>
+                            <input type="number" value="4820" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 font-mono">
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Tensão do Banco Baterias</label>
+                            <input type="text" value="26.4 Vcc" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 font-mono">
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Tanque Diesel Atual (%)</label>
+                            <input type="text" value="85%" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 font-mono">
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- 3. Checklist Técnico Obrigatório em Campo -->
+                      <div class="pt-2 border-t border-gray-100">
+                        <span class="font-semibold text-gray-400 uppercase tracking-wider text-[10px] block mb-2">3. Checklist de Manutenção Preventiva</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Troca de Óleo Lubrificante 15W40 (32 Litros)</span>
+                          </label>
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Substituição de Elementos Racor (Separador de Água)</span>
+                          </label>
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Aferição do Carregador Flutuador de Baterias (24Vcc)</span>
+                          </label>
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Teste de Transferência Automática no Quadro QTA</span>
+                          </label>
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" checked class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Inspeção de Estanqueidade de Mangueiras e Radiador</span>
+                          </label>
+                          <label class="flex items-center gap-2 cursor-pointer text-gray-700">
+                            <input type="checkbox" class="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5">
+                            <span>Medição de Resistência de Aterramento (Megômetro)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <!-- 4. Responsável e Compliance de Segurança -->
+                      <div class="pt-2 border-t border-gray-100">
+                        <span class="font-semibold text-gray-400 uppercase tracking-wider text-[10px] block mb-2">4. Responsável Técnico & Segurança (NR-10 / NR-35)</span>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Técnico Líder Designado</label>
+                            <select class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 bg-white">
+                              <option>Marcos Ribeiro (ASO + NR-10/35 Válidos)</option>
+                              <option>Rafael Souza (ASO + NR-10 Válido)</option>
+                              <option>Eng. Carlos Eduardo (CREA / ART)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Data / Hora de Início Programado</label>
+                            <input type="datetime-local" value="2026-09-24T08:00" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900">
+                          </div>
+                          <div>
+                            <label class="block text-gray-600 mb-1 font-medium">Número da ART (Engenharia)</label>
+                            <input type="text" value="ART-MG-2026-992144" class="w-full px-2.5 py-1.5 rounded-md border border-gray-200 text-xs focus:outline-none focus:border-gray-900 font-mono">
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                  </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- ABA 3: RELATÓRIO DE INSPEÇÃO (OS-2026-0842)-->
+                <!-- ========================================== -->
+                <div id="content-tab-os-detail" class="tab-pane hidden max-w-4xl mx-auto space-y-4">
+                  <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-2xs">
+                    
+                    <div class="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <h3 class="text-sm font-bold text-gray-900">OS-2026-0842 — Relatório Técnico de Inspeção</h3>
+                          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">Em Execução</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-0.5">Vale do Ipiranga S/A • Usina Congonhas • Gerador Scania 500 kVA (GER-08)</p>
+                      </div>
+                      <div class="flex items-center gap-2 text-xs">
+                        <button onclick="closeTab('tab-os-detail')" class="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+                          Fechar
+                        </button>
+                        <button class="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-medium shadow-2xs flex items-center gap-1.5">
+                          <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                          <span>Imprimir Relatório</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Métricas de Telemetria e Medição -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                      <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <span class="text-[10px] uppercase font-semibold text-gray-400 block">Horímetro Acumulado</span>
+                        <span class="text-base font-bold text-gray-900 font-mono">4.820 h</span>
+                        <span class="text-[10px] text-emerald-600 block mt-0.5">+480h desde última</span>
+                      </div>
+                      <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <span class="text-[10px] uppercase font-semibold text-gray-400 block">Pressão do Óleo</span>
+                        <span class="text-base font-bold text-gray-900 font-mono">4.2 bar</span>
+                        <span class="text-[10px] text-gray-500 block mt-0.5">Faixa nominal 3.5 a 5.0</span>
+                      </div>
+                      <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <span class="text-[10px] uppercase font-semibold text-gray-400 block">Temperatura Água</span>
+                        <span class="text-base font-bold text-gray-900 font-mono">82 °C</span>
+                        <span class="text-[10px] text-emerald-600 block mt-0.5">Termostato operando</span>
+                      </div>
+                      <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <span class="text-[10px] uppercase font-semibold text-gray-400 block">Frequência em Vazio</span>
+                        <span class="text-base font-bold text-gray-900 font-mono">60.1 Hz</span>
+                        <span class="text-[10px] text-gray-500 block mt-0.5">Governador eletrônico</span>
+                      </div>
+                    </div>
+
+                    <!-- Insumos & Peças Trocadas -->
+                    <div class="space-y-3 text-xs mb-6">
+                      <h4 class="font-bold text-gray-900 text-xs border-b border-gray-100 pb-1.5 flex items-center justify-between">
+                        <span>Peças & Insumos Utilizados nesta Intervenção</span>
+                        <span class="text-[11px] font-normal text-gray-500">Almoxarifado Setgen Central</span>
+                      </h4>
+                      <table class="w-full text-left">
+                        <thead class="text-gray-400 text-[10px] uppercase border-b border-gray-100">
+                          <tr>
+                            <th class="py-1">Código / Peça</th>
+                            <th class="py-1">Qtd</th>
+                            <th class="py-1">Lote / Validade</th>
+                            <th class="py-1 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 text-gray-700">
+                          <tr>
+                            <td class="py-2 font-medium">Óleo Lubrificante 15W40 CI-4 Diesel Pesado</td>
+                            <td class="py-2 font-mono">32 Litros</td>
+                            <td class="py-2 text-gray-500 font-mono">LT-9941 / 2028</td>
+                            <td class="py-2 text-right text-emerald-600 font-semibold">Aplicado</td>
+                          </tr>
+                          <tr>
+                            <td class="py-2 font-medium">Filtro de Combustível Racor R120P (Separador)</td>
+                            <td class="py-2 font-mono">2 Unidades</td>
+                            <td class="py-2 text-gray-500 font-mono">Parker Original</td>
+                            <td class="py-2 text-right text-emerald-600 font-semibold">Substituído</td>
+                          </tr>
+                          <tr>
+                            <td class="py-2 font-medium">Filtro de Óleo Blindado Scania DC13</td>
+                            <td class="py-2 font-mono">1 Unidade</td>
+                            <td class="py-2 text-gray-500 font-mono">Scania Genuine</td>
+                            <td class="py-2 text-right text-emerald-600 font-semibold">Substituído</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- Assinatura Técnica de Campo -->
+                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200/80 flex items-center justify-between text-xs">
+                      <div>
+                        <span class="font-bold text-gray-900 block">Técnico Executor: Marcos Ribeiro</span>
+                        <span class="text-gray-500 text-[11px]">Credenciamento Setgen #TEC-042 • NR-10 e NR-35 Válidos até Dez/2026</span>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-emerald-700 font-semibold flex items-center gap-1">
+                          <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Assinado Digitalmente
+                        </span>
+                        <span class="text-[10px] text-gray-400 font-mono">Hash: 8b1c470e-81a3</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+
+            </main>
+
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function goTo(step) {
+      for (let i = 1; i <= 3; i++) {
+        const sec = document.getElementById(`step-${i}`);
+        const btn = document.getElementById(`step-btn-${i}`);
+        if (sec) sec.classList.add('hidden');
+        if (btn) {
+          btn.classList.remove('active');
+          btn.classList.add('text-slate-400');
+        }
+      }
+
+      const activeSec = document.getElementById(`step-${step}`);
+      const activeBtn = document.getElementById(`step-btn-${step}`);
+      if (activeSec) activeSec.classList.remove('hidden');
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.classList.remove('text-slate-400');
+      }
+
+      const globalHeader = document.getElementById('global-topbar');
+      if (globalHeader) {
+        if (step === 3) {
+          globalHeader.classList.add('hidden');
+        } else {
+          globalHeader.classList.remove('hidden');
+        }
+      }
+
+      lucide.createIcons();
+    }
+
+    function openModuleWorkspace(moduleKey) {
+      goTo(3);
+
+      const breadcrumbMod = document.getElementById('breadcrumb-module-name');
+      const breadcrumbTitle = document.getElementById('breadcrumb-page-title');
+      const badge = document.getElementById('sidebar-module-badge');
+
+      if (moduleKey === 'clients') {
+        if (breadcrumbMod) breadcrumbMod.textContent = 'Clientes & Usinas';
+        if (breadcrumbTitle) breadcrumbTitle.textContent = 'Carteira de Clientes';
+        if (badge) badge.textContent = 'CLIENTES';
+      } else {
+        if (breadcrumbMod) breadcrumbMod.textContent = 'Ordens de Serviço & Campo';
+        if (breadcrumbTitle) breadcrumbTitle.textContent = 'Gestão de O.S.';
+        if (badge) badge.textContent = 'O.S. & CAMPO';
+      }
+
+      selectTab('tab-os-list');
+      lucide.createIcons();
+    }
+
+    function toggleAddMenu() {
+      const menu = document.getElementById('add-menu-dropdown');
+      if (menu) {
+        menu.classList.toggle('hidden');
+      }
+    }
+
+    document.addEventListener('click', function(e) {
+      const btn = document.getElementById('add-form-btn');
+      const menu = document.getElementById('add-menu-dropdown');
+      if (btn && menu && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    function togglePasswordVisibility() {
+      const pwd = document.getElementById('login-pwd');
+      const icon = document.getElementById('pwd-icon');
+      if (pwd) {
+        const isPassword = pwd.type === 'password';
+        pwd.type = isPassword ? 'text' : 'password';
+        if (icon) {
+          icon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+          lucide.createIcons();
+        }
+      }
+    }
+
+    function selectTab(tabId, customTitle) {
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.min-tab').forEach(el => {
+        el.classList.remove('active');
+      });
+
+      const pane = document.getElementById(`content-${tabId}`);
+      const btn = document.getElementById(`${tabId}-btn`);
+      if (pane) pane.classList.remove('hidden');
+      if (btn) btn.classList.add('active');
+
+      const breadcrumbTitle = document.getElementById('breadcrumb-page-title');
+      if (breadcrumbTitle) {
+        if (customTitle) {
+          breadcrumbTitle.textContent = customTitle;
+        } else if (tabId === 'tab-os-list') {
+          breadcrumbTitle.textContent = 'Gestão de O.S.';
+        } else if (tabId === 'tab-os-form') {
+          breadcrumbTitle.textContent = 'Nova O.S. Preventiva / Startup';
+        } else if (tabId === 'tab-os-detail') {
+          breadcrumbTitle.textContent = 'Relatório OS-2026-0842';
+        }
+      }
+
+      lucide.createIcons();
+    }
+
+    function openFormTab(title, iconName = 'wrench') {
+      const dropdown = document.getElementById('add-menu-dropdown');
+      if (dropdown) dropdown.classList.add('hidden');
+
+      const formWrapper = document.getElementById('tab-os-form-wrapper');
+      if (formWrapper) formWrapper.classList.remove('hidden');
+
+      const formTitle = document.getElementById('tab-os-form-title');
+      if (formTitle) formTitle.textContent = title;
+
+      selectTab('tab-os-form', title);
+      lucide.createIcons();
+    }
+
+    function closeTab(tabId) {
+      const formWrapper = document.getElementById(`${tabId}-wrapper`);
+      if (formWrapper) formWrapper.classList.add('hidden');
+      selectTab('tab-os-list');
+    }
+
+    function salvarFormulario() {
+      alert('Ordem de Serviço emitida com sucesso! Notificação enviada ao técnico via aplicativo.');
+      closeTab('tab-os-form');
+    }
+  </script>
+</body>
+</html>

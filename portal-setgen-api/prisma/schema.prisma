@@ -20,6 +20,32 @@ enum UserRole {
   TECHNICIAN
 }
 
+enum CheckinType {
+  MANUAL
+  AUTOMATICO_GEO
+  QR_CODE
+}
+
+enum WorkShiftType {
+  SEMPRE_ATIVO
+  JORNADA_PERSONALIZADA
+}
+
+enum DefaultScreen {
+  AGENDA
+  RELATORIO_TAREFAS
+}
+
+enum QuoteTargetType {
+  CLIENTE
+  LEAD
+}
+
+enum DiscountType {
+  VALOR_FIXO
+  PERCENTUAL
+}
+
 model User {
   id          String   @id @default(uuid())
   name        String
@@ -34,6 +60,27 @@ model User {
   updatedAt   DateTime @updatedAt
 
   // RelaÃ§Ãµes
+  // Campos Operacionais de Colaborador (Field Service)
+  avatarUrl               String?
+  login                   String?             @unique
+  jobTitle                String?
+  phone                   String?
+  auvochatEnabled         Boolean             @default(false)
+  monitoringIntervalMin   Int                 @default(3)
+  basePointAddress        String?             @db.Text
+  basePointLat            Float?
+  basePointLng            Float?
+  checkinType             CheckinType         @default(MANUAL)
+  hourlyRate              Decimal             @default(0.00) @db.Decimal(12, 2)
+  kmRate                  Decimal             @default(0.00) @db.Decimal(12, 2)
+  language                String              @default("pt-BR")
+  workShiftType           WorkShiftType       @default(SEMPRE_ATIVO)
+  workShiftSchedule       Json?
+  notifyApprovalWeb       Boolean             @default(true)
+  notifyApprovalEmail     Boolean             @default(true)
+  defaultScreen           DefaultScreen       @default(AGENDA)
+
+  // Relações
   createdVisits          TechnicalVisit[] @relation("CreatedVisits")
   requestedVisits        TechnicalVisit[] @relation("VisitRequestedBy")
   createdQuotes          Quote[]          @relation("CreatedQuotes")
@@ -51,16 +98,29 @@ model User {
 
   // Times e clientes sob responsabilidade
   teams                 Team[]
+  teams                 Team[]   @relation("TeamMembers")
+  managedTeams          Team[]   @relation("TeamManagers")
   clientsResponsibleFor Client[] @relation("ClientResponsibleUser")
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
+  // Relações Módulo Financeiro
   expenses           Expense[]           @relation("UserExpenses")
   approvedExpenses   Expense[]           @relation("ApprovedExpenses")
   employee           Employee?
   expenseAttachments ExpenseAttachment[]
 
   // PermissÃµes Granulares
+  // Permissões Granulares
   permissions UserPermission[]
+
+  // Relações de Campo / Operacionais
+  collaboratorPermissions CollaboratorPermission?
+  collaboratorAttachments CollaboratorAttachment[]
+  collaboratorStocks      ProductCollaboratorStock[]
+  assignedWorkOrders      ServiceOrder[]              @relation("AssignedWorkOrders")
+  workOrderExecutionLogs  WorkOrderExecutionLog[]
+  quoteTasksAssigned      QuoteTask[]                 @relation("QuoteTaskAssignee")
+  quoteAttachmentsUploaded QuoteAttachment[]          @relation("QuoteAttachmentUploader")
 
   @@map("users")
 }
@@ -109,6 +169,73 @@ model UserPermission {
 
   @@id([userId, permissionId])
   @@map("user_permissions")
+}
+
+model CollaboratorPermission {
+  id                                  String   @id @default(uuid())
+  userId                              String   @unique
+  user                                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Matriz: Tarefas
+  canCreateTasks                      Boolean  @default(false)
+  canAccessAllTaskTypes               Boolean  @default(false)
+  canExecuteTasks                     Boolean  @default(true)
+  canEditTasks                        Boolean  @default(false)
+  canDeleteTasks                      Boolean  @default(false)
+  canRemoveCollectedSignature         Boolean  @default(false)
+  canPauseTasks                       Boolean  @default(true)
+  canRescheduleTasks                  Boolean  @default(false)
+  canUseGalleryPhotos                 Boolean  @default(true)
+  canEditTasksPostCheckout            Boolean  @default(false)
+  canManualCheckoutWithPending        Boolean  @default(false)
+  canManualCheckinWithOpenCheckout    Boolean  @default(false)
+  canFillReportWithoutCheckin         Boolean  @default(false)
+  canManualCheckinOffSchedule         Boolean  @default(false)
+  canAddQuestionnaire                 Boolean  @default(false)
+  canRemoveQuestionnaire              Boolean  @default(false)
+  canRemoveEquipmentFromQuestionnaire Boolean  @default(false)
+
+  // Matriz: Colaboradores / Clientes / Comercial
+  canChangeBasePoint                  Boolean  @default(false)
+  canManageClients                    Boolean  @default(false)
+  canAccessProductsAndQuotes          Boolean  @default(false)
+  canEditClientAddress                Boolean  @default(false)
+  canChangeQuoteStatus                Boolean  @default(false)
+  canViewClientSensitiveContacts      Boolean  @default(false)
+  canViewSendDigitalOsReports         Boolean  @default(false)
+  canManageFinancialCategories        Boolean  @default(false)
+  canStartDisplacement                Boolean  @default(true)
+  canViewCostPrices                   Boolean  @default(false)
+  canMoveCompanyStock                 Boolean  @default(false)
+  canManageKeywords                   Boolean  @default(false)
+
+  // Matriz: Projetos & Equipamentos
+  canManageProjects                   Boolean  @default(false)
+  canViewEquipment                    Boolean  @default(true)
+  canCreateEquipment                  Boolean  @default(false)
+  canEditEquipment                    Boolean  @default(false)
+  canDeleteEquipment                  Boolean  @default(false)
+
+  // Auvo Desk
+  canDeleteTicketNotes                Boolean  @default(false)
+
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime @updatedAt
+
+  @@map("collaborator_permissions")
+}
+
+model CollaboratorAttachment {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileSize   BigInt?
+  mimeType   String?
+  uploadedAt DateTime @default(now())
+
+  @@map("collaborator_attachments")
 }
 
 // ============================================
@@ -178,9 +305,46 @@ model Client {
   notasFiscais    NotaFiscal[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
+  // Relações Módulo Financeiro
   expenses Expense[]
 
+  // Relações MultiCRUD Operacionais
+  isPublicAgency Boolean         @default(false)
+  addresses      ClientAddress[]
+  contactList    ClientContact[]
+
   @@map("clients")
+}
+
+model ClientAddress {
+  id               String   @id @default(uuid())
+  clientId         String
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label            String   @default("Principal")
+  streetAddress    String   @db.Text
+  complement       String?
+  latitude         Float?
+  longitude        Float?
+  sourceExtraction String?  // 'GOOGLE_MAPS_URL', 'HERE_MAPS', 'FOURSQUARE', 'MANUAL'
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("client_addresses")
+}
+
+model ClientContact {
+  id          String   @id @default(uuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  contactType String   // 'EMAIL' | 'PHONE'
+  value       String
+  label       String?  // 'Faturamento', 'Recepção', 'Gerente'
+  name        String?
+  createdAt   DateTime @default(now())
+
+  quotes      Quote[]
+
+  @@map("client_contacts")
 }
 
 model Team {
@@ -192,6 +356,8 @@ model Team {
   updatedAt   DateTime @updatedAt
 
   members        User[]
+  members        User[]   @relation("TeamMembers")
+  managers       User[]   @relation("TeamManagers")
   responsibleFor Client[]
 
   @@map("teams")
@@ -226,13 +392,34 @@ model Equipment {
   id              String        @id @default(uuid())
   clientId        String
   type            EquipmentType
+  clientId        String?
+  name            String?
+  identifier      String?       @unique
+  category        String?
+  type            EquipmentType @default(GENERATOR)
   brand           String?
   model           String?
   serialNumber    String?
   powerRating     String?
   installLocation String?
   purchaseDate    DateTime?
+  expirationDate  DateTime?
+  warrantyEndDate DateTime?
+  active          Boolean       @default(true)
+  photoUrl        String?
   notes           String?       @db.Text
+  specifications  Json?
+
+  // QR Code
+  qrCodeHash       String?       @unique
+  qrCodePublicRead Boolean       @default(false)
+  qrCodeInherited  Boolean       @default(true)
+
+  // Hierarquia Pai/Filho
+  parentEquipmentId String?
+  parentEquipment   Equipment?   @relation("EquipmentHierarchy", fields: [parentEquipmentId], references: [id])
+  childEquipments   Equipment[]  @relation("EquipmentHierarchy")
+
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -240,9 +427,27 @@ model Equipment {
   technicalVisits TechnicalVisit[]
   visitLinks      VisitEquipment[]
   warranties      Warranty[]
+  client               Client?          @relation(fields: [clientId], references: [id])
+  technicalVisits      TechnicalVisit[]
+  visitLinks           VisitEquipment[]
+  warranties           Warranty[]
+  associatedProducts   Product[]
+  equipmentAttachments EquipmentAttachment[]
+  workOrders           ServiceOrder[]   @relation("WorkOrderEquipment")
 
   @@index([clientId])
   @@map("equipments")
+}
+
+model EquipmentAttachment {
+  id          String    @id @default(uuid())
+  equipmentId String
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileUrl     String
+  uploadedAt  DateTime  @default(now())
+
+  @@map("equipment_attachments")
 }
 
 model FailureCategory {
@@ -437,6 +642,7 @@ model ChecklistTemplate {
 }
 
 // Fase comercial: elaboraÃ§Ã£o, envio e aprovaÃ§Ã£o do orÃ§amento pelo cliente.
+// Fase comercial: elaboração, envio e aprovação do orçamento pelo cliente.
 // Vira ServiceOrder somente quando aceita (OC/OP verificada) - ver ServiceOrder.quoteId.
 model Quote {
   id                String           @id @default(uuid())
@@ -460,6 +666,26 @@ model Quote {
   updatedAt         DateTime         @updatedAt
 
   // RelaÃ§Ãµes
+  // MultiCRUD Operacional / Comercial
+  targetType                  QuoteTargetType       @default(CLIENTE)
+  contactId                   String?
+  contact                     ClientContact?        @relation(fields: [contactId], references: [id])
+  externalCode                String?
+  requestDate                 DateTime              @default(now())
+  paymentMethodConfigId       String?
+  paymentMethodConfig         PaymentMethodConfig?  @relation(fields: [paymentMethodConfigId], references: [id])
+  allowMultiplePaymentMethods Boolean               @default(false)
+  internalNotes               String?               @db.Text
+
+  // Descontos e Totais Consolidados (Snapshots)
+  discountType                DiscountType          @default(VALOR_FIXO)
+  discountValue               Decimal               @default(0.00) @db.Decimal(12, 2)
+  subtotalProducts            Decimal               @default(0.00) @db.Decimal(12, 2)
+  subtotalServices            Decimal               @default(0.00) @db.Decimal(12, 2)
+  subtotalAdditionalCosts     Decimal               @default(0.00) @db.Decimal(12, 2)
+  totalAmount                 Decimal               @default(0.00) @db.Decimal(12, 2)
+
+  // Relações
   client         Client          @relation(fields: [clientId], references: [id])
   technicalVisit TechnicalVisit? @relation(fields: [technicalVisitId], references: [id])
   createdBy      User            @relation("CreatedQuotes", fields: [createdById], references: [id])
@@ -468,6 +694,13 @@ model Quote {
   purchaseOrders PurchaseOrder[]
   quoteLines     QuoteLine[]
   serviceOrder   ServiceOrder?
+
+  // Relações Especializadas por Abas
+  itemProducts     QuoteItemProduct[]
+  itemServices     QuoteItemService[]
+  additionalCosts  QuoteAdditionalCost[]
+  tasks            QuoteTask[]
+  quoteAttachments QuoteAttachment[]
 
   @@map("quotes")
 }
@@ -492,11 +725,134 @@ model QuoteLine {
 
 // Fase de execuÃ§Ã£o: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
 // Escopo/campos comerciais ficam congelados aqui como cÃ³pia do Quote de origem.
+model QuoteItemProduct {
+  id             String   @id @default(uuid())
+  quoteId        String
+  quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  quantity       Decimal  @db.Decimal(10, 2)
+  unitPrice      Decimal  @db.Decimal(12, 2)
+  discountAmount Decimal  @default(0.00) @db.Decimal(12, 2)
+  totalPrice     Decimal  @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+
+  @@map("quote_item_products")
+}
+
+model QuoteItemService {
+  id                String   @id @default(uuid())
+  quoteId           String
+  quote             Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  serviceId         String
+  service           Service  @relation(fields: [serviceId], references: [id])
+  quantity          Decimal  @db.Decimal(10, 2)
+  unitPrice         Decimal  @db.Decimal(12, 2)
+  discountAmount    Decimal  @default(0.00) @db.Decimal(12, 2)
+  totalPrice        Decimal  @db.Decimal(12, 2)
+  customObservation String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  @@map("quote_item_services")
+}
+
+model QuoteAdditionalCost {
+  id          String   @id @default(uuid())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  @@map("quote_additional_costs")
+}
+
+model QuoteTask {
+  id                     String   @id @default(uuid())
+  quoteId                String
+  quote                  Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  taskCode               String?
+  taskType               String
+  executionDate          DateTime
+  assignedCollaboratorId String?
+  assignedCollaborator   User?    @relation("QuoteTaskAssignee", fields: [assignedCollaboratorId], references: [id])
+  createdAt              DateTime @default(now())
+
+  @@map("quote_tasks")
+}
+
+model QuoteAttachment {
+  id           String   @id @default(uuid())
+  quoteId      String
+  quote        Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileUrl      String
+  uploadedById String
+  uploadedBy   User     @relation("QuoteAttachmentUploader", fields: [uploadedById], references: [id])
+  showToClient Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@map("quote_attachments")
+}
+
+// Catálogo de Serviços e Templates
+model Service {
+  id                  String            @id @default(uuid())
+  title               String
+  price               Decimal           @default(0.00) @db.Decimal(12, 2)
+  externalCode        String?           @unique
+  defaultObservation  String?           @db.Text
+  observationEditable Boolean           @default(true)
+  active              Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  templates             ServiceTemplate[]
+  quoteItemServices     QuoteItemService[]
+  workOrderItemServices WorkOrderItemService[]
+
+  @@map("services")
+}
+
+model ServiceTemplate {
+  id              String   @id @default(uuid())
+  serviceId       String
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  title           String
+  templateContent String   @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("service_templates")
+}
+
+// Configuração de Formas de Pagamento e Condições
+model PaymentMethodConfig {
+  id                   String   @id @default(uuid())
+  description          String
+  maxInstallments      Int      @default(1)
+  bankAccount          String
+  gatewayOrModality    String
+  feePercentage        Decimal  @default(0.00) @db.Decimal(5, 2)
+  feeFixedAmount       Decimal  @default(0.00) @db.Decimal(10, 2)
+  settlementPeriodDays Int      @default(0)
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  quotes Quote[]
+
+  @@map("payment_method_configs")
+}
+
+// Fase de execução: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
+// Escopo/campos comerciais ficam congelados aqui como cópia do Quote de origem.
 model ServiceOrder {
   id                  String             @id @default(uuid())
   orderNumber         String             @unique
   quoteId             String             @unique
   clientId            String
+  equipmentId         String?
   status              ServiceOrderStatus @default(AWAITING_MATERIALS)
   scope               String             @db.Text
   requiredResources   Json?
@@ -513,8 +869,25 @@ model ServiceOrder {
   updatedAt           DateTime           @updatedAt
 
   // RelaÃ§Ãµes
+  // Apuração Operacional Real (Visão Interna)
+  assignedCollaboratorId  String?
+  assignedCollaborator    User?                  @relation("AssignedWorkOrders", fields: [assignedCollaboratorId], references: [id])
+  checkinTime             DateTime?
+  checkoutTime            DateTime?
+  totalWorkedHours        Decimal                @default(0.00) @db.Decimal(6, 2)
+  hourlyRateSnapshot      Decimal                @default(0.00) @db.Decimal(12, 2)
+  laborCostReal           Decimal                @default(0.00) @db.Decimal(12, 2)
+  totalKmTraveled         Decimal                @default(0.00) @db.Decimal(8, 2)
+  kmRateSnapshot          Decimal                @default(0.00) @db.Decimal(12, 2)
+  displacementCostReal    Decimal                @default(0.00) @db.Decimal(12, 2)
+  totalMaterialCostReal   Decimal                @default(0.00) @db.Decimal(12, 2)
+  grossRevenueReal        Decimal                @default(0.00) @db.Decimal(12, 2)
+  grossProfitReal         Decimal                @default(0.00) @db.Decimal(12, 2)
+
+  // Relações
   quote             Quote                 @relation(fields: [quoteId], references: [id])
   client            Client                @relation(fields: [clientId], references: [id])
+  equipment         Equipment?            @relation("WorkOrderEquipment", fields: [equipmentId], references: [id])
   createdBy         User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
   checklistTemplate ChecklistTemplate?    @relation(fields: [checklistTemplateId], references: [id])
   notasFiscais      NotaFiscal[]
@@ -525,9 +898,61 @@ model ServiceOrder {
   linkedVisits      ServiceOrderVisit[]
 
   // RelaÃ§Ãµes MÃ³dulo Financeiro
+  // Relações Módulo Financeiro
   expenses Expense[]
 
+  // Relações Operacionais de Execução
+  itemServices      WorkOrderItemService[]
+  executionLogs     WorkOrderExecutionLog[]
+  signature         WorkOrderSignature?
+
   @@map("service_orders")
+}
+
+model WorkOrderItemService {
+  id               String       @id @default(uuid())
+  serviceOrderId   String
+  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  serviceId        String
+  service          Service      @relation(fields: [serviceId], references: [id])
+  quantity         Decimal      @db.Decimal(10, 2)
+  unitPrice        Decimal      @db.Decimal(12, 2)
+  scopeObservation String?      @db.Text
+  completed        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+
+  @@map("work_order_item_services")
+}
+
+model WorkOrderExecutionLog {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  actionType     String       // 'START_DISPLACEMENT', 'CHECKIN', 'PAUSE', 'CHECKOUT'
+  recordedAt     DateTime     @default(now())
+  latitude       Float?
+  longitude      Float?
+  odometerKm     Decimal?     @db.Decimal(10, 2)
+  notes          String?      @db.Text
+
+  @@map("work_order_execution_logs")
+}
+
+model WorkOrderSignature {
+  id                 String       @id @default(uuid())
+  serviceOrderId     String       @unique
+  serviceOrder       ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  signerName         String
+  signerDocument     String
+  signatureImageUrl  String       @db.Text
+  signedAt           DateTime     @default(now())
+  ipAddress          String?
+  latitude           Float?
+  longitude          Float?
+
+  @@map("work_order_signatures")
 }
 
 model ServiceOrderVisit {
@@ -982,6 +1407,9 @@ model Product {
   minStock     Int            @default(0)
   currentStock Int            @default(0)
   unitCost     Decimal?       @db.Decimal(10, 2)
+  salePrice    Decimal?       @default(0.00) @db.Decimal(10, 2)
+  externalCode String?
+  category     String?
   active       Boolean        @default(true)
   photoUrl     String?
   barcode      String?        @unique
@@ -990,13 +1418,45 @@ model Product {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
+  associatedEquipmentId String?
+  associatedEquipment   Equipment? @relation(fields: [associatedEquipmentId], references: [id])
+
   movements             StockMovement[]
   serviceOrders         ServiceOrderProduct[]
   materialRequestItems  MaterialRequestItem[]
   procurementOrderItems ProcurementOrderItem[]
   notaFiscalItems       NotaFiscalItem[]
 
+  // Relações MultiCRUD Operacionais
+  collaboratorStocks    ProductCollaboratorStock[]
+  quoteItemProducts     QuoteItemProduct[]
+  productAttachments    ProductAttachment[]
+
   @@map("products")
+}
+
+model ProductCollaboratorStock {
+  id             String   @id @default(uuid())
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quantity       Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([productId, userId])
+  @@map("product_collaborator_stocks")
+}
+
+model ProductAttachment {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+
+  @@map("product_attachments")
 }
 
 model ServiceOrderProduct {

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -36,6 +36,10 @@ import { PublicQuotesModule } from './public-quotes/public-quotes.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { FuelRequestsModule } from './fuel-requests/fuel-requests.module';
 import { StockLocationsModule } from './stock-locations/stock-locations.module';
+import { ServicesModule } from './services/services.module';
+import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
+import { GeoModule } from './geo/geo.module';
+import { SystemModulesModule } from './system-modules/system-modules.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -79,14 +83,19 @@ import { ScheduleModule } from '@nestjs/schedule';
     VehiclesModule,
     FuelRequestsModule,
     StockLocationsModule,
+    ServicesModule,
+    PaymentMethodsModule,
+    GeoModule,
+    SystemModulesModule,
     ThrottlerModule.forRoot([{
       ttl: 60000,
       limit: 10,
     }]),
   ],
   // AppController/AppService existiam desde o scaffold mas nunca foram
-  // registrados aqui — a raiz respondia 404 e o teste e2e original falhava.
+  // registrados aqui â€” a raiz respondia 404 e o teste e2e original falhava.
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule {}
+

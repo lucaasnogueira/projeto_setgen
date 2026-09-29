@@ -19,6 +19,7 @@ import {
   AuditAction,
   MaterialRequestStatus,
   PaymentStatus,
+  MovementType,
 } from '@prisma/client';
 
 // Máquina de estados da OS de execução — nasce sempre a partir de um Quote
@@ -226,9 +227,35 @@ export class ServiceOrdersService {
         delivery: true,
         art: true,
         checklistTemplate: { select: { id: true, name: true } },
+        equipment: true,
+        assignedCollaborator: {
+          select: {
+            id: true,
+            name: true,
+            jobTitle: true,
+            hourlyRate: true,
+            kmRate: true,
+            email: true,
+            phone: true,
+            basePointAddress: true,
+          },
+        },
+        signature: true,
+        expenses: {
+          include: {
+            category: true,
+            user: { select: { id: true, name: true } },
+          },
+          orderBy: { date: 'desc' },
+        },
+        itemServices: {
+          include: {
+            service: true,
+          },
+        },
         items: {
           include: {
-            product: { select: { id: true, code: true, name: true, unit: true } },
+            product: { select: { id: true, code: true, name: true, unit: true, unitCost: true, salePrice: true } },
           },
         },
       },
@@ -616,5 +643,781 @@ export class ServiceOrdersService {
       total,
       byStatus: byStatus.map((s) => ({ status: s.status, count: s._count })),
     };
+  }
+
+  /**
+   * Visão do Cliente (OS Digital): exibe apenas escopo acordado, produtos e serviços pelo preço de venda,
+   * anexos marcados como públicos e a assinatura digital coletada.
+   */
+  async getClientView(id: string) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+      include: {
+        client: {
+          select: {
+            id: true,
+            companyName: true,
+            tradeName: true,
+            cnpjCpf: true,
+            phone: true,
+            email: true,
+          },
+        },
+        equipment: {
+          select: {
+            id: true,
+            name: true,
+            identifier: true,
+            model: true,
+            serialNumber: true,
+          },
+        },
+        itemServices: {
+          include: {
+            service: {
+              select: { title: true, externalCode: true },
+            },
+          },
+        },
+        items: {
+          include: {
+            product: {
+              select: { name: true, code: true, unit: true },
+            },
+          },
+        },
+        quote: {
+          include: {
+            quoteAttachments: {
+              where: { showToClient: true },
+              select: { id: true, fileName: true, fileUrl: true, createdAt: true },
+            },
+          },
+        },
+        signature: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+
+    const services = order.itemServices.map((is) => ({
+      title: is.service.title,
+      code: is.service.externalCode,
+      quantity: Number(is.quantity),
+      unitPrice: Number(is.unitPrice),
+      totalPrice: Number(is.quantity) * Number(is.unitPrice),
+      scopeObservation: is.scopeObservation,
+      completed: is.completed,
+    }));
+
+    const products = order.items.map((it) => ({
+      name: it.product.name,
+      code: it.product.code,
+      unit: it.product.unit,
+      quantity: it.quantity,
+      unitPrice: Number(it.unitPrice),
+      totalPrice: Number(it.totalPrice),
+    }));
+
+    const totalBilled =
+      services.reduce((acc, s) => acc + s.totalPrice, 0) +
+      products.reduce((acc, p) => acc + p.totalPrice, 0);
+
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      client: order.client,
+      equipment: order.equipment,
+      deadline: order.deadline,
+      completedAt: order.completedAt,
+      scope: order.scope,
+      services,
+      products,
+      totalAmount: totalBilled,
+      attachments: order.quote?.quoteAttachments || [],
+      signature: order.signature,
+      isSigned: !!order.signature,
+    };
+  }
+
+  /**
+   * Coleta de Assinatura Digital do Cliente
+   */
+  async collectClientSignature(
+    id: string,
+    dto: {
+      signerName: string;
+      signerDocument: string;
+      signatureImageUrl: string;
+      ipAddress?: string;
+      latitude?: number;
+      longitude?: number;
+    },
+  ) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+
+    return this.prisma.workOrderSignature.upsert({
+      where: { serviceOrderId: id },
+      update: {
+        signerName: dto.signerName,
+        signerDocument: dto.signerDocument,
+        signatureImageUrl: dto.signatureImageUrl,
+        signedAt: new Date(),
+        ipAddress: dto.ipAddress || null,
+        latitude: dto.latitude || null,
+        longitude: dto.longitude || null,
+      },
+      create: {
+        serviceOrderId: id,
+        signerName: dto.signerName,
+        signerDocument: dto.signerDocument,
+        signatureImageUrl: dto.signatureImageUrl,
+        signedAt: new Date(),
+        ipAddress: dto.ipAddress || null,
+        latitude: dto.latitude || null,
+        longitude: dto.longitude || null,
+      },
+    });
+  }
+
+  /**
+   * Visão Interna (Gestão Operacional, Custos Reais e Margem Bruta)
+   */
+  async getInternalView(id: string) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+      include: {
+        client: true,
+        quote: {
+          include: {
+            quoteLines: true,
+          },
+        },
+        expenses: {
+          include: {
+            category: true,
+            user: { select: { id: true, name: true } },
+          },
+        },
+        assignedCollaborator: {
+          select: {
+            id: true,
+            name: true,
+            jobTitle: true,
+            hourlyRate: true,
+            kmRate: true,
+            basePointAddress: true,
+          },
+        },
+        equipment: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        itemServices: {
+          include: {
+            service: true,
+          },
+        },
+        executionLogs: {
+          orderBy: { recordedAt: 'asc' },
+          include: { user: { select: { id: true, name: true } } },
+        },
+        signature: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+
+    // Apuração de Receita Bruta Faturada
+    const servicesRevenue = order.itemServices.reduce(
+      (acc, s) => acc + Number(s.quantity) * Number(s.unitPrice),
+      0,
+    );
+    const productsRevenue = order.items.reduce(
+      (acc, it) => acc + Number(it.totalPrice),
+      0,
+    );
+    let grossRevenue = servicesRevenue + productsRevenue;
+
+    // Se a OS nasceu de um orçamento com linhas faturadas e os itens diretos ainda não foram copiados
+    if (grossRevenue === 0 && order.quote?.quoteLines?.length) {
+      grossRevenue = order.quote.quoteLines.reduce(
+        (acc, l) => acc + Number(l.totalValue || 0),
+        0,
+      );
+    }
+
+    // Custos Reais de Mão de Obra (Horas x Taxa/Hora)
+    const hourlyRate = Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 0;
+    const workedHours = Number(order.totalWorkedHours) || 0;
+    const laborCost = workedHours * hourlyRate;
+
+    // Custos Reais de Deslocamento e Frota (KM x Taxa/KM)
+    const kmRate = Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 0;
+    const kmTraveled = Number(order.totalKmTraveled) || 0;
+    const displacementCost = kmTraveled * kmRate;
+
+    // Custo Real de Insumos/Materiais (com base no custo de reposição/CMV do estoque)
+    const materialCost = order.items.reduce(
+      (acc, it) => acc + it.quantity * (Number(it.product.unitCost) || 0),
+      0,
+    );
+
+    // Despesas Operacionais de Campo (Alimentação, Pedágio, Hospedagem, etc.)
+    const fieldExpensesCost = (order.expenses || []).reduce(
+      (acc, exp) => acc + Number(exp.amount || 0),
+      0,
+    );
+
+    const totalOperationalCost = laborCost + displacementCost + materialCost + fieldExpensesCost;
+    const grossProfit = grossRevenue - totalOperationalCost;
+    const profitMarginPercent = grossRevenue > 0 ? (grossProfit / grossRevenue) * 100 : 0;
+
+    return {
+      orderNumber: order.orderNumber,
+      status: order.status,
+      collaborator: order.assignedCollaborator,
+      laborTracking: {
+        checkinTime: order.checkinTime,
+        checkoutTime: order.checkoutTime,
+        totalWorkedHours: workedHours,
+        hourlyRateSnapshot: hourlyRate,
+        laborCostReal: Number(laborCost.toFixed(2)),
+      },
+      displacementTracking: {
+        totalKm: kmTraveled,
+        kmRateSnapshot: kmRate,
+        displacementCostReal: Number(displacementCost.toFixed(2)),
+      },
+      fieldExpensesTracking: {
+        totalExpenses: Number(fieldExpensesCost.toFixed(2)),
+        items: order.expenses || [],
+      },
+      materialProfitability: {
+        billedMaterialsRevenue: Number(productsRevenue.toFixed(2)),
+        realMaterialCost: Number(materialCost.toFixed(2)),
+        grossMarginMaterials: Number((productsRevenue - materialCost).toFixed(2)),
+      },
+      financialSummary: {
+        grossRevenue: Number(grossRevenue.toFixed(2)),
+        totalOperationalCost: Number(totalOperationalCost.toFixed(2)),
+        netOperatingProfit: Number(grossProfit.toFixed(2)),
+        profitMarginPercentage: Number(profitMarginPercent.toFixed(2)),
+      },
+      executionLogs: order.executionLogs,
+      signature: order.signature,
+    };
+  }
+
+  /**
+   * Registro de Início de Deslocamento
+   */
+  async startDisplacement(
+    id: string,
+    userId: string,
+    data: { latitude?: number; longitude?: number; odometerKm?: number; notes?: string },
+  ) {
+    const order = await this.findOne(id);
+
+    await this.prisma.workOrderExecutionLog.create({
+      data: {
+        serviceOrderId: id,
+        userId,
+        actionType: 'START_DISPLACEMENT',
+        latitude: data.latitude || null,
+        longitude: data.longitude || null,
+        odometerKm: data.odometerKm !== undefined ? data.odometerKm : null,
+        notes: data.notes || 'Início de deslocamento registrado',
+      },
+    });
+
+    return { message: 'Deslocamento iniciado com sucesso' };
+  }
+
+  /**
+   * Registro de Check-in operacional
+   */
+  async checkin(
+    id: string,
+    userId: string,
+    data: { latitude?: number; longitude?: number; notes?: string },
+  ) {
+    const order = await this.findOne(id);
+    const now = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.serviceOrder.update({
+        where: { id },
+        data: {
+          checkinTime: now,
+          status: ServiceOrderStatus.IN_PROGRESS,
+        },
+      }),
+      this.prisma.workOrderExecutionLog.create({
+        data: {
+          serviceOrderId: id,
+          userId,
+          actionType: 'CHECKIN',
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          notes: data.notes || 'Check-in realizado no local do cliente',
+        },
+      }),
+    ]);
+
+    return { message: 'Check-in registrado com sucesso' };
+  }
+
+  /**
+   * Registro de Check-out e Baixa Automática de Estoque
+   */
+  async addExpenseToOrder(
+    serviceOrderId: string,
+    userId: string,
+    data: { description: string; amount: number; categoryName?: string },
+  ) {
+    const order = await this.findOne(serviceOrderId);
+    let category = await this.prisma.expenseCategory.findFirst({
+      where: { name: { contains: data.categoryName || 'Operacional' } },
+    });
+    if (!category) {
+      category = await this.prisma.expenseCategory.findFirst();
+    }
+
+    const year = new Date().getFullYear();
+    const count = await this.prisma.expense.count();
+    const code = `DESP-${year}-${String(count + 1).padStart(4, '0')}`;
+
+    return this.prisma.expense.create({
+      data: {
+        code,
+        description: data.description,
+        type: 'SERVICE',
+        amount: data.amount,
+        date: new Date(),
+        dueDate: new Date(),
+        competenceDate: new Date(),
+        categoryId: category ? category.id : 'default',
+        serviceOrderId,
+        clientId: order.clientId,
+        userId,
+      },
+      include: {
+        category: true,
+        user: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async checkout(
+    id: string,
+    userId: string,
+    data: {
+      latitude?: number;
+      longitude?: number;
+      odometerKm?: number;
+      notes?: string;
+      totalKmTraveled?: number;
+    },
+  ) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        assignedCollaborator: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+
+    const now = new Date();
+    const checkin = order.checkinTime || now;
+    const diffHours = Math.max(0.1, (now.getTime() - checkin.getTime()) / (1000 * 60 * 60));
+    const totalKm = data.totalKmTraveled || 0;
+
+    const hourlyRate = Number(order.assignedCollaborator?.hourlyRate) || 0;
+    const kmRate = Number(order.assignedCollaborator?.kmRate) || 0;
+
+    const laborCost = diffHours * hourlyRate;
+    const displacementCost = totalKm * kmRate;
+
+    // Realiza checkout e dedução de estoque numa transação atômica
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Atualiza OS
+      await tx.serviceOrder.update({
+        where: { id },
+        data: {
+          checkoutTime: now,
+          status: ServiceOrderStatus.COMPLETED,
+          completedAt: now,
+          progress: 100,
+          totalWorkedHours: diffHours,
+          hourlyRateSnapshot: hourlyRate,
+          laborCostReal: laborCost,
+          totalKmTraveled: totalKm,
+          kmRateSnapshot: kmRate,
+          displacementCostReal: displacementCost,
+        },
+      });
+
+      // 2. Registra Log
+      await tx.workOrderExecutionLog.create({
+        data: {
+          serviceOrderId: id,
+          userId,
+          actionType: 'CHECKOUT',
+          latitude: data.latitude || null,
+          longitude: data.longitude || null,
+          odometerKm: data.odometerKm !== undefined ? data.odometerKm : null,
+          notes: data.notes || 'Check-out e conclusão do atendimento',
+        },
+      });
+
+      // 3. Dedução de Estoque de Materiais/Peças
+      for (const item of order.items) {
+        // Tenta deduzir do estoque do colaborador responsável
+        if (order.assignedCollaboratorId) {
+          const collabStock = await tx.productCollaboratorStock.findUnique({
+            where: {
+              productId_userId: {
+                productId: item.productId,
+                userId: order.assignedCollaboratorId,
+              },
+            },
+          });
+
+          if (collabStock && collabStock.quantity >= item.quantity) {
+            await tx.productCollaboratorStock.update({
+              where: {
+                productId_userId: {
+                  productId: item.productId,
+                  userId: order.assignedCollaboratorId,
+                },
+              },
+              data: {
+                quantity: collabStock.quantity - item.quantity,
+              },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                type: MovementType.EXIT,
+                quantity: item.quantity,
+                reason: `Baixa automática OS ${order.orderNumber} (estoque de rota)`,
+                createdById: userId,
+              },
+            });
+            continue;
+          }
+        }
+
+        // Se não deduziu do colaborador, deduz do almoxarifado central
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            currentStock: {
+              decrement: item.quantity,
+            },
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productId: item.productId,
+            type: MovementType.EXIT,
+            quantity: item.quantity,
+            reason: `Baixa automática OS ${order.orderNumber} (almoxarifado central)`,
+            createdById: userId,
+          },
+        });
+      }
+    });
+
+    return { message: 'Check-out realizado e estoque baixado com sucesso' };
+  }
+
+  async updateKm(id: string, km: number) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+      include: { assignedCollaborator: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+    const kmRate = Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 0;
+    const displacementCostReal = Number((km * kmRate).toFixed(2));
+    return this.prisma.serviceOrder.update({
+      where: { id },
+      data: {
+        totalKmTraveled: km,
+        displacementCostReal,
+      },
+    });
+  }
+
+  async updateWorkedHours(id: string, hours: number) {
+    const order = await this.prisma.serviceOrder.findUnique({
+      where: { id },
+      include: { assignedCollaborator: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+    const hourlyRate = Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 0;
+    const laborCostReal = Number((hours * hourlyRate).toFixed(2));
+    return this.prisma.serviceOrder.update({
+      where: { id },
+      data: {
+        totalWorkedHours: hours,
+        laborCostReal,
+      },
+    });
+  }
+
+  // --- MULTI-CRUD: DESPESAS DE CAMPO ---
+  async updateExpense(serviceOrderId: string, expenseId: string, data: { description?: string; amount?: number; categoryName?: string }) {
+    let categoryId: string | undefined;
+    if (data.categoryName) {
+      const cat = await this.prisma.expenseCategory.findFirst({
+        where: { name: { contains: data.categoryName } },
+      });
+      if (cat) categoryId = cat.id;
+    }
+    return this.prisma.expense.update({
+      where: { id: expenseId },
+      data: {
+        ...(data.description && { description: data.description }),
+        ...(data.amount !== undefined && { amount: data.amount }),
+        ...(categoryId && { categoryId }),
+      },
+      include: { category: true, user: { select: { id: true, name: true } } },
+    });
+  }
+
+  async deleteExpense(serviceOrderId: string, expenseId: string) {
+    return this.prisma.expense.delete({
+      where: { id: expenseId },
+    });
+  }
+
+  // --- MULTI-CRUD: PEÇAS & MATERIAIS (CMV) ---
+  async addItemToOrder(serviceOrderId: string, data: { productId: string; quantity: number; unitPrice: number }) {
+    const existing = await this.prisma.serviceOrderProduct.findFirst({
+      where: { serviceOrderId, productId: data.productId },
+    });
+    if (existing) {
+      const newQty = existing.quantity + data.quantity;
+      return this.prisma.serviceOrderProduct.update({
+        where: { id: existing.id },
+        data: {
+          quantity: newQty,
+          unitPrice: data.unitPrice,
+          totalPrice: newQty * data.unitPrice,
+        },
+        include: { product: true },
+      });
+    }
+    return this.prisma.serviceOrderProduct.create({
+      data: {
+        serviceOrderId,
+        productId: data.productId,
+        quantity: data.quantity,
+        unitPrice: data.unitPrice,
+        totalPrice: data.quantity * data.unitPrice,
+      },
+      include: { product: true },
+    });
+  }
+
+  async updateOrderItem(serviceOrderId: string, itemId: string, data: { quantity?: number; unitPrice?: number }) {
+    const item = await this.prisma.serviceOrderProduct.findUnique({ where: { id: itemId } });
+    if (!item) throw new NotFoundException('Item não encontrado');
+    const quantity = data.quantity !== undefined ? data.quantity : item.quantity;
+    const unitPrice = data.unitPrice !== undefined ? data.unitPrice : Number(item.unitPrice);
+    return this.prisma.serviceOrderProduct.update({
+      where: { id: itemId },
+      data: {
+        quantity,
+        unitPrice,
+        totalPrice: quantity * unitPrice,
+      },
+      include: { product: true },
+    });
+  }
+
+  async deleteOrderItem(serviceOrderId: string, itemId: string) {
+    return this.prisma.serviceOrderProduct.delete({
+      where: { id: itemId },
+    });
+  }
+
+  // --- MULTI-CRUD: SERVIÇOS TÉCNICOS ---
+  async addServiceToOrder(serviceOrderId: string, data: { serviceId: string; quantity: number; unitPrice: number; scopeObservation?: string }) {
+    return this.prisma.workOrderItemService.create({
+      data: {
+        serviceOrderId,
+        serviceId: data.serviceId,
+        quantity: data.quantity,
+        unitPrice: data.unitPrice,
+        scopeObservation: data.scopeObservation || null,
+      },
+      include: { service: true },
+    });
+  }
+
+  async updateOrderService(serviceOrderId: string, serviceItemId: string, data: { quantity?: number; unitPrice?: number; scopeObservation?: string }) {
+    return this.prisma.workOrderItemService.update({
+      where: { id: serviceItemId },
+      data: {
+        ...(data.quantity !== undefined && { quantity: data.quantity }),
+        ...(data.unitPrice !== undefined && { unitPrice: data.unitPrice }),
+        ...(data.scopeObservation !== undefined && { scopeObservation: data.scopeObservation }),
+      },
+      include: { service: true },
+    });
+  }
+
+  async deleteOrderService(serviceOrderId: string, serviceItemId: string) {
+    return this.prisma.workOrderItemService.delete({
+      where: { id: serviceItemId },
+    });
+  }
+
+  // --- MULTI-CRUD: MÃO DE OBRA & DESLOCAMENTO (EXECUTION LOGS) ---
+  async addLaborLog(serviceOrderId: string, currentUserId: string, dto: { userId: string; hours: number; hourlyRate: number; description: string }) {
+    const log = await this.prisma.workOrderExecutionLog.create({
+      data: {
+        serviceOrderId,
+        userId: dto.userId || currentUserId,
+        actionType: 'LABOR_LOG',
+        notes: JSON.stringify({
+          hours: dto.hours,
+          hourlyRate: dto.hourlyRate,
+          description: dto.description,
+          laborCost: Number((dto.hours * dto.hourlyRate).toFixed(2)),
+        }),
+      },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    const allLabor = await this.prisma.workOrderExecutionLog.findMany({
+      where: { serviceOrderId, actionType: 'LABOR_LOG' },
+    });
+    let totalH = 0;
+    let totalCost = 0;
+    for (const l of allLabor) {
+      try {
+        const parsed = JSON.parse(l.notes || '{}');
+        totalH += Number(parsed.hours || 0);
+        totalCost += Number(parsed.laborCost || (parsed.hours * parsed.hourlyRate) || 0);
+      } catch {}
+    }
+    if (totalH > 0) {
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          totalWorkedHours: totalH,
+          laborCostReal: Number(totalCost.toFixed(2)),
+        },
+      });
+    }
+    return log;
+  }
+
+  async addDisplacementLog(serviceOrderId: string, currentUserId: string, dto: { route: string; km: number; kmRate: number; notes?: string }) {
+    const log = await this.prisma.workOrderExecutionLog.create({
+      data: {
+        serviceOrderId,
+        userId: currentUserId,
+        actionType: 'DISPLACEMENT_LOG',
+        odometerKm: dto.km,
+        notes: JSON.stringify({
+          route: dto.route,
+          kmRate: dto.kmRate,
+          notes: dto.notes,
+          displacementCost: Number((dto.km * dto.kmRate).toFixed(2)),
+        }),
+      },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    const allDisp = await this.prisma.workOrderExecutionLog.findMany({
+      where: { serviceOrderId, actionType: 'DISPLACEMENT_LOG' },
+    });
+    let totalKm = 0;
+    let totalCost = 0;
+    for (const d of allDisp) {
+      try {
+        const parsed = JSON.parse(d.notes || '{}');
+        totalKm += Number(d.odometerKm || parsed.km || 0);
+        totalCost += Number(parsed.displacementCost || 0);
+      } catch {}
+    }
+    if (totalKm > 0) {
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          totalKmTraveled: totalKm,
+          displacementCostReal: Number(totalCost.toFixed(2)),
+        },
+      });
+    }
+    return log;
+  }
+
+  async deleteExecutionLog(serviceOrderId: string, logId: string) {
+    const log = await this.prisma.workOrderExecutionLog.findUnique({ where: { id: logId } });
+    if (!log) return { success: false };
+    await this.prisma.workOrderExecutionLog.delete({ where: { id: logId } });
+    if (log.actionType === 'LABOR_LOG') {
+      const allLabor = await this.prisma.workOrderExecutionLog.findMany({
+        where: { serviceOrderId, actionType: 'LABOR_LOG' },
+      });
+      let totalH = 0;
+      let totalCost = 0;
+      for (const l of allLabor) {
+        try {
+          const parsed = JSON.parse(l.notes || '{}');
+          totalH += Number(parsed.hours || 0);
+          totalCost += Number(parsed.laborCost || 0);
+        } catch {}
+      }
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: { totalWorkedHours: totalH, laborCostReal: Number(totalCost.toFixed(2)) },
+      });
+    } else if (log.actionType === 'DISPLACEMENT_LOG') {
+      const allDisp = await this.prisma.workOrderExecutionLog.findMany({
+        where: { serviceOrderId, actionType: 'DISPLACEMENT_LOG' },
+      });
+      let totalKm = 0;
+      let totalCost = 0;
+      for (const d of allDisp) {
+        try {
+          const parsed = JSON.parse(d.notes || '{}');
+          totalKm += Number(d.odometerKm || parsed.km || 0);
+          totalCost += Number(parsed.displacementCost || 0);
+        } catch {}
+      }
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: { totalKmTraveled: totalKm, displacementCostReal: Number(totalCost.toFixed(2)) },
+      });
+    }
+    return { success: true };
   }
 }

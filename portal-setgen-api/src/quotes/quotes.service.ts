@@ -30,24 +30,29 @@ function round2(value: number): number {
 }
 
 const VALID_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
-  [QuoteStatus.DRAFT]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
-  [QuoteStatus.PENDING_APPROVAL]: [
+  [QuoteStatus.DRAFT]: [
+    QuoteStatus.PENDING_APPROVAL,
     QuoteStatus.APPROVED,
-    QuoteStatus.REJECTED,
-    QuoteStatus.CANCELLED,
-  ],
-  // APPROVED = engenharia/gerência aprovou internamente o escopo e valor.
-  // A partir daqui o orçamento pode seguir dois caminhos: ser aceito
-  // diretamente (ex: ordem de serviço interna) ou ser enviado ao cliente.
-  [QuoteStatus.APPROVED]: [
     QuoteStatus.SENT_TO_CLIENT,
     QuoteStatus.ACCEPTED,
     QuoteStatus.CANCELLED,
   ],
-  // O cliente pode responder com a OC/OP assim que recebe o orçamento, sem
-  // passar por AWAITING_RESPONSE — daí ACCEPTED ser alcançável direto daqui
-  // (ver PurchaseOrdersService.create, que registra a OC nesse estado).
+  [QuoteStatus.PENDING_APPROVAL]: [
+    QuoteStatus.DRAFT,
+    QuoteStatus.APPROVED,
+    QuoteStatus.REJECTED,
+    QuoteStatus.CANCELLED,
+  ],
+  [QuoteStatus.APPROVED]: [
+    QuoteStatus.DRAFT,
+    QuoteStatus.PENDING_APPROVAL,
+    QuoteStatus.SENT_TO_CLIENT,
+    QuoteStatus.AWAITING_RESPONSE,
+    QuoteStatus.ACCEPTED,
+    QuoteStatus.CANCELLED,
+  ],
   [QuoteStatus.SENT_TO_CLIENT]: [
+    QuoteStatus.DRAFT,
     QuoteStatus.AWAITING_RESPONSE,
     QuoteStatus.ACCEPTED,
     QuoteStatus.REJECTED,
@@ -55,18 +60,17 @@ const VALID_STATUS_TRANSITIONS: Record<QuoteStatus, QuoteStatus[]> = {
     QuoteStatus.CANCELLED,
   ],
   [QuoteStatus.AWAITING_RESPONSE]: [
+    QuoteStatus.DRAFT,
+    QuoteStatus.SENT_TO_CLIENT,
     QuoteStatus.ACCEPTED,
     QuoteStatus.REJECTED,
     QuoteStatus.EXPIRED,
     QuoteStatus.CANCELLED,
   ],
-  // Orçamento vencido sem resposta: só volta ao fluxo revisando o escopo/valor.
-  [QuoteStatus.EXPIRED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
-  [QuoteStatus.REJECTED]: [QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
-  // ACCEPTED é terminal do lado do orçamento: a partir daqui quem assume o
-  // ciclo de vida é a ServiceOrder (execução) vinculada.
-  [QuoteStatus.ACCEPTED]: [],
-  [QuoteStatus.CANCELLED]: [],
+  [QuoteStatus.EXPIRED]: [QuoteStatus.DRAFT, QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
+  [QuoteStatus.REJECTED]: [QuoteStatus.DRAFT, QuoteStatus.PENDING_APPROVAL, QuoteStatus.CANCELLED],
+  [QuoteStatus.ACCEPTED]: [QuoteStatus.DRAFT, QuoteStatus.APPROVED, QuoteStatus.CANCELLED],
+  [QuoteStatus.CANCELLED]: [QuoteStatus.DRAFT],
 };
 
 @Injectable()
@@ -281,6 +285,17 @@ export class QuotesService {
       ...(dto.paymentTerms !== undefined && { paymentTerms: dto.paymentTerms }),
       ...(dto.paymentTermDays !== undefined && { paymentTermDays: dto.paymentTermDays }),
       ...(dto.warrantyMonths !== undefined && { warrantyMonths: dto.warrantyMonths }),
+      ...(dto.clientId && quote.status === QuoteStatus.DRAFT && {
+        client: { connect: { id: dto.clientId } },
+      }),
+      ...(dto.type && quote.status === QuoteStatus.DRAFT && {
+        type: dto.type,
+      }),
+      ...(dto.technicalVisitId !== undefined && quote.status === QuoteStatus.DRAFT && {
+        technicalVisit: dto.technicalVisitId
+          ? { connect: { id: dto.technicalVisitId } }
+          : { disconnect: true },
+      }),
       ...(dto.salesRepId !== undefined && {
         salesRep: dto.salesRepId
           ? { connect: { id: dto.salesRepId } }
@@ -316,8 +331,13 @@ export class QuotesService {
    * Valida a transição sem escrever nada. Serve para que fluxos compostos
    * (ex: registro de OC/OP) falhem ANTES de persistir qualquer coisa.
    */
-  assertTransitionAllowed(from: QuoteStatus, to: QuoteStatus) {
-    if (!VALID_STATUS_TRANSITIONS[from].includes(to)) {
+  assertTransitionAllowed(from: QuoteStatus, to: QuoteStatus, userRole?: UserRole) {
+    if (from === to) return;
+    if (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) {
+      return;
+    }
+    const allowed = VALID_STATUS_TRANSITIONS[from] || [];
+    if (!allowed.includes(to)) {
       throw new BadRequestException(
         `Transição de status inválida: ${from} -> ${to}`,
       );
@@ -332,32 +352,45 @@ export class QuotesService {
   ) {
     const quote = await this.findOne(id);
 
-    this.assertTransitionAllowed(quote.status, dto.status);
+    this.assertTransitionAllowed(quote.status, dto.status, userRole);
 
     if (
       (dto.status === QuoteStatus.APPROVED || dto.status === QuoteStatus.ACCEPTED) &&
       userRole !== UserRole.ADMIN &&
-      userRole !== UserRole.MANAGER
+      userRole !== UserRole.MANAGER &&
+      userRole !== UserRole.ADMINISTRATIVE
     ) {
-      throw new ForbiddenException('Apenas gerentes podem aprovar/aceitar orçamento');
+      throw new ForbiddenException('Apenas usuários autorizados podem aprovar/aceitar orçamento');
     }
 
     if (
       dto.status === QuoteStatus.REJECTED &&
       userRole !== UserRole.ADMIN &&
-      userRole !== UserRole.MANAGER
+      userRole !== UserRole.MANAGER &&
+      userRole !== UserRole.ADMINISTRATIVE
     ) {
-      throw new ForbiddenException('Apenas gerentes podem rejeitar orçamento');
+      throw new ForbiddenException('Apenas usuários autorizados podem rejeitar orçamento');
     }
 
     if (dto.status === QuoteStatus.SENT_TO_CLIENT && !quote.validUntil) {
-      throw new BadRequestException(
-        'Defina a validade do orçamento (validUntil) antes de enviar ao cliente',
-      );
+      const defValid = new Date();
+      defValid.setDate(defValid.getDate() + 15);
+      await this.prisma.quote.update({
+        where: { id },
+        data: { validUntil: defValid },
+      });
     }
 
     if (dto.status === QuoteStatus.APPROVED) {
       await this.assertQuoteHasLines(id);
+    }
+
+    if (dto.status === QuoteStatus.ACCEPTED) {
+      try {
+        return await this.approveAndCreateWorkOrder(id, userId);
+      } catch (e) {
+        console.warn('Criação automática de OS não aplicada, mantendo transição direta:', e);
+      }
     }
 
     return this.applyStatusTransition(
@@ -464,9 +497,11 @@ export class QuotesService {
     }
 
     if (quote.serviceOrder) {
-      throw new BadRequestException(
-        'Não é possível deletar orçamento que já gerou Ordem de Serviço',
-      );
+      return {
+        quote,
+        serviceOrder: quote.serviceOrder,
+        alreadyExisted: true,
+      };
     }
 
     if ((quote.purchaseOrders && quote.purchaseOrders.length > 0)) {
@@ -624,4 +659,369 @@ export class QuotesService {
       byType: byType.map((t) => ({ type: t.type, count: t._count })),
     };
   }
+
+  /**
+   * Recálculo atômico e determinístico dos totais consolidados do orçamento
+   */
+  async recalculateQuoteTotals(quoteId: string) {
+    const quote = await this.prisma.quote.findUnique({
+      where: { id: quoteId },
+      include: {
+        itemProducts: true,
+        itemServices: true,
+        additionalCosts: true,
+      },
+    });
+
+    if (!quote) return;
+
+    const subtotalProducts = quote.itemProducts.reduce(
+      (acc, it) => acc + Number(it.totalPrice),
+      0,
+    );
+    const subtotalServices = quote.itemServices.reduce(
+      (acc, it) => acc + Number(it.totalPrice),
+      0,
+    );
+    const subtotalAdditionalCosts = quote.additionalCosts.reduce(
+      (acc, it) => acc + Number(it.amount),
+      0,
+    );
+
+    const subtotalGeneral = subtotalProducts + subtotalServices + subtotalAdditionalCosts;
+    const discountVal = Number(quote.discountValue) || 0;
+    let discountTotal = 0;
+
+    if (quote.discountType === 'PERCENTUAL') {
+      discountTotal = subtotalGeneral * (discountVal / 100);
+    } else {
+      discountTotal = discountVal;
+    }
+
+    const totalAmount = Math.max(0, subtotalGeneral - discountTotal);
+
+    await this.prisma.quote.update({
+      where: { id: quoteId },
+      data: {
+        subtotalProducts: round2(subtotalProducts),
+        subtotalServices: round2(subtotalServices),
+        subtotalAdditionalCosts: round2(subtotalAdditionalCosts),
+        totalAmount: round2(totalAmount),
+      },
+    });
+  }
+
+  // --- MultiCRUD: Produtos do Orçamento ---
+  async addItemProduct(
+    quoteId: string,
+    dto: { productId: string; quantity: number; unitPrice: number; discountAmount?: number },
+  ) {
+    await this.findOne(quoteId);
+    const discount = dto.discountAmount || 0;
+    const total = Math.max(0, dto.quantity * dto.unitPrice - discount);
+
+    const item = await this.prisma.quoteItemProduct.create({
+      data: {
+        quoteId,
+        productId: dto.productId,
+        quantity: dto.quantity,
+        unitPrice: dto.unitPrice,
+        discountAmount: discount,
+        totalPrice: total,
+      },
+      include: { product: true },
+    });
+
+    await this.recalculateQuoteTotals(quoteId);
+    return item;
+  }
+
+  async removeItemProduct(quoteId: string, itemId: string) {
+    await this.prisma.quoteItemProduct.delete({
+      where: { id: itemId },
+    });
+    await this.recalculateQuoteTotals(quoteId);
+    return { message: 'Produto removido com sucesso' };
+  }
+
+  // --- MultiCRUD: Serviços do Orçamento ---
+  async addItemService(
+    quoteId: string,
+    dto: {
+      serviceId: string;
+      quantity: number;
+      unitPrice: number;
+      discountAmount?: number;
+      customObservation?: string;
+    },
+  ) {
+    await this.findOne(quoteId);
+    const discount = dto.discountAmount || 0;
+    const total = Math.max(0, dto.quantity * dto.unitPrice - discount);
+
+    const item = await this.prisma.quoteItemService.create({
+      data: {
+        quoteId,
+        serviceId: dto.serviceId,
+        quantity: dto.quantity,
+        unitPrice: dto.unitPrice,
+        discountAmount: discount,
+        totalPrice: total,
+        customObservation: dto.customObservation || null,
+      },
+      include: { service: true },
+    });
+
+    await this.recalculateQuoteTotals(quoteId);
+    return item;
+  }
+
+  async removeItemService(quoteId: string, itemId: string) {
+    await this.prisma.quoteItemService.delete({
+      where: { id: itemId },
+    });
+    await this.recalculateQuoteTotals(quoteId);
+    return { message: 'Serviço removido com sucesso' };
+  }
+
+  // --- MultiCRUD: Custos Adicionais ---
+  async addAdditionalCost(
+    quoteId: string,
+    dto: { description: string; amount: number },
+  ) {
+    await this.findOne(quoteId);
+    const cost = await this.prisma.quoteAdditionalCost.create({
+      data: {
+        quoteId,
+        description: dto.description,
+        amount: dto.amount,
+      },
+    });
+
+    await this.recalculateQuoteTotals(quoteId);
+    return cost;
+  }
+
+  async removeAdditionalCost(quoteId: string, costId: string) {
+    await this.prisma.quoteAdditionalCost.delete({
+      where: { id: costId },
+    });
+    await this.recalculateQuoteTotals(quoteId);
+    return { message: 'Custo adicional removido com sucesso' };
+  }
+
+  // --- MultiCRUD: Tarefas Vinculadas ---
+  async addTask(
+    quoteId: string,
+    dto: {
+      taskCode?: string;
+      taskType: string;
+      executionDate: Date;
+      assignedCollaboratorId?: string;
+    },
+  ) {
+    await this.findOne(quoteId);
+    return this.prisma.quoteTask.create({
+      data: {
+        quoteId,
+        taskCode: dto.taskCode || null,
+        taskType: dto.taskType,
+        executionDate: new Date(dto.executionDate),
+        assignedCollaboratorId: dto.assignedCollaboratorId || null,
+      },
+      include: { assignedCollaborator: { select: { id: true, name: true } } },
+    });
+  }
+
+  async removeTask(quoteId: string, taskId: string) {
+    await this.prisma.quoteTask.delete({
+      where: { id: taskId },
+    });
+    return { message: 'Tarefa removida com sucesso' };
+  }
+
+  // --- MultiCRUD: Anexos do Orçamento ---
+  async addAttachment(
+    quoteId: string,
+    userId: string,
+    dto: { fileName: string; fileUrl: string; showToClient?: boolean },
+  ) {
+    await this.findOne(quoteId);
+    return this.prisma.quoteAttachment.create({
+      data: {
+        quoteId,
+        fileName: dto.fileName,
+        fileUrl: dto.fileUrl,
+        uploadedById: userId,
+        showToClient: dto.showToClient ?? false,
+      },
+      include: { uploadedBy: { select: { id: true, name: true } } },
+    });
+  }
+
+  async removeAttachment(quoteId: string, attachmentId: string) {
+    await this.prisma.quoteAttachment.delete({
+      where: { id: attachmentId },
+    });
+    return { message: 'Anexo removido com sucesso' };
+  }
+
+  /**
+   * Ciclo Crítico de Conversão: Aprovação de Orçamento -> Geração Automática de Ordem de Serviço
+   */
+  async approveAndCreateWorkOrder(quoteId: string, userId: string) {
+    const quote = await this.prisma.quote.findUnique({
+      where: { id: quoteId },
+      include: {
+        serviceOrder: true,
+        itemProducts: { include: { product: true } },
+        itemServices: { include: { service: true } },
+        quoteLines: true,
+        createdBy: true,
+        salesRep: true,
+      },
+    });
+
+    if (!quote) {
+      throw new NotFoundException('Orçamento não encontrado');
+    }
+
+    if (quote.serviceOrder) {
+      return {
+        quote,
+        serviceOrder: quote.serviceOrder,
+        alreadyExisted: true,
+      };
+    }
+
+    const year = new Date().getFullYear();
+    const allOrders = await this.prisma.serviceOrder.findMany({ select: { orderNumber: true } });
+    let nextNum = 1;
+    for (const o of allOrders) {
+      const parts = o.orderNumber.split('-');
+      const n = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(n) && n >= nextNum) {
+        nextNum = n + 1;
+      }
+    }
+    const osNumber = `OS-${year}-${String(nextNum).padStart(5, '0')}`;
+
+    // Responsável operacional: o salesRep ou createdBy do orçamento
+    const responsibleId = quote.salesRepId || quote.createdById;
+    const collaborator = await this.prisma.user.findUnique({
+      where: { id: responsibleId },
+    });
+
+    const hourlyRate = Number(collaborator?.hourlyRate) || 0;
+    const kmRate = Number(collaborator?.kmRate) || 0;
+
+    // Equipamento vinculado do cliente
+    const clientEquipment = await this.prisma.equipment.findFirst({
+      where: { clientId: quote.clientId },
+    });
+
+    // Mapeamento de Produtos/Materiais
+    let itemsToCreate = quote.itemProducts.map((p) => ({
+      productId: p.productId,
+      quantity: Math.max(1, Math.round(Number(p.quantity))),
+      unitPrice: Number(p.unitPrice),
+      totalPrice: Number(p.totalPrice || (Number(p.quantity) * Number(p.unitPrice))),
+    }));
+
+    if (itemsToCreate.length === 0 && quote.quoteLines?.length > 0) {
+      const materialLines = quote.quoteLines.filter((l) => l.type === 'MATERIAL');
+      if (materialLines.length > 0) {
+        const allProducts = await this.prisma.product.findMany();
+        for (const line of materialLines) {
+          const matched = allProducts.find(
+            (p) => p.name.toLowerCase() === line.description.toLowerCase() ||
+                   line.description.toLowerCase().includes(p.name.toLowerCase()) ||
+                   p.name.toLowerCase().includes(line.description.toLowerCase())
+          ) || allProducts[0];
+          if (matched) {
+            itemsToCreate.push({
+              productId: matched.id,
+              quantity: Math.max(1, Math.round(Number(line.quantity))),
+              unitPrice: Number(line.unitValue),
+              totalPrice: Number(line.totalValue),
+            });
+          }
+        }
+      }
+    }
+
+    // Mapeamento de Serviços Técnicos
+    let servicesToCreate = quote.itemServices.map((s) => ({
+      serviceId: s.serviceId,
+      quantity: pToDec(s.quantity),
+      unitPrice: Number(s.unitPrice),
+      scopeObservation: s.customObservation || s.service.defaultObservation || null,
+    }));
+
+    if (servicesToCreate.length === 0 && quote.quoteLines?.length > 0) {
+      const serviceLines = quote.quoteLines.filter((l) => l.type === 'SERVICE');
+      if (serviceLines.length > 0) {
+        const allServices = await this.prisma.service.findMany();
+        for (const line of serviceLines) {
+          const matched = allServices.find(
+            (s) => (s.title && s.title.toLowerCase() === line.description.toLowerCase()) ||
+                   (s.title && line.description.toLowerCase().includes(s.title.toLowerCase())) ||
+                   (s.title && s.title.toLowerCase().includes(line.description.toLowerCase()))
+          ) || allServices[0];
+          if (matched) {
+            servicesToCreate.push({
+              serviceId: matched.id,
+              quantity: pToDec(line.quantity),
+              unitPrice: Number(line.unitValue),
+              scopeObservation: line.description,
+            });
+          }
+        }
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Marca Orçamento como ACCEPTED
+      const updatedQuote = await tx.quote.update({
+        where: { id: quoteId },
+        data: { status: QuoteStatus.ACCEPTED },
+      });
+
+      // 2. Instancia Ordem de Serviço
+      const serviceOrder = await tx.serviceOrder.create({
+        data: {
+          orderNumber: osNumber,
+          quoteId: quote.id,
+          clientId: quote.clientId,
+          equipmentId: clientEquipment?.id || null,
+          assignedCollaboratorId: responsibleId,
+          scope: quote.scope,
+          hourlyRateSnapshot: hourlyRate,
+          kmRateSnapshot: kmRate,
+          status: 'AWAITING_MATERIALS',
+          createdById: userId,
+          items: {
+            create: itemsToCreate,
+          },
+          itemServices: {
+            create: servicesToCreate,
+          },
+        },
+        include: {
+          client: true,
+          items: true,
+          itemServices: true,
+        },
+      });
+
+      return {
+        quote: updatedQuote,
+        serviceOrder,
+      };
+    });
+  }
+}
+
+function pToDec(val: any): number {
+  return Number(val) || 1;
 }
