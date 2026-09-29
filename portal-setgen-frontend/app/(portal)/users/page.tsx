@@ -75,7 +75,7 @@ function getBadgeStyle(roleName: string) {
   if (norm.includes("gestor") || norm.includes("gerente")) return { label: "Gestor", bg: "bg-amber-50", text: "text-amber-800" };
   if (norm.includes("financeiro")) return { label: "Financeiro", bg: "bg-emerald-50", text: "text-emerald-700" };
   if (norm.includes("compras") || norm.includes("administrativo")) return { label: "Administrativo / Compras", bg: "bg-teal-50", text: "text-teal-700" };
-  if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarifado", bg: "bg-orange-50", text: "text-orange-700" };
+  if (norm.includes("almoxarife") || norm.includes("estoque")) return { label: "Almoxarife", bg: "bg-orange-50", text: "text-orange-700" };
   if (norm.includes("atendimento")) return { label: "Atendimento", bg: "bg-sky-50", text: "text-sky-700" };
   if (norm.includes("técnico") || norm.includes("tecnico")) return { label: "Técnico", bg: "bg-blue-50", text: "text-blue-700" };
   return { label: roleName || "Colaborador", bg: "bg-gray-100", text: "text-gray-700" };
@@ -157,12 +157,18 @@ export default function UsersAndPermissionsPage() {
       setRoles(rolesData || []);
       setPermissionGroups(permsData || []);
 
-      if (rolesData && rolesData.length > 0 && !selectedRoleId) {
-        setSelectedRoleId(rolesData[0].id);
-        const initialPerms = new Set(
-          rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
-        );
-        setSelectedRolePermissions(initialPerms);
+      if (rolesData && rolesData.length > 0) {
+        if (!selectedRoleId) {
+          setSelectedRoleId(rolesData[0].id);
+          const initialPerms = new Set(
+            rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
+          );
+          setSelectedRolePermissions(initialPerms);
+        }
+        if (!createRoleId) {
+          setCreateRoleId(rolesData[0].id);
+          setJobTitle(rolesData[0].name);
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar dados de usuários e permissões:", err);
@@ -311,9 +317,10 @@ export default function UsersAndPermissionsPage() {
     setSavingPermissions(true);
     try {
       const permIdsArray = Array.from(selectedRolePermissions);
-      await rolesApi.update(selectedRoleId, {
+      const updated = await rolesApi.update(selectedRoleId, {
         permissionIds: permIdsArray,
       });
+      setRoles((prev) => prev.map((r) => (r.id === selectedRoleId ? updated : r)));
       toast.success("Permissões do perfil atualizadas com sucesso!");
     } catch (err: any) {
       console.error("Erro ao salvar permissões:", err);

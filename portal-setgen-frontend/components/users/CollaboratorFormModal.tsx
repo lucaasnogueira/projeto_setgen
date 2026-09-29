@@ -520,8 +520,8 @@ export function CollaboratorFormModal({
                           <SelectItem value="ADMIN">Administrador</SelectItem>
                           <SelectItem value="MANAGER">Gestor</SelectItem>
                           <SelectItem value="TECHNICIAN">Técnico de Campo</SelectItem>
-                          <SelectItem value="ADMINISTRATIVE">Administrativo</SelectItem>
-                          <SelectItem value="WAREHOUSE">Almoxarifado</SelectItem>
+                          <SelectItem value="ADMINISTRATIVE">Administrativo / Compras</SelectItem>
+                          <SelectItem value="WAREHOUSE">Almoxarife</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

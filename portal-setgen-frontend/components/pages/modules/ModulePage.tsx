@@ -195,7 +195,7 @@ export function ModulePage({ announcement }: ModulePageProps) {
     const isAdmin = userRole === "ADMIN" || (userRoleName && userRoleName.toLowerCase().includes("admin"));
 
     const filteredDefaults = DEFAULT_MODULES.filter(
-      (m) => isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName)
+      (m) => isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName, user?.permissions)
     ).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
     try {
@@ -220,7 +220,7 @@ export function ModulePage({ announcement }: ModulePageProps) {
       const enabledModules = rawModules
         .filter((mod: any) => {
           const code = mod.code || mod.name;
-          const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName);
+          const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName, user?.permissions);
           const active = isAdminUser || mod.isEnabled === true || mod.active === true;
           return authorized && active;
         })

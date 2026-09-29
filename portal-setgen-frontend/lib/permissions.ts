@@ -22,13 +22,13 @@ export function normalizeRoleKey(role?: string | null, roleName?: string | null)
 }
 
 /**
- * Apenas ADMIN, Gestor e Financeiro podem visualizar valores monetários e custos.
- * Técnicos, Almoxarifes, Atendimento e colaboradores operacionais NÃO visualizam.
+ * Apenas ADMIN, Gestor, Financeiro e Administrativo/Compras podem visualizar valores monetários e custos.
+ * Técnicos, Almoxarifes, Atendimento e RH NÃO visualizam.
  */
 export function canViewFinancialValues(role?: string | null, roleName?: string | null): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
-  return key === "ADMIN" || key === "MANAGER" || key === "FINANCEIRO";
+  return key === "ADMIN" || key === "MANAGER" || key === "FINANCEIRO" || key === "ADMINISTRATIVO_COMPRAS";
 }
 
 export function useCanViewValues(): boolean {
@@ -70,6 +70,29 @@ export function useCanViewValues(): boolean {
 }
 
 /**
+ * Mapeamento de rotas para as permissões do sistema.
+ */
+const ROUTE_PERMISSION_MAP: { prefix: string; perms: string[] }[] = [
+  { prefix: "/users", perms: ["users:view", "users:manage", "users:create", "users:edit"] },
+  { prefix: "/roles", perms: ["roles:view", "roles:manage", "roles:create", "roles:edit"] },
+  { prefix: "/settings", perms: ["roles:view", "users:view", "users:manage"] },
+  { prefix: "/clients", perms: ["clients:view", "clients:create", "clients:edit"] },
+  { prefix: "/visits", perms: ["visits:view", "visits:create", "visits:edit"] },
+  { prefix: "/orders", perms: ["orders:view", "orders:create", "orders:edit"] },
+  { prefix: "/deliveries", perms: ["orders:view"] },
+  { prefix: "/fleet", perms: ["fleet:view", "fleet:manage", "fleet:fuel-request"] },
+  { prefix: "/inventory", perms: ["inventory:view", "inventory:manage"] },
+  { prefix: "/warehouse", perms: ["material-requests:view", "material-requests:manage", "inventory:view"] },
+  { prefix: "/equipment", perms: ["equipment:view", "equipment:manage"] },
+  { prefix: "/procurement", perms: ["procurement:view", "procurement:manage"] },
+  { prefix: "/suppliers", perms: ["suppliers:view", "suppliers:manage"] },
+  { prefix: "/financial", perms: ["expenses:view", "expenses:create", "expenses:edit"] },
+  { prefix: "/invoices", perms: ["expenses:view", "invoices:view"] },
+  { prefix: "/approvals", perms: ["orders:approve", "expenses:approve"] },
+  { prefix: "/rh", perms: ["rh:view", "rh:manage"] },
+];
+
+/**
  * Módulos autorizados por perfil/cargo do sistema.
  */
 export const ROLE_ALLOWED_MODULES: Record<string, readonly string[]> = {
@@ -90,7 +113,9 @@ export const ROLE_ALLOWED_MODULES: Record<string, readonly string[]> = {
     "CLIENTS", "DASHBOARD"
   ],
   ADMINISTRATIVO_COMPRAS: [
-    "PROCUREMENT", "COMPRAS", "SERVICE_ORDERS", "ORDERS", "CLIENTS", "DASHBOARD"
+    "PROCUREMENT", "COMPRAS", "INVENTORY", "ESTOQUE", "WAREHOUSE",
+    "EQUIPMENT", "EQUIPMENTS", "SERVICE_ORDERS", "ORDERS", "CLIENTS",
+    "FINANCIAL", "FINANCEIRO", "DASHBOARD"
   ],
   ALMOXARIFE: [
     "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
@@ -126,6 +151,8 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
   ADMINISTRATIVO_COMPRAS: [
     "/dashboard", "/modules", "/profile",
     "/procurement", "/suppliers",
+    "/inventory", "/warehouse", "/equipment",
+    "/financial",
     "/clients", "/orders"
   ],
   ALMOXARIFE: [
@@ -141,19 +168,35 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
   ],
   ATENDIMENTO: [
     "/dashboard", "/modules", "/profile",
-    "/clients", "/visits", "/orders"
+    "/clients", "/orders", "/visits"
   ],
 };
 
 export function isUserAuthorizedForRoute(
   role: string | undefined | null,
   pathname: string,
-  roleName?: string | null
+  roleName?: string | null,
+  permissions?: string[] | null
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
   if (key === "ADMIN") return true;
 
+  // 1. Verificação explícita por permissões ativas vindas do banco de dados
+  if (permissions && permissions.length > 0) {
+    if (pathname === "/" || pathname === "/dashboard" || pathname === "/modules" || pathname === "/profile") {
+      return true;
+    }
+    const matchingRule = ROUTE_PERMISSION_MAP.find(
+      (m) => pathname === m.prefix || pathname.startsWith(m.prefix + "/")
+    );
+    if (matchingRule) {
+      const hasPerm = matchingRule.perms.some((p) => permissions.includes(p));
+      if (hasPerm) return true;
+    }
+  }
+
+  // 2. Verificação de fallback por perfil/cargo
   const allowedRoutes = ROLE_ALLOWED_ROUTES[key];
   if (!allowedRoutes) return false;
 
@@ -165,16 +208,34 @@ export function isUserAuthorizedForRoute(
 export function isUserAuthorizedForModule(
   role: string | undefined | null,
   moduleCode: string,
-  roleName?: string | null
+  roleName?: string | null,
+  permissions?: string[] | null
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
   if (key === "ADMIN") return true;
 
+  const code = moduleCode.trim().toUpperCase();
+
+  // 1. Verificação por permissões específicas do banco
+  if (permissions && permissions.length > 0) {
+    if (code === "DASHBOARD") return true;
+    if ((code === "PROCUREMENT" || code === "COMPRAS") && permissions.some(p => p.startsWith("procurement:") || p.startsWith("suppliers:"))) return true;
+    if ((code === "INVENTORY" || code === "ESTOQUE" || code === "WAREHOUSE") && permissions.some(p => p.startsWith("inventory:") || p.startsWith("material-requests:"))) return true;
+    if ((code === "EQUIPMENT" || code === "EQUIPMENTS") && permissions.some(p => p.startsWith("equipment:"))) return true;
+    if ((code === "SERVICE_ORDERS" || code === "ORDERS") && permissions.some(p => p.startsWith("orders:"))) return true;
+    if (code === "VISITS" && permissions.some(p => p.startsWith("visits:"))) return true;
+    if (code === "CLIENTS" && permissions.some(p => p.startsWith("clients:"))) return true;
+    if ((code === "FINANCIAL" || code === "FINANCEIRO") && permissions.some(p => p.startsWith("expenses:"))) return true;
+    if (code === "RH" && permissions.some(p => p.startsWith("rh:"))) return true;
+    if (code === "FLEET" && permissions.some(p => p.startsWith("fleet:"))) return true;
+  }
+
+  // 2. Fallback por cargo
   const allowedModules = ROLE_ALLOWED_MODULES[key];
   if (!allowedModules) return false;
 
-  return allowedModules.includes(moduleCode.trim().toUpperCase());
+  return allowedModules.includes(code);
 }
 
 export function getDefaultRouteForRole(
