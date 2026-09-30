@@ -142,6 +142,9 @@ export class ServiceOrdersService {
       ...(dto.checklistTemplateId && {
         checklistTemplate: { connect: { id: dto.checklistTemplateId } },
       }),
+      ...(dto.equipmentId && {
+        equipment: { connect: { id: dto.equipmentId } },
+      }),
       createdBy: { connect: { id: createdById } },
       ...(dto.items && {
         items: {
@@ -298,6 +301,14 @@ export class ServiceOrdersService {
       ...(dto.responsibleIds && { responsibleIds: dto.responsibleIds }),
       ...(dto.checklist && { checklist: dto.checklist }),
     };
+
+    if (dto.equipmentId !== undefined) {
+      if (dto.equipmentId) {
+        updateData.equipment = { connect: { id: dto.equipmentId } };
+      } else {
+        updateData.equipment = { disconnect: true };
+      }
+    }
 
     if (dto.items) {
       const itemsToCreate = dto.items;
@@ -1152,7 +1163,23 @@ export class ServiceOrdersService {
     return { message: 'Check-out realizado e estoque baixado com sucesso' };
   }
 
-  async updateKm(id: string, km: number) {
+  async setEquipment(id: string, equipmentId: string | null) {
+    const order = await this.prisma.serviceOrder.findUnique({ where: { id } });
+    if (!order) {
+      throw new NotFoundException('Ordem de Serviço não encontrada');
+    }
+    return this.prisma.serviceOrder.update({
+      where: { id },
+      data: {
+        equipment: equipmentId ? { connect: { id: equipmentId } } : { disconnect: true },
+      },
+      include: {
+        equipment: true,
+      },
+    });
+  }
+
+  async updateKm(id: string, km: number, kmRate?: number) {
     const order = await this.prisma.serviceOrder.findUnique({
       where: { id },
       include: { assignedCollaborator: true },
@@ -1160,18 +1187,19 @@ export class ServiceOrdersService {
     if (!order) {
       throw new NotFoundException('Ordem de Serviço não encontrada');
     }
-    const kmRate = Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 0;
-    const displacementCostReal = Number((km * kmRate).toFixed(2));
+    const effectiveKmRate = kmRate !== undefined ? kmRate : (Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 0);
+    const displacementCostReal = Number((km * effectiveKmRate).toFixed(2));
     return this.prisma.serviceOrder.update({
       where: { id },
       data: {
         totalKmTraveled: km,
+        ...(kmRate !== undefined && { kmRateSnapshot: kmRate }),
         displacementCostReal,
       },
     });
   }
 
-  async updateWorkedHours(id: string, hours: number) {
+  async updateWorkedHours(id: string, hours: number, hourlyRate?: number) {
     const order = await this.prisma.serviceOrder.findUnique({
       where: { id },
       include: { assignedCollaborator: true },
@@ -1179,12 +1207,13 @@ export class ServiceOrdersService {
     if (!order) {
       throw new NotFoundException('Ordem de Serviço não encontrada');
     }
-    const hourlyRate = Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 0;
-    const laborCostReal = Number((hours * hourlyRate).toFixed(2));
+    const effectiveHourlyRate = hourlyRate !== undefined ? hourlyRate : (Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 0);
+    const laborCostReal = Number((hours * effectiveHourlyRate).toFixed(2));
     return this.prisma.serviceOrder.update({
       where: { id },
       data: {
         totalWorkedHours: hours,
+        ...(hourlyRate !== undefined && { hourlyRateSnapshot: hourlyRate }),
         laborCostReal,
       },
     });
@@ -1419,5 +1448,140 @@ export class ServiceOrdersService {
       });
     }
     return { success: true };
+  }
+  async updateExecutionLog(
+    serviceOrderId: string,
+    logId: string,
+    dto: {
+      userId?: string;
+      hours?: number;
+      hourlyRate?: number;
+      description?: string;
+      route?: string;
+      km?: number;
+      kmRate?: number;
+      notes?: string;
+    },
+  ) {
+    const log = await this.prisma.workOrderExecutionLog.findUnique({ where: { id: logId } });
+    if (!log || log.serviceOrderId !== serviceOrderId) {
+      throw new NotFoundException('Registro de execução não encontrado nesta OS');
+    }
+
+    let existingNotes: any = {};
+    try {
+      existingNotes = JSON.parse(log.notes || '{}');
+    } catch {}
+
+    const updatedData: Prisma.WorkOrderExecutionLogUpdateInput = {};
+
+    if (log.actionType === 'LABOR_LOG') {
+      const hours = dto.hours !== undefined ? Number(dto.hours) : Number(existingNotes.hours || 0);
+      const hourlyRate = dto.hourlyRate !== undefined ? Number(dto.hourlyRate) : Number(existingNotes.hourlyRate || 85);
+      const description = dto.description !== undefined ? dto.description : (existingNotes.description || '');
+      const laborCost = Number((hours * hourlyRate).toFixed(2));
+
+      if (dto.userId) {
+        updatedData.user = { connect: { id: dto.userId } };
+      }
+      updatedData.notes = JSON.stringify({
+        hours,
+        hourlyRate,
+        description,
+        laborCost,
+      });
+    } else if (log.actionType === 'DISPLACEMENT_LOG') {
+      const km = dto.km !== undefined ? Number(dto.km) : Number(log.odometerKm || existingNotes.km || 0);
+      const kmRate = dto.kmRate !== undefined ? Number(dto.kmRate) : Number(existingNotes.kmRate || 1.85);
+      const route = dto.route !== undefined ? dto.route : (existingNotes.route || '');
+      const notes = dto.notes !== undefined ? dto.notes : (existingNotes.notes || '');
+      const displacementCost = Number((km * kmRate).toFixed(2));
+
+      updatedData.odometerKm = km;
+      updatedData.notes = JSON.stringify({
+        route,
+        kmRate,
+        notes,
+        displacementCost,
+      });
+    }
+
+    const updatedLog = await this.prisma.workOrderExecutionLog.update({
+      where: { id: logId },
+      data: updatedData,
+      include: { user: { select: { id: true, name: true } } },
+    });
+
+    if (log.actionType === 'LABOR_LOG') {
+      const allLabor = await this.prisma.workOrderExecutionLog.findMany({
+        where: { serviceOrderId, actionType: 'LABOR_LOG' },
+      });
+      let totalH = 0;
+      let totalCost = 0;
+      for (const l of allLabor) {
+        try {
+          const parsed = JSON.parse(l.notes || '{}');
+          totalH += Number(parsed.hours || 0);
+          totalCost += Number(parsed.laborCost || (parsed.hours * parsed.hourlyRate) || 0);
+        } catch {}
+      }
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          totalWorkedHours: totalH,
+          laborCostReal: Number(totalCost.toFixed(2)),
+        },
+      });
+    } else if (log.actionType === 'DISPLACEMENT_LOG') {
+      const allDisp = await this.prisma.workOrderExecutionLog.findMany({
+        where: { serviceOrderId, actionType: 'DISPLACEMENT_LOG' },
+      });
+      let totalKm = 0;
+      let totalCost = 0;
+      for (const d of allDisp) {
+        try {
+          const parsed = JSON.parse(d.notes || '{}');
+          totalKm += Number(d.odometerKm || parsed.km || 0);
+          totalCost += Number(parsed.displacementCost || 0);
+        } catch {}
+      }
+      await this.prisma.serviceOrder.update({
+        where: { id: serviceOrderId },
+        data: {
+          totalKmTraveled: totalKm,
+          displacementCostReal: Number(totalCost.toFixed(2)),
+        },
+      });
+    }
+
+    return updatedLog;
+  }
+
+  async resetLaborLogs(serviceOrderId: string) {
+    await this.prisma.workOrderExecutionLog.deleteMany({
+      where: { serviceOrderId, actionType: 'LABOR_LOG' },
+    });
+    await this.prisma.serviceOrder.update({
+      where: { id: serviceOrderId },
+      data: {
+        totalWorkedHours: 0,
+        laborCostReal: 0,
+      },
+    });
+    return { success: true, message: 'Mão de obra zerada com sucesso' };
+  }
+
+  async resetDisplacementLogs(serviceOrderId: string) {
+    await this.prisma.workOrderExecutionLog.deleteMany({
+      where: { serviceOrderId, actionType: 'DISPLACEMENT_LOG' },
+    });
+    await this.prisma.serviceOrder.update({
+      where: { id: serviceOrderId },
+      data: {
+        totalKmTraveled: 0,
+        displacementCostReal: 0,
+      },
+    });
+    return { success: true, message: 'Deslocamento zerado com sucesso' };
   }
 }

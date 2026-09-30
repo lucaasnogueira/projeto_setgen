@@ -420,6 +420,9 @@ export interface TechnicalVisit {
 export interface Equipment {
   id: string;
   clientId: string;
+  name?: string;
+  identifier?: string;
+  category?: string;
   type: EquipmentType;
   brand?: string;
   model?: string;
@@ -475,6 +478,7 @@ export interface ServiceOrder {
   orderNumber: string;
   quoteId: string;
   clientId: string;
+  equipmentId?: string | null;
   status: ServiceOrderStatus;
   scope: string;
   requiredResources?: any;

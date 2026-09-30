@@ -243,18 +243,25 @@ export class ServiceOrdersController {
     return this.serviceOrdersService.checkout(id, req.user.id, data);
   }
 
+  @Patch(':id/equipment')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Vincular ou desvincular equipamento atendido na OS' })
+  setEquipment(@Param('id') id: string, @Body() body: { equipmentId: string | null }) {
+    return this.serviceOrdersService.setEquipment(id, body.equipmentId ?? null);
+  }
+
   @Patch(':id/km')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Atualizar quilometragem rodada da OS' })
-  updateKm(@Param('id') id: string, @Body() body: { km: number }) {
-    return this.serviceOrdersService.updateKm(id, Number(body.km));
+  updateKm(@Param('id') id: string, @Body() body: { km: number; kmRate?: number }) {
+    return this.serviceOrdersService.updateKm(id, Number(body.km), body.kmRate !== undefined ? Number(body.kmRate) : undefined);
   }
 
   @Patch(':id/hours')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Atualizar horas trabalhadas da OS' })
-  updateWorkedHours(@Param('id') id: string, @Body() body: { hours: number }) {
-    return this.serviceOrdersService.updateWorkedHours(id, Number(body.hours));
+  updateWorkedHours(@Param('id') id: string, @Body() body: { hours: number; hourlyRate?: number }) {
+    return this.serviceOrdersService.updateWorkedHours(id, Number(body.hours), body.hourlyRate !== undefined ? Number(body.hourlyRate) : undefined);
   }
 
   // --- MULTI-CRUD: DESPESAS DE CAMPO ---
@@ -362,5 +369,39 @@ export class ServiceOrdersController {
     @Request() req,
   ) {
     return this.serviceOrdersService.addDisplacementLog(id, req.user.id, dto);
+  }
+  @Patch(':id/execution-logs/:logId')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Atualizar log operacional (mão de obra ou deslocamento) da OS' })
+  updateExecutionLog(
+    @Param('id') id: string,
+    @Param('logId') logId: string,
+    @Body()
+    dto: {
+      userId?: string;
+      hours?: number;
+      hourlyRate?: number;
+      description?: string;
+      route?: string;
+      km?: number;
+      kmRate?: number;
+      notes?: string;
+    },
+  ) {
+    return this.serviceOrdersService.updateExecutionLog(id, logId, dto);
+  }
+
+  @Post(':id/labor-logs/reset')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Zerar mão de obra técnica (excluir logs e zerar acumuladores)' })
+  resetLaborLogs(@Param('id') id: string) {
+    return this.serviceOrdersService.resetLaborLogs(id);
+  }
+
+  @Post(':id/displacement-logs/reset')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Zerar deslocamento (excluir logs e zerar acumuladores de frota)' })
+  resetDisplacementLogs(@Param('id') id: string) {
+    return this.serviceOrdersService.resetDisplacementLogs(id);
   }
 }

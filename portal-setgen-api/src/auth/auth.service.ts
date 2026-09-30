@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { UsersService } from '../users/users.service';
+import { expandImpliedPermissions } from '../access-control/expand-permissions.util';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
@@ -25,9 +26,7 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const user = (await this.usersService.findByEmail(
-      email,
-    )) as AuthUser | null;
+    const user = await this.usersService.findByEmailOrLogin(email);
 
     if (!user || !user.active) {
       throw new UnauthorizedException('Usuário ou senha inválidos');
@@ -39,10 +38,19 @@ export class AuthService {
       throw new UnauthorizedException('Usuário ou senha inválidos');
     }
 
+    const fullUser = await this.usersService.findOne(user.id);
+    const rawPerms = [
+      ...(fullUser.roleRef?.permissions?.map((p: any) => p.permission.name) || []),
+      ...(fullUser.permissions?.map((p: any) => p.permission.name) || []),
+    ];
+    const permissions = expandImpliedPermissions(rawPerms);
+
     const payload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      roleName: fullUser.roleRef?.name,
+      roleId: user.roleId,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -53,7 +61,12 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        login: user.login,
         role: user.role,
+        roleId: user.roleId,
+        roleName: fullUser.roleRef?.name || user.role,
+        roleRef: fullUser.roleRef ? { id: fullUser.roleRef.id, name: fullUser.roleRef.name } : null,
+        permissions,
       },
     };
   }

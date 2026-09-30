@@ -880,6 +880,7 @@ export class QuotesService {
       where: { id: quoteId },
       include: {
         serviceOrder: true,
+        technicalVisit: { select: { id: true, equipmentId: true } },
         itemProducts: { include: { product: true } },
         itemServices: { include: { service: true } },
         quoteLines: true,
@@ -921,10 +922,8 @@ export class QuotesService {
     const hourlyRate = Number(collaborator?.hourlyRate) || 0;
     const kmRate = Number(collaborator?.kmRate) || 0;
 
-    // Equipamento vinculado do cliente
-    const clientEquipment = await this.prisma.equipment.findFirst({
-      where: { clientId: quote.clientId },
-    });
+    // Só vincula equipamento se a visita técnica de origem definiu expressamente um equipamento
+    const linkedEquipmentId = quote.technicalVisit?.equipmentId || null;
 
     // Mapeamento de Produtos/Materiais
     let itemsToCreate = quote.itemProducts.map((p) => ({
@@ -943,7 +942,7 @@ export class QuotesService {
             (p) => p.name.toLowerCase() === line.description.toLowerCase() ||
                    line.description.toLowerCase().includes(p.name.toLowerCase()) ||
                    p.name.toLowerCase().includes(line.description.toLowerCase())
-          ) || allProducts[0];
+          );
           if (matched) {
             itemsToCreate.push({
               productId: matched.id,
@@ -973,7 +972,7 @@ export class QuotesService {
             (s) => (s.title && s.title.toLowerCase() === line.description.toLowerCase()) ||
                    (s.title && line.description.toLowerCase().includes(s.title.toLowerCase())) ||
                    (s.title && s.title.toLowerCase().includes(line.description.toLowerCase()))
-          ) || allServices[0];
+          );
           if (matched) {
             servicesToCreate.push({
               serviceId: matched.id,
@@ -999,7 +998,7 @@ export class QuotesService {
           orderNumber: osNumber,
           quoteId: quote.id,
           clientId: quote.clientId,
-          equipmentId: clientEquipment?.id || null,
+          equipmentId: linkedEquipmentId,
           assignedCollaboratorId: responsibleId,
           scope: quote.scope,
           hourlyRateSnapshot: hourlyRate,

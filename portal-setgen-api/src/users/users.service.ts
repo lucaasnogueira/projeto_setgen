@@ -352,16 +352,48 @@ export class UsersService {
       };
     }
 
-    // Inclui as implícitas (quem edita, vê) — é a mesma expansão que o
-    // PermissionsGuard aplica, para o menu não divergir do que a API libera.
+    let rolePerms = roleRef?.permissions.map((p) => p.permission.name) || [];
+    let resolvedRoleName = roleRef?.name;
+
+    if (rolePerms.length === 0 && user.role) {
+      const candidates =
+        user.role === 'ADMINISTRATIVE'
+          ? ['Administrativo/Compras', 'Administrativo', 'Administrativo / Compras']
+          : user.role === 'WAREHOUSE'
+          ? ['Almoxarife', 'Almoxarifado']
+          : user.role === 'TECHNICIAN'
+          ? ['Técnico', 'Tecnico']
+          : user.role === 'MANAGER'
+          ? ['Gestor', 'Gerente']
+          : [];
+
+      for (const cand of candidates) {
+        const fallbackRole = await this.prisma.role.findFirst({
+          where: { name: { equals: cand, mode: 'insensitive' } },
+          include: { permissions: { include: { permission: true } } },
+        });
+        if (fallbackRole && fallbackRole.permissions.length > 0) {
+          rolePerms = fallbackRole.permissions.map((p) => p.permission.name);
+          resolvedRoleName = fallbackRole.name;
+          await this.prisma.user
+            .update({
+              where: { id: user.id },
+              data: { roleId: fallbackRole.id },
+            })
+            .catch(() => null);
+          break;
+        }
+      }
+    }
+
     const effectivePermissions = expandImpliedPermissions([
-      ...(roleRef?.permissions.map((p) => p.permission.name) || []),
+      ...rolePerms,
       ...permissions.map((p) => p.permission.name),
     ]);
 
     return {
       ...rest,
-      roleName: roleRef?.name || user.role,
+      roleName: resolvedRoleName || roleRef?.name || user.role,
       roleRef: roleRef ? { id: roleRef.id, name: roleRef.name } : null,
       permissions: effectivePermissions,
     };

@@ -3,6 +3,7 @@ import { ServiceOrder, ServiceOrderStatus, ServiceOrderAuditLogEntry } from '@/t
 
 export interface CreateServiceOrderPayload {
   quoteId: string;
+  equipmentId?: string | null;
   items?: Array<{ productId: string; quantity: number; unitPrice: number }>;
   requiredResources?: { team?: string[] };
   deadline?: string;
@@ -132,13 +133,13 @@ export const ordersApi = {
     return data;
   },
 
-  async updateKm(id: string, km: number): Promise<any> {
-    const { data } = await api.patch(`/service-orders/${id}/km`, { km });
+  async updateKm(id: string, km: number, kmRate?: number): Promise<any> {
+    const { data } = await api.patch(`/service-orders/${id}/km`, { km, kmRate });
     return data;
   },
 
-  async updateWorkedHours(id: string, hours: number): Promise<any> {
-    const { data } = await api.patch(`/service-orders/${id}/hours`, { hours });
+  async updateWorkedHours(id: string, hours: number, hourlyRate?: number): Promise<any> {
+    const { data } = await api.patch(`/service-orders/${id}/hours`, { hours, hourlyRate });
     return data;
   },
 
@@ -198,6 +199,25 @@ export const ordersApi = {
 
   async deleteExecutionLog(orderId: string, logId: string): Promise<any> {
     const { data } = await api.delete(`/service-orders/${orderId}/execution-logs/${logId}`);
+    return data;
+  },
+  async setEquipment(id: string, equipmentId: string | null): Promise<any> {
+    const { data } = await api.patch(`/service-orders/${id}/equipment`, { equipmentId });
+    return data;
+  },
+
+  async updateExecutionLog(orderId: string, logId: string, payload: { userId?: string; hours?: number; hourlyRate?: number; description?: string; route?: string; km?: number; kmRate?: number; notes?: string }): Promise<any> {
+    const { data } = await api.patch(`/service-orders/${orderId}/execution-logs/${logId}`, payload);
+    return data;
+  },
+
+  async resetLabor(orderId: string): Promise<any> {
+    const { data } = await api.post(`/service-orders/${orderId}/labor-logs/reset`);
+    return data;
+  },
+
+  async resetDisplacement(orderId: string): Promise<any> {
+    const { data } = await api.post(`/service-orders/${orderId}/displacement-logs/reset`);
     return data;
   },
 };

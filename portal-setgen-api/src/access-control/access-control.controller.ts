@@ -2,6 +2,7 @@ import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { expandImpliedPermissions } from './expand-permissions.util';
 
 @ApiTags('Access Control - Modules')
 @Controller('access-control')
@@ -61,10 +62,37 @@ export class AccessControlController {
       },
     });
 
-    const userPermNames = new Set<string>([
-      ...(user?.roleRef?.permissions.map((p) => p.permission.name) || []),
+    let rolePerms = user?.roleRef?.permissions.map((p) => p.permission.name) || [];
+
+    if (rolePerms.length === 0 && user?.role) {
+      const candidates =
+        user.role === 'ADMINISTRATIVE'
+          ? ['Administrativo/Compras', 'Administrativo', 'Administrativo / Compras']
+          : user.role === 'WAREHOUSE'
+          ? ['Almoxarife', 'Almoxarifado']
+          : user.role === 'TECHNICIAN'
+          ? ['Técnico', 'Tecnico']
+          : user.role === 'MANAGER'
+          ? ['Gestor', 'Gerente']
+          : [];
+
+      for (const cand of candidates) {
+        const fallbackRole = await this.prisma.role.findFirst({
+          where: { name: { equals: cand, mode: 'insensitive' } },
+          include: { permissions: { include: { permission: true } } },
+        });
+        if (fallbackRole && fallbackRole.permissions.length > 0) {
+          rolePerms = fallbackRole.permissions.map((p) => p.permission.name);
+          break;
+        }
+      }
+    }
+
+    const rawGranted = [
+      ...rolePerms,
       ...(user?.permissions.map((p) => p.permission.name) || []),
-    ]);
+    ];
+    const userPermNames = new Set<string>(expandImpliedPermissions(rawGranted));
 
     const dbModules = await this.prisma.systemModule.findMany({
       where: { isActive: true },
@@ -98,12 +126,24 @@ export class AccessControlController {
           };
         }
 
-        // Se o módulo possui permissões no banco, o usuário PRECISA ter pelo menos uma permissão ativa
+        const CODE_FALLBACK_PERMS: Record<string, string[]> = {
+          COMMERCIAL: ['clients:view', 'quotes:view'],
+          SERVICE_ORDERS: ['orders:view', 'visits:view', 'art:view'],
+          CLIENTS: ['clients:view'],
+          INVENTORY: ['inventory:view', 'material-requests:view', 'equipment:view'],
+          EQUIPMENTS: ['equipment:view', 'warranty:view'],
+          PROCUREMENT: ['procurement:view', 'suppliers:view'],
+          FINANCIAL: ['expenses:view', 'expenses:create'],
+          FLEET: ['fleet:view', 'fleet:fuel-request'],
+          RH: ['rh:view'],
+        };
+
         let hasAccess = false;
         if (m.permissions.length > 0) {
           hasAccess = m.permissions.some((p) => userPermNames.has(p.name));
-        } else if (m.code === 'COMMERCIAL') {
-          hasAccess = userPermNames.has('clients:view') || userPermNames.has('quotes:view');
+        }
+        if (!hasAccess && CODE_FALLBACK_PERMS[m.code]) {
+          hasAccess = CODE_FALLBACK_PERMS[m.code].some((p) => userPermNames.has(p));
         }
 
         if (!hasAccess) {

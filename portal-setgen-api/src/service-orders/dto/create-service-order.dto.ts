@@ -18,6 +18,15 @@ export class CreateServiceOrderDto {
   quoteId: string;
 
   @ApiProperty({
+    example: 'equipment-uuid-here',
+    required: false,
+    description: 'Equipamento ou gerador atendido nesta OS',
+  })
+  @IsUUID()
+  @IsOptional()
+  equipmentId?: string | null;
+
+  @ApiProperty({
     example: [{ productId: 'prod-uuid', quantity: 2, unitPrice: 50.0 }],
     required: false,
     description: 'Materiais previstos para a execução — alimenta a solicitação ao almoxarifado',

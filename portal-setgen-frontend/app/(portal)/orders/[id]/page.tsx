@@ -9,6 +9,7 @@ import { servicesApi } from '@/lib/api/services';
 import { usersApi } from '@/lib/api/users';
 import { artApi } from '@/lib/api/art';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
+import { equipmentApi } from '@/lib/api/equipment';
 import { openAuthedFile } from '@/lib/utils/auth-file';
 import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit, Product, ServiceItem, ChecklistTemplate } from '@/types';
 import { useAuthStore } from '@/store/auth';
@@ -61,6 +62,7 @@ import {
   FileDown,
   Upload,
   RefreshCw,
+  RotateCcw,
   CheckSquare,
   Square,
   Timer,
@@ -157,12 +159,52 @@ export default function OrderDetailsPage() {
   const [newLaborDesc, setNewLaborDesc] = useState("");
   const [savingLabor, setSavingLabor] = useState(false);
 
+  // Multi-CRUD Edição e Zeramento de Mão de Obra
+  const [editingLaborLog, setEditingLaborLog] = useState<any | null>(null);
+  const [editLaborUserId, setEditLaborUserId] = useState("");
+  const [editLaborHours, setEditLaborHours] = useState("");
+  const [editLaborRate, setEditLaborRate] = useState("");
+  const [editLaborDesc, setEditLaborDesc] = useState("");
+  const [savingEditLabor, setSavingEditLabor] = useState(false);
+  const [editingAccumLabor, setEditingAccumLabor] = useState(false);
+  const [accumLaborHours, setAccumLaborHours] = useState("");
+  const [accumLaborRate, setAccumLaborRate] = useState("");
+  const [savingAccumLabor, setSavingAccumLabor] = useState(false);
+
   // --- 4. Frota & Deslocamento: Frota & Deslocamento (Trechos & KM) ---
   const [showAddDisp, setShowAddDisp] = useState(false);
   const [newDispRoute, setNewDispRoute] = useState("");
   const [newDispKm, setNewDispKm] = useState("50");
   const [newDispRate, setNewDispRate] = useState("1.85");
   const [savingDisp, setSavingDisp] = useState(false);
+
+  // Multi-CRUD Edição e Zeramento de Deslocamento
+  const [editingDispLog, setEditingDispLog] = useState<any | null>(null);
+  const [editDispRoute, setEditDispRoute] = useState("");
+  const [editDispKm, setEditDispKm] = useState("");
+  const [editDispRate, setEditDispRate] = useState("");
+  const [editDispNotes, setEditDispNotes] = useState("");
+  const [savingEditDisp, setSavingEditDisp] = useState(false);
+  const [editingAccumDisp, setEditingAccumDisp] = useState(false);
+  const [accumDispKm, setAccumDispKm] = useState("");
+  const [accumDispRate, setAccumDispRate] = useState("");
+  const [savingAccumDisp, setSavingAccumDisp] = useState(false);
+
+  // Multi-CRUD / Gestão de Equipamento na OS
+  const [showLinkEquipmentModal, setShowLinkEquipmentModal] = useState(false);
+  const [clientEquipments, setClientEquipments] = useState<any[]>([]);
+  const [loadingClientEquipments, setLoadingClientEquipments] = useState(false);
+  const [selectedEquipId, setSelectedEquipId] = useState<string>("");
+  const [savingEquipLink, setSavingEquipLink] = useState(false);
+  const [unlinkingEquip, setUnlinkingEquip] = useState(false);
+
+  const [showQuickEquipModal, setShowQuickEquipModal] = useState(false);
+  const [quickEquipName, setQuickEquipName] = useState("");
+  const [quickEquipBrand, setQuickEquipBrand] = useState("");
+  const [quickEquipModel, setQuickEquipModel] = useState("");
+  const [quickEquipSerial, setQuickEquipSerial] = useState("");
+  const [quickEquipPower, setQuickEquipPower] = useState("");
+  const [savingQuickEquip, setSavingQuickEquip] = useState(false);
 
   // --- 5. Despesas de Campo: Despesas de Campo (Alimentação, Pedágio, etc.) ---
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -566,6 +608,250 @@ export default function OrderDetailsPage() {
       loadOrderData();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Erro ao excluir registro.");
+    }
+  };
+
+  // --- Handlers de Multi-CRUD Mão de Obra ---
+  const handleStartEditLabor = (log: any) => {
+    let p: any = {};
+    try { p = JSON.parse(log.notes || '{}'); } catch {}
+    setEditingLaborLog(log);
+    setEditLaborUserId(log.userId || log.user?.id || "");
+    setEditLaborHours(String(p.hours ?? 4));
+    setEditLaborRate(String(p.hourlyRate ?? 85));
+    setEditLaborDesc(p.description || "");
+  };
+
+  const handleUpdateLaborEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !editingLaborLog) return;
+    const hours = Number(editLaborHours.replace(',', '.'));
+    const rate = Number(editLaborRate.replace(',', '.'));
+    if (isNaN(hours) || hours < 0 || isNaN(rate) || rate < 0) {
+      toast.error("Informe horas e taxa válidas.");
+      return;
+    }
+    setSavingEditLabor(true);
+    try {
+      await ordersApi.updateExecutionLog(order.id, editingLaborLog.id, {
+        userId: editLaborUserId || undefined,
+        hours,
+        hourlyRate: rate,
+        description: editLaborDesc.trim(),
+      });
+      toast.success("Mão de obra atualizada com sucesso!");
+      setEditingLaborLog(null);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao atualizar mão de obra.");
+    } finally {
+      setSavingEditLabor(false);
+    }
+  };
+
+  const handleResetLabor = async () => {
+    if (!order) return;
+    if (!window.confirm("Deseja realmente zerar todos os custos e horas de mão de obra desta OS?")) return;
+    try {
+      await ordersApi.resetLabor(order.id);
+      toast.success("Mão de obra zerada com sucesso!");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao zerar mão de obra.");
+    }
+  };
+
+  const handleSaveAccumulatorLabor = async () => {
+    if (!order) return;
+    const hours = Number(accumLaborHours.replace(',', '.'));
+    const rate = Number(accumLaborRate.replace(',', '.'));
+    if (isNaN(hours) || hours < 0 || isNaN(rate) || rate < 0) {
+      toast.error("Informe valores válidos.");
+      return;
+    }
+    setSavingAccumLabor(true);
+    try {
+      await ordersApi.updateWorkedHours(order.id, hours, rate);
+      toast.success("Acumulador de mão de obra atualizado!");
+      setEditingAccumLabor(false);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao atualizar acumulador.");
+    } finally {
+      setSavingAccumLabor(false);
+    }
+  };
+
+  const handleZeroAccumulatorLabor = async () => {
+    if (!order) return;
+    if (!window.confirm("Zerar horas e custo de mão de obra padrão?")) return;
+    try {
+      await ordersApi.updateWorkedHours(order.id, 0, 0);
+      toast.success("Mão de obra zerada com sucesso!");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao zerar mão de obra.");
+    }
+  };
+
+  // --- Handlers de Multi-CRUD Deslocamento / KM ---
+  const handleStartEditDisp = (log: any) => {
+    let p: any = {};
+    try { p = JSON.parse(log.notes || '{}'); } catch {}
+    setEditingDispLog(log);
+    setEditDispRoute(p.route || "");
+    setEditDispKm(String(log.odometerKm || p.km || 50));
+    setEditDispRate(String(p.kmRate ?? 1.85));
+    setEditDispNotes(p.notes || "");
+  };
+
+  const handleUpdateDispEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !editingDispLog) return;
+    const km = Number(editDispKm.replace(',', '.'));
+    const rate = Number(editDispRate.replace(',', '.'));
+    if (isNaN(km) || km < 0 || isNaN(rate) || rate < 0) {
+      toast.error("Informe quilometragem e taxa válidas.");
+      return;
+    }
+    setSavingEditDisp(true);
+    try {
+      await ordersApi.updateExecutionLog(order.id, editingDispLog.id, {
+        route: editDispRoute.trim(),
+        km,
+        kmRate: rate,
+        notes: editDispNotes.trim(),
+      });
+      toast.success("Trecho atualizado com sucesso!");
+      setEditingDispLog(null);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao atualizar trecho.");
+    } finally {
+      setSavingEditDisp(false);
+    }
+  };
+
+  const handleResetDisplacement = async () => {
+    if (!order) return;
+    if (!window.confirm("Deseja realmente zerar todos os custos e quilometragem de deslocamento desta OS?")) return;
+    try {
+      await ordersApi.resetDisplacement(order.id);
+      toast.success("Deslocamento zerado com sucesso!");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao zerar deslocamento.");
+    }
+  };
+
+  const handleSaveAccumulatorDisp = async () => {
+    if (!order) return;
+    const km = Number(accumDispKm.replace(',', '.'));
+    const rate = Number(accumDispRate.replace(',', '.'));
+    if (isNaN(km) || km < 0 || isNaN(rate) || rate < 0) {
+      toast.error("Informe valores válidos.");
+      return;
+    }
+    setSavingAccumDisp(true);
+    try {
+      await ordersApi.updateKm(order.id, km, rate);
+      toast.success("Acumulador de deslocamento atualizado!");
+      setEditingAccumDisp(false);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao atualizar deslocamento.");
+    } finally {
+      setSavingAccumDisp(false);
+    }
+  };
+
+  const handleZeroAccumulatorDisp = async () => {
+    if (!order) return;
+    if (!window.confirm("Zerar quilometragem e custo de deslocamento padrão?")) return;
+    try {
+      await ordersApi.updateKm(order.id, 0, 0);
+      toast.success("Deslocamento zerado com sucesso!");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao zerar deslocamento.");
+    }
+  };
+
+  // --- Handlers de Equipamento da OS ---
+  const loadClientEquipments = async () => {
+    if (!order?.clientId) return;
+    setLoadingClientEquipments(true);
+    try {
+      const list = await equipmentApi.getAll({ clientId: order.clientId });
+      setClientEquipments(list || []);
+      setSelectedEquipId(order.equipmentId || order.equipment?.id || "");
+    } catch (err) {
+      console.error("Erro ao carregar equipamentos do cliente:", err);
+    } finally {
+      setLoadingClientEquipments(false);
+    }
+  };
+
+  const handleLinkEquipment = async () => {
+    if (!order) return;
+    setSavingEquipLink(true);
+    try {
+      await ordersApi.setEquipment(order.id, selectedEquipId || null);
+      toast.success(selectedEquipId ? "Equipamento vinculado com sucesso!" : "Equipamento desvinculado da OS!");
+      setShowLinkEquipmentModal(false);
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao atualizar equipamento da OS.");
+    } finally {
+      setSavingEquipLink(false);
+    }
+  };
+
+  const handleUnlinkEquipment = async () => {
+    if (!order) return;
+    if (!window.confirm("Deseja realmente desvincular o equipamento desta Ordem de Serviço?")) return;
+    setUnlinkingEquip(true);
+    try {
+      await ordersApi.setEquipment(order.id, null);
+      toast.success("Equipamento desvinculado com sucesso!");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao desvincular equipamento.");
+    } finally {
+      setUnlinkingEquip(false);
+    }
+  };
+
+  const handleQuickCreateEquipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order?.clientId || !quickEquipName.trim()) {
+      toast.error("Informe o nome do equipamento.");
+      return;
+    }
+    setSavingQuickEquip(true);
+    try {
+      const created = await equipmentApi.create({
+        clientId: order.clientId,
+        name: quickEquipName.trim(),
+        brand: quickEquipBrand.trim() || undefined,
+        model: quickEquipModel.trim() || undefined,
+        serialNumber: quickEquipSerial.trim() || undefined,
+        powerRating: quickEquipPower.trim() || undefined,
+      });
+      toast.success(`Equipamento "${created.name}" cadastrado e vinculado!`);
+      await ordersApi.setEquipment(order.id, created.id);
+      setShowQuickEquipModal(false);
+      setShowLinkEquipmentModal(false);
+      setQuickEquipName("");
+      setQuickEquipBrand("");
+      setQuickEquipModel("");
+      setQuickEquipSerial("");
+      setQuickEquipPower("");
+      loadOrderData();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Erro ao cadastrar equipamento.");
+    } finally {
+      setSavingQuickEquip(false);
     }
   };
 
@@ -1222,7 +1508,13 @@ export default function OrderDetailsPage() {
     } else {
       const hourlyRate = Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85;
       const hours = Number(order.totalWorkedHours) || 0;
-      laborCost = Number(order.laborCostReal) || (hours * hourlyRate);
+      if (hours === 0 && (order.laborCostReal === null || Number(order.laborCostReal) === 0)) {
+        laborCost = 0;
+      } else if (order.laborCostReal !== undefined && order.laborCostReal !== null && Number(order.laborCostReal) >= 0) {
+        laborCost = Number(order.laborCostReal);
+      } else {
+        laborCost = hours * hourlyRate;
+      }
     }
 
     // Custo de Frota e Deslocamento
@@ -1238,7 +1530,13 @@ export default function OrderDetailsPage() {
     } else {
       const kmRate = Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 1.85;
       const km = Number(order.totalKmTraveled) || 0;
-      displacementCost = Number(order.displacementCostReal) || (km * kmRate);
+      if (km === 0 && (order.displacementCostReal === null || Number(order.displacementCostReal) === 0)) {
+        displacementCost = 0;
+      } else if (order.displacementCostReal !== undefined && order.displacementCostReal !== null && Number(order.displacementCostReal) >= 0) {
+        displacementCost = Number(order.displacementCostReal);
+      } else {
+        displacementCost = km * kmRate;
+      }
     }
 
     // Despesas de Campo
@@ -1491,32 +1789,82 @@ export default function OrderDetailsPage() {
               </div>
 
               <div className="p-6 space-y-3 bg-gray-50/40">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
-                  <Wrench className="h-4 w-4 text-[#E2661D]" /> Equipamento / Gerador Atendido
-                </h3>
-                <div className="space-y-1.5 text-sm">
-                  <p className="font-bold text-gray-900 text-base">
-                    {order.equipment?.name || order.equipment?.brand || order.equipment?.model || 'Grupo Moto Gerador Diesel'}
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 pt-1">
-                    <div>
-                      <span className="block text-gray-400">Fabricante / Marca:</span>
-                      <strong className="text-gray-800 font-medium">{order.equipment?.brand || order.equipment?.manufacturer || 'SETGEN / Cummins / MWM'}</strong>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-[#E2661D]" /> Equipamento / Gerador Atendido
+                  </h3>
+                  {order.equipment ? (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          loadClientEquipments();
+                          setShowLinkEquipmentModal(true);
+                        }}
+                        className="h-7 text-xs px-2.5 text-gray-600 border-gray-300 hover:bg-white"
+                      >
+                        Trocar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleUnlinkEquipment}
+                        disabled={unlinkingEquip}
+                        className="h-7 text-xs px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        title="Desvincular Equipamento desta OS"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Desvincular
+                      </Button>
                     </div>
-                    <div>
-                      <span className="block text-gray-400">Número de Série:</span>
-                      <strong className="text-gray-800 font-medium">{order.equipment?.serialNumber || 'SN-GER-0091'}</strong>
-                    </div>
-                    <div>
-                      <span className="block text-gray-400">Potência:</span>
-                      <strong className="text-gray-800 font-medium">{order.equipment?.powerRating || (order.equipment?.powerKva ? `${order.equipment.powerKva} kVA` : '450 kVA')}</strong>
-                    </div>
-                    <div>
-                      <span className="block text-gray-400">Horímetro:</span>
-                      <strong className="text-gray-800 font-medium">{order.equipment?.hourMeter ? `${order.equipment.hourMeter} h` : '340 h'}</strong>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        loadClientEquipments();
+                        setShowLinkEquipmentModal(true);
+                      }}
+                      className="h-7 text-xs px-2.5 font-bold border-orange-200 text-orange-700 bg-orange-50/60 hover:bg-orange-100"
+                    >
+                      <Plus className="w-3.5 h-3.5 mr-1 text-[#E2661D]" /> Vincular Equipamento
+                    </Button>
+                  )}
+                </div>
+
+                {order.equipment ? (
+                  <div className="space-y-1.5 text-sm">
+                    <p className="font-bold text-gray-900 text-base">
+                      {order.equipment.name || order.equipment.model || 'Equipamento'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 pt-1">
+                      <div>
+                        <span className="block text-gray-400">Fabricante / Marca:</span>
+                        <strong className="text-gray-800 font-medium">{order.equipment.brand || order.equipment.manufacturer || 'Não informada'}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-gray-400">Número de Série:</span>
+                        <strong className="text-gray-800 font-medium">{order.equipment.serialNumber || 'Sem número de série'}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-gray-400">Potência:</span>
+                        <strong className="text-gray-800 font-medium">{order.equipment.powerRating || (order.equipment.powerKva ? `${order.equipment.powerKva} kVA` : 'Não informada')}</strong>
+                      </div>
+                      <div>
+                        <span className="block text-gray-400">Horímetro:</span>
+                        <strong className="text-gray-800 font-medium">{order.equipment.hourMeter ? `${order.equipment.hourMeter} h` : 'Não informado'}</strong>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-gray-300 bg-white/70 text-center space-y-1">
+                    <p className="text-xs font-semibold text-gray-600">Nenhum equipamento vinculado a esta Ordem de Serviço.</p>
+                    <p className="text-[11px] text-gray-400">Esta OS não possui gerador ou equipamento associado. Caso deseje associar, clique em "Vincular Equipamento".</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2142,6 +2490,19 @@ export default function OrderDetailsPage() {
                 <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">
                   Custo Mão de Obra: {formatMoney(dre.laborCost)}
                 </span>
+                {(dre.laborCost > 0 || laborLogsList.length > 0 || Number(order.totalWorkedHours) > 0) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResetLabor}
+                    className="border-rose-200 text-rose-600 hover:bg-rose-50 font-bold text-xs h-8 rounded-xl gap-1"
+                    title="Excluir todos os registros de mão de obra e zerar acumuladores"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Zerar
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={() => setShowAddLabor(!showAddLabor)}
@@ -2232,14 +2593,81 @@ export default function OrderDetailsPage() {
 
             {/* Lista Gestão de Mão de Obra */}
             <div className="space-y-2">
+              {editingAccumLabor && (
+                <div className="p-3.5 rounded-xl bg-orange-50/60 border border-orange-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-800">Editar Acumulador Padrão de Horas</p>
+                    <button type="button" onClick={() => setEditingAccumLabor(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-600">Total de Horas Trabalhadas</Label>
+                      <Input
+                        value={accumLaborHours}
+                        onChange={e => setAccumLaborHours(e.target.value)}
+                        placeholder="Ex: 0 ou 4.5"
+                        className="h-8 text-xs bg-white mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-600">Taxa Horária Snapshot (R$/h)</Label>
+                      <Input
+                        value={accumLaborRate}
+                        onChange={e => setAccumLaborRate(e.target.value)}
+                        placeholder="85.00"
+                        className="h-8 text-xs bg-white mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={handleZeroAccumulatorLabor} className="h-8 text-xs text-rose-600 hover:bg-rose-50 font-bold">
+                      Zerar Horas e Custo
+                    </Button>
+                    <Button type="button" size="sm" onClick={handleSaveAccumulatorLabor} disabled={savingAccumLabor} className="h-8 text-xs bg-[#E2661D] text-white font-bold">
+                      {savingAccumLabor ? "Salvando..." : "Salvar Acumulador"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {laborLogsList.length === 0 ? (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs flex items-center justify-between">
-                  <span className="text-gray-500">
-                    Acumulador Padrão: <strong>{order.totalWorkedHours || 0} horas</strong> @ {formatMoney(Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85)}/hora
-                  </span>
-                  <span className="font-black text-rose-600 text-sm">
-                    {formatMoney(dre.laborCost)}
-                  </span>
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-gray-700 font-semibold block">Acumulador Padrão da OS:</span>
+                    <span className="text-gray-500">
+                      <strong>{order.totalWorkedHours || 0} horas</strong> @ {formatMoney(Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85)}/hora
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-rose-600 text-sm mr-1">
+                      {formatMoney(dre.laborCost)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAccumLaborHours(String(order.totalWorkedHours || 0));
+                        setAccumLaborRate(String(Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85));
+                        setEditingAccumLabor(!editingAccumLabor);
+                      }}
+                      className="h-7 text-xs px-2 text-gray-700"
+                    >
+                      <Edit className="h-3 w-3 mr-1" /> Editar
+                    </Button>
+                    {(dre.laborCost > 0 || Number(order.totalWorkedHours) > 0) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleZeroAccumulatorLabor}
+                        className="h-7 text-xs px-2 text-rose-600 hover:bg-rose-50"
+                        title="Zerar horas e custo"
+                      >
+                        Zerar
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 laborLogsList.map((l: any) => {
@@ -2254,10 +2682,17 @@ export default function OrderDetailsPage() {
                         </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">{p.description || 'Atendimento técnico de campo'}</p>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-rose-600 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-rose-600 text-sm mr-1">
                           {formatMoney(Number(p.laborCost || ((p.hours || 0) * (p.hourlyRate || 85))))}
                         </span>
+                        <button
+                          onClick={() => handleStartEditLabor(l)}
+                          className="p-1 text-gray-500 hover:text-[#E2661D] transition-colors"
+                          title="Editar Registro"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           onClick={() => handleDeleteExecutionLog(l.id)}
                           className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -2290,6 +2725,19 @@ export default function OrderDetailsPage() {
                 <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg">
                   Custo Deslocamento: {formatMoney(dre.displacementCost)}
                 </span>
+                {(dre.displacementCost > 0 || dispLogsList.length > 0 || Number(order.totalKmTraveled) > 0) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResetDisplacement}
+                    className="border-rose-200 text-rose-600 hover:bg-rose-50 font-bold text-xs h-8 rounded-xl gap-1"
+                    title="Excluir todos os registros de deslocamento e zerar acumuladores"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Zerar
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={() => setShowAddDisp(!showAddDisp)}
@@ -2349,14 +2797,81 @@ export default function OrderDetailsPage() {
 
             {/* Lista Gestão de Deslocamento */}
             <div className="space-y-2">
+              {editingAccumDisp && (
+                <div className="p-3.5 rounded-xl bg-orange-50/60 border border-orange-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-gray-800">Editar Acumulador Padrão de Deslocamento</p>
+                    <button type="button" onClick={() => setEditingAccumDisp(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-600">Total KM Rodados</Label>
+                      <Input
+                        value={accumDispKm}
+                        onChange={e => setAccumDispKm(e.target.value)}
+                        placeholder="Ex: 0 ou 50"
+                        className="h-8 text-xs bg-white mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] font-bold text-gray-600">Taxa por KM Snapshot (R$/KM)</Label>
+                      <Input
+                        value={accumDispRate}
+                        onChange={e => setAccumDispRate(e.target.value)}
+                        placeholder="1.85"
+                        className="h-8 text-xs bg-white mt-1"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={handleZeroAccumulatorDisp} className="h-8 text-xs text-rose-600 hover:bg-rose-50 font-bold">
+                      Zerar KM e Custo
+                    </Button>
+                    <Button type="button" size="sm" onClick={handleSaveAccumulatorDisp} disabled={savingAccumDisp} className="h-8 text-xs bg-[#E2661D] text-white font-bold">
+                      {savingAccumDisp ? "Salvando..." : "Salvar Acumulador"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {dispLogsList.length === 0 ? (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs flex items-center justify-between">
-                  <span className="text-gray-500">
-                    Acumulador Padrão: <strong>{order.totalKmTraveled || 0} KM</strong> @ {formatMoney(Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 1.85)}/KM
-                  </span>
-                  <span className="font-black text-rose-600 text-sm">
-                    {formatMoney(dre.displacementCost)}
-                  </span>
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <span className="text-gray-700 font-semibold block">Acumulador Padrão da OS:</span>
+                    <span className="text-gray-500">
+                      <strong>{order.totalKmTraveled || 0} KM</strong> @ {formatMoney(Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 1.85)}/KM
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-rose-600 text-sm mr-1">
+                      {formatMoney(dre.displacementCost)}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setAccumDispKm(String(order.totalKmTraveled || 0));
+                        setAccumDispRate(String(Number(order.kmRateSnapshot) || Number(order.assignedCollaborator?.kmRate) || 1.85));
+                        setEditingAccumDisp(!editingAccumDisp);
+                      }}
+                      className="h-7 text-xs px-2 text-gray-700"
+                    >
+                      <Edit className="h-3 w-3 mr-1" /> Editar
+                    </Button>
+                    {(dre.displacementCost > 0 || Number(order.totalKmTraveled) > 0) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={handleZeroAccumulatorDisp}
+                        className="h-7 text-xs px-2 text-rose-600 hover:bg-rose-50"
+                        title="Zerar KM e custo"
+                      >
+                        Zerar
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 dispLogsList.map((d: any) => {
@@ -2369,11 +2884,19 @@ export default function OrderDetailsPage() {
                           <span className="font-bold text-gray-900">{p.route || 'Trecho de Campo'}</span>
                           <span className="text-gray-500 font-medium">({d.odometerKm || p.km || 0} KM @ {formatMoney(p.kmRate || 1.85)}/KM)</span>
                         </div>
+                        {p.notes && <p className="text-[11px] text-gray-500 mt-0.5">{p.notes}</p>}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-black text-rose-600 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-rose-600 text-sm mr-1">
                           {formatMoney(Number(p.displacementCost || ((d.odometerKm || p.km || 0) * (p.kmRate || 1.85))))}
                         </span>
+                        <button
+                          onClick={() => handleStartEditDisp(d)}
+                          className="p-1 text-gray-500 hover:text-[#E2661D] transition-colors"
+                          title="Editar Trecho"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           onClick={() => handleDeleteExecutionLog(d.id)}
                           className="p-1 text-gray-400 hover:text-red-600 transition-colors"
@@ -3889,6 +4412,399 @@ export default function OrderDetailsPage() {
               >
                 {savingQuickUser ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                 Salvar e Selecionar
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* MODAL 4: EDIÇÃO DE REGISTRO DE MÃO DE OBRA               */}
+      {/* ======================================================== */}
+      <Dialog open={!!editingLaborLog} onOpenChange={(open) => !open && setEditingLaborLog(null)}>
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-gray-100">
+            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                <Edit className="w-4 h-4" />
+              </div>
+              <span>Editar Registro de Mão de Obra</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              Altere o técnico responsável, horas trabalhadas ou taxa horária deste lançamento.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateLaborEntry} className="space-y-3.5 pt-2">
+            <div>
+              <Label className="text-xs font-bold text-gray-700">Técnico / Colaborador *</Label>
+              <select
+                value={editLaborUserId}
+                onChange={(e) => setEditLaborUserId(e.target.value)}
+                className="w-full h-9 text-xs rounded-lg border border-gray-300 bg-white px-2 mt-1"
+              >
+                <option value="">Selecione o técnico...</option>
+                {usersCatalog.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.jobTitle || 'Técnico'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Horas Trabalhadas *</Label>
+                <Input
+                  required
+                  value={editLaborHours}
+                  onChange={e => setEditLaborHours(e.target.value)}
+                  placeholder="Ex: 4.5"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Taxa Horária (R$/h) *</Label>
+                <Input
+                  required
+                  value={editLaborRate}
+                  onChange={e => setEditLaborRate(e.target.value)}
+                  placeholder="85.00"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold text-gray-700">Atividade / Descrição</Label>
+              <Input
+                value={editLaborDesc}
+                onChange={e => setEditLaborDesc(e.target.value)}
+                placeholder="Ex: Manutenção do alternador e testes"
+                className="h-9 text-xs bg-white mt-1"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingLaborLog(null)}
+                className="text-xs h-9 rounded-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingEditLabor}
+                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
+              >
+                {savingEditLabor ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar Alterações
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* MODAL 5: EDIÇÃO DE REGISTRO DE DESLOCAMENTO / FROTA      */}
+      {/* ======================================================== */}
+      <Dialog open={!!editingDispLog} onOpenChange={(open) => !open && setEditingDispLog(null)}>
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-gray-100">
+            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                <Car className="w-4 h-4" />
+              </div>
+              <span>Editar Trecho de Deslocamento</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              Modifique a quilometragem, rota ou taxa por KM deste trecho.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateDispEntry} className="space-y-3.5 pt-2">
+            <div>
+              <Label className="text-xs font-bold text-gray-700">Rota / Descrição do Trecho *</Label>
+              <Input
+                required
+                value={editDispRoute}
+                onChange={e => setEditDispRoute(e.target.value)}
+                placeholder="Ex: Base SETGEN -> Cliente -> Base"
+                className="h-9 text-xs bg-white mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Quilômetros Rodados (KM) *</Label>
+                <Input
+                  required
+                  value={editDispKm}
+                  onChange={e => setEditDispKm(e.target.value)}
+                  placeholder="Ex: 50"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Taxa por KM (R$/KM) *</Label>
+                <Input
+                  required
+                  value={editDispRate}
+                  onChange={e => setEditDispRate(e.target.value)}
+                  placeholder="1.85"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-bold text-gray-700">Observações do Trecho</Label>
+              <Input
+                value={editDispNotes}
+                onChange={e => setEditDispNotes(e.target.value)}
+                placeholder="Ex: Veículo Fiorino placa XYZ-1234"
+                className="h-9 text-xs bg-white mt-1"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingDispLog(null)}
+                className="text-xs h-9 rounded-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingEditDisp}
+                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
+              >
+                {savingEditDisp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar Alterações
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* MODAL 6: VINCULAR EQUIPAMENTO NA OS                      */}
+      {/* ======================================================== */}
+      <Dialog open={showLinkEquipmentModal} onOpenChange={setShowLinkEquipmentModal}>
+        <DialogContent className="max-w-lg bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                  <Wrench className="w-4 h-4" />
+                </div>
+                <span>Vincular Equipamento / Gerador</span>
+              </DialogTitle>
+              <button
+                type="button"
+                onClick={() => setShowQuickEquipModal(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E2661D] hover:text-[#c95716] bg-orange-100 hover:bg-orange-200 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <Plus className="h-3 w-3" /> Novo Equipamento
+              </button>
+            </div>
+            <DialogDescription className="text-xs text-gray-500">
+              Selecione qual equipamento cadastrado do cliente {order?.client?.companyName} foi atendido nesta OS.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 space-y-3">
+            {loadingClientEquipments ? (
+              <div className="flex items-center justify-center py-8 text-xs text-gray-500 gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[#E2661D]" /> Carregando equipamentos do cliente...
+              </div>
+            ) : clientEquipments.length === 0 ? (
+              <div className="p-4 rounded-xl border border-dashed border-gray-300 bg-gray-50 text-center space-y-2">
+                <p className="text-xs font-semibold text-gray-600">Este cliente não possui equipamentos cadastrados.</p>
+                <p className="text-[11px] text-gray-400">Você pode cadastrar um novo gerador agora mesmo sem sair desta tela.</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setShowQuickEquipModal(true)}
+                  className="h-8 text-xs bg-[#E2661D] hover:bg-[#c95716] text-white font-bold"
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Cadastrar Primeiro Equipamento
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <label
+                  className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                    !selectedEquipId ? 'border-orange-500 bg-orange-50/50 shadow-xs' : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="selectedEquip"
+                      checked={!selectedEquipId}
+                      onChange={() => setSelectedEquipId("")}
+                      className="text-[#E2661D] focus:ring-[#E2661D]"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-800">Nenhum Equipamento</span>
+                      <p className="text-[11px] text-gray-400">Operar esta OS sem equipamento vinculado</p>
+                    </div>
+                  </div>
+                </label>
+
+                {clientEquipments.map((eq: any) => (
+                  <label
+                    key={eq.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                      selectedEquipId === eq.id ? 'border-orange-500 bg-orange-50/50 shadow-xs' : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="selectedEquip"
+                        checked={selectedEquipId === eq.id}
+                        onChange={() => setSelectedEquipId(eq.id)}
+                        className="text-[#E2661D] focus:ring-[#E2661D]"
+                      />
+                      <div>
+                        <span className="font-bold text-gray-900 block">{eq.name || eq.model || 'Equipamento'}</span>
+                        <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
+                          {eq.brand && <span>Marca: {eq.brand}</span>}
+                          {eq.serialNumber && <span>• S/N: {eq.serialNumber}</span>}
+                          {eq.powerRating && <span>• Potência: {eq.powerRating}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowLinkEquipmentModal(false)}
+                className="text-xs h-9 rounded-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleLinkEquipment}
+                disabled={savingEquipLink}
+                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
+              >
+                {savingEquipLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar Vínculo
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* MODAL 7: CADASTRO RÁPIDO DE EQUIPAMENTO (+)              */}
+      {/* ======================================================== */}
+      <Dialog open={showQuickEquipModal} onOpenChange={setShowQuickEquipModal}>
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+          <DialogHeader className="pb-3 border-b border-gray-100">
+            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                <Plus className="w-4 h-4" />
+              </div>
+              <span>Cadastrar Novo Equipamento</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-gray-500">
+              Cadastre um novo gerador para o cliente e vincule-o imediatamente a esta OS.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleQuickCreateEquipment} className="space-y-3.5 pt-2">
+            <div>
+              <Label className="text-xs font-bold text-gray-700">Nome / Identificação do Gerador *</Label>
+              <Input
+                required
+                value={quickEquipName}
+                onChange={e => setQuickEquipName(e.target.value)}
+                placeholder="Ex: Gerador Principal - Bloco A"
+                className="h-9 text-xs bg-white mt-1"
+                autoFocus
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Marca / Fabricante</Label>
+                <Input
+                  value={quickEquipBrand}
+                  onChange={e => setQuickEquipBrand(e.target.value)}
+                  placeholder="Ex: Cummins / Stemac"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Modelo</Label>
+                <Input
+                  value={quickEquipModel}
+                  onChange={e => setQuickEquipModel(e.target.value)}
+                  placeholder="Ex: C150D6"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Número de Série</Label>
+                <Input
+                  value={quickEquipSerial}
+                  onChange={e => setQuickEquipSerial(e.target.value)}
+                  placeholder="Ex: SN-2024-889"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-bold text-gray-700">Potência (kVA)</Label>
+                <Input
+                  value={quickEquipPower}
+                  onChange={e => setQuickEquipPower(e.target.value)}
+                  placeholder="Ex: 150 kVA"
+                  className="h-9 text-xs bg-white mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowQuickEquipModal(false)}
+                className="text-xs h-9 rounded-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingQuickEquip}
+                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
+              >
+                {savingQuickEquip ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Cadastrar e Vincular
               </Button>
             </div>
           </form>
