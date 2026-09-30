@@ -27,7 +27,11 @@ export class EquipmentController {
   constructor(private readonly equipmentService: EquipmentService) {}
 
   @Post()
-  @RequiredPermissions(PERMISSIONS.EQUIPMENT_MANAGE)
+  @RequiredPermissions(
+    PERMISSIONS.EQUIPMENT_MANAGE,
+    PERMISSIONS.CLIENTS_EDIT,
+    PERMISSIONS.CLIENTS_CREATE,
+  )
   @ApiOperation({ summary: 'Cadastrar novo equipamento' })
   create(@Body() createEquipmentDto: CreateEquipmentDto) {
     return this.equipmentService.create(createEquipmentDto);
@@ -53,7 +57,7 @@ export class EquipmentController {
   }
 
   @Patch(':id')
-  @RequiredPermissions(PERMISSIONS.EQUIPMENT_MANAGE)
+  @RequiredPermissions(PERMISSIONS.EQUIPMENT_MANAGE, PERMISSIONS.CLIENTS_EDIT)
   @ApiOperation({ summary: 'Atualizar equipamento' })
   update(
     @Param('id') id: string,
@@ -63,7 +67,7 @@ export class EquipmentController {
   }
 
   @Delete(':id')
-  @RequiredPermissions(PERMISSIONS.EQUIPMENT_MANAGE)
+  @RequiredPermissions(PERMISSIONS.EQUIPMENT_MANAGE, PERMISSIONS.CLIENTS_EDIT)
   @ApiOperation({ summary: 'Remover equipamento' })
   remove(@Param('id') id: string) {
     return this.equipmentService.remove(id);

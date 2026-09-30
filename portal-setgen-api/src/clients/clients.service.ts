@@ -57,12 +57,12 @@ export class ClientsService {
       email: createClientDto.email,
       contacts: createClientDto.contacts ?? [],
       status: createClientDto.status,
-      notes: createClientDto.notes,
+      notes: createClientDto.notes ?? (createClientDto as any).nãotes,
       externalCode,
       onSiteContact: createClientDto.onSiteContact,
       corporatePhones: createClientDto.corporatePhones ?? [],
       corporateEmails: createClientDto.corporateEmails ?? [],
-      internalNotes: createClientDto.internalNotes,
+      internalNotes: createClientDto.internalNotes ?? (createClientDto as any).internalNãotes,
       icmsTaxpayerType: createClientDto.icmsTaxpayerType,
       stateRegistration: createClientDto.stateRegistration,
       municipalRegistration: createClientDto.municipalRegistration,
@@ -161,7 +161,7 @@ export class ClientsService {
         status: updateClientDto.status,
       }),
       ...(updateClientDto.notes !== undefined && {
-        notes: updateClientDto.notes,
+        notes: updateClientDto.notes !== undefined ? updateClientDto.notes : (updateClientDto as any).nãotes,
       }),
       ...(updateClientDto.externalCode !== undefined && {
         externalCode: this.nullIfBlank(updateClientDto.externalCode),
@@ -176,7 +176,7 @@ export class ClientsService {
         corporateEmails: updateClientDto.corporateEmails,
       }),
       ...(updateClientDto.internalNotes !== undefined && {
-        internalNotes: updateClientDto.internalNotes,
+        internalNotes: updateClientDto.internalNotes !== undefined ? updateClientDto.internalNotes : (updateClientDto as any).internalNãotes,
       }),
       ...(updateClientDto.icmsTaxpayerType !== undefined && {
         icmsTaxpayerType: updateClientDto.icmsTaxpayerType,
@@ -229,13 +229,14 @@ export class ClientsService {
 
     // Sem estas checagens o delete estourava violação de FK (500) sem dizer o
     // que estava preso. Cliente com histórico não se apaga: inative.
-    const [quotes, serviceOrders, visits, expenses, purchaseOrders] =
+    const [quotes, serviceOrders, visits, expenses, purchaseOrders, equipments] =
       await Promise.all([
         this.prisma.quote.count({ where: { clientId: id } }),
         this.prisma.serviceOrder.count({ where: { clientId: id } }),
         this.prisma.technicalVisit.count({ where: { clientId: id } }),
         this.prisma.expense.count({ where: { clientId: id } }),
         this.prisma.purchaseOrder.count({ where: { clientId: id } }),
+        this.prisma.equipment.count({ where: { clientId: id } }),
       ]);
 
     const blocking = [
@@ -244,6 +245,7 @@ export class ClientsService {
       visits && `${visits} visita(s) técnica(s)`,
       purchaseOrders && `${purchaseOrders} ordem(ns) de compra`,
       expenses && `${expenses} despesa(s)`,
+      equipments && `${equipments} equipamento(s)`,
     ].filter(Boolean);
 
     if (blocking.length > 0) {

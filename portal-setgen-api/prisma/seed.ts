@@ -13,10 +13,11 @@ async function main() {
 
   const hashedPassword = await bcrypt.hash('admin123', 10);
 
-  // Criar usuário ADMIN (não sobrescreve se já existir)
+  // Criar usuário ADMIN
   const admin = await prisma.user.upsert({
     where: { email: 'admin@setgen.com' },
-    update: {},
+    // reseta senha/estado do admin a cada seed (demo) — garante admin123
+    update: { password: hashedPassword, active: true },
     create: {
       name: 'Administrador',
       email: 'admin@setgen.com',

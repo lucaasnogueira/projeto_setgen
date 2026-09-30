@@ -24,6 +24,9 @@ export class EquipmentService {
     const data: Prisma.EquipmentCreateInput = {
       client: { connect: { id: createEquipmentDto.clientId } },
       type: createEquipmentDto.type,
+      name: createEquipmentDto.name,
+      identifier: createEquipmentDto.identifier,
+      category: createEquipmentDto.category,
       brand: createEquipmentDto.brand,
       model: createEquipmentDto.model,
       serialNumber: createEquipmentDto.serialNumber,
@@ -33,6 +36,18 @@ export class EquipmentService {
         purchaseDate: new Date(createEquipmentDto.purchaseDate),
       }),
       notes: createEquipmentDto.notes,
+      ...(createEquipmentDto.expirationDate && {
+        expirationDate: new Date(createEquipmentDto.expirationDate),
+      }),
+      ...(createEquipmentDto.warrantyEndDate && {
+        warrantyEndDate: new Date(createEquipmentDto.warrantyEndDate),
+      }),
+      active: createEquipmentDto.active !== undefined ? createEquipmentDto.active : true,
+      photoUrl: createEquipmentDto.photoUrl,
+      specifications: createEquipmentDto.specifications,
+      ...(createEquipmentDto.parentEquipmentId && {
+        parentEquipment: { connect: { id: createEquipmentDto.parentEquipmentId } },
+      }),
     };
 
     return this.prisma.equipment.create({
@@ -99,6 +114,15 @@ export class EquipmentService {
 
     const data: Prisma.EquipmentUpdateInput = {
       ...(updateEquipmentDto.type && { type: updateEquipmentDto.type }),
+      ...(updateEquipmentDto.name !== undefined && {
+        name: updateEquipmentDto.name,
+      }),
+      ...(updateEquipmentDto.identifier !== undefined && {
+        identifier: updateEquipmentDto.identifier,
+      }),
+      ...(updateEquipmentDto.category !== undefined && {
+        category: updateEquipmentDto.category,
+      }),
       ...(updateEquipmentDto.brand !== undefined && {
         brand: updateEquipmentDto.brand,
       }),

@@ -160,54 +160,10 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
   ],
 };
 
-export const ROUTE_PERMISSION_MAP: Record<string, string[]> = {
-  "/quotes": ["clients:view", "quotes:view"],
-  "/clients": ["clients:view"],
-  "/orders": ["orders:view"],
-  "/visits": ["visits:view"],
-  "/deliveries": ["orders:view"],
-  "/inventory": ["inventory:view"],
-  "/warehouse": ["inventory:view", "material-requests:view"],
-  "/equipment": ["equipment:view"],
-  "/procurement": ["procurement:view"],
-  "/suppliers": ["suppliers:view"],
-  "/purchase-orders": ["procurement:view"],
-  "/financial": ["expenses:view"],
-  "/invoices": ["expenses:view"],
-  "/approvals": ["orders:approve", "expenses:approve"],
-  "/fleet": ["fleet:view"],
-  "/fuel-requests": ["fleet:fuel-request", "fleet:fuel-approve"],
-  "/rh": ["rh:view"],
-  "/reports": ["expenses:view", "orders:view"],
-};
-
-export const MODULE_CODE_PERMISSION_MAP: Record<string, string[]> = {
-  COMMERCIAL: ["clients:view", "quotes:view"],
-  COMERCIAL: ["clients:view", "quotes:view"],
-  QUOTES: ["clients:view", "quotes:view"],
-  SERVICE_ORDERS: ["orders:view", "visits:view", "art:view"],
-  ORDERS: ["orders:view", "visits:view"],
-  VISITS: ["visits:view"],
-  DELIVERIES: ["orders:view"],
-  CLIENTS: ["clients:view"],
-  INVENTORY: ["inventory:view", "material-requests:view"],
-  ESTOQUE: ["inventory:view", "material-requests:view"],
-  WAREHOUSE: ["inventory:view", "material-requests:view"],
-  EQUIPMENTS: ["equipment:view", "warranty:view"],
-  EQUIPMENT: ["equipment:view", "warranty:view"],
-  PROCUREMENT: ["procurement:view", "suppliers:view"],
-  COMPRAS: ["procurement:view", "suppliers:view"],
-  FINANCIAL: ["expenses:view", "expenses:create"],
-  FINANCEIRO: ["expenses:view", "expenses:create"],
-  FLEET: ["fleet:view", "fleet:fuel-request"],
-  RH: ["rh:view"],
-};
-
 export function isUserAuthorizedForRoute(
   role: string | undefined | null,
   pathname: string,
-  roleName?: string | null,
-  userPermissions?: string[] | null
+  roleName?: string | null
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
@@ -223,22 +179,6 @@ export function isUserAuthorizedForRoute(
     return false;
   }
 
-  // Rotas comuns abertas a todos os usuários autenticados
-  if (pathname === "/dashboard" || pathname === "/modules" || pathname === "/profile") {
-    return true;
-  }
-
-  // 1. Verificação dinâmica baseada nas permissões reais salvas no banco
-  if (userPermissions && userPermissions.length > 0) {
-    const userPermSet = new Set(userPermissions);
-    for (const [routePrefix, requiredPerms] of Object.entries(ROUTE_PERMISSION_MAP)) {
-      if (pathname === routePrefix || pathname.startsWith(routePrefix + "/")) {
-        return requiredPerms.some((p) => userPermSet.has(p));
-      }
-    }
-  }
-
-  // 2. Fallback baseado no cargo pré-configurado
   const allowedRoutes = ROLE_ALLOWED_ROUTES[key];
   if (!allowedRoutes) return false;
 
@@ -250,8 +190,7 @@ export function isUserAuthorizedForRoute(
 export function isUserAuthorizedForModule(
   role: string | undefined | null,
   moduleCode: string,
-  roleName?: string | null,
-  userPermissions?: string[] | null
+  roleName?: string | null
 ): boolean {
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
@@ -263,18 +202,6 @@ export function isUserAuthorizedForModule(
     return false;
   }
 
-  if (code === "DASHBOARD") return true;
-
-  // 1. Verificação dinâmica baseada nas permissões reais salvas no banco
-  if (userPermissions && userPermissions.length > 0) {
-    const requiredPerms = MODULE_CODE_PERMISSION_MAP[code];
-    if (requiredPerms && requiredPerms.length > 0) {
-      const userPermSet = new Set(userPermissions);
-      return requiredPerms.some((p) => userPermSet.has(p));
-    }
-  }
-
-  // 2. Fallback baseado no cargo pré-configurado
   const allowedModules = ROLE_ALLOWED_MODULES[key];
   if (!allowedModules) return false;
 

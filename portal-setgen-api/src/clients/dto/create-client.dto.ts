@@ -10,7 +10,9 @@ import {
   IsArray,
   IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
+
+const emptyToUndefined = ({ value }: { value: any }) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
 import { ClientStatus, IcmsTaxpayerType } from '@prisma/client';
 
 class AddressDto {
@@ -29,6 +31,7 @@ class AddressDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   complement?: string;
 
   @ApiProperty()
@@ -61,6 +64,7 @@ export class CreateClientDto {
   @ApiProperty({ example: 'XPTO', required: false })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   tradeName?: string;
 
   @ApiProperty({ type: AddressDto })
@@ -91,16 +95,19 @@ export class CreateClientDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   notes?: string;
 
   @ApiProperty({ required: false, description: 'Código externo (chave de integração)' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   externalCode?: string;
 
   @ApiProperty({ required: false, description: 'Responsável no local (falar com)' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   onSiteContact?: string;
 
   @ApiProperty({ type: [String], required: false })
@@ -118,6 +125,7 @@ export class CreateClientDto {
   @ApiProperty({ required: false, description: 'Observação interna (não visível ao cliente)' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   internalNotes?: string;
 
   @ApiProperty({ enum: IcmsTaxpayerType, required: false })
@@ -128,16 +136,19 @@ export class CreateClientDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   stateRegistration?: string;
 
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   municipalRegistration?: string;
 
   @ApiProperty({ required: false })
   @IsEmail({}, { message: 'E-mail de cobrança inválido' })
   @IsOptional()
+  @Transform(emptyToUndefined)
   billingEmail?: string;
 
   @ApiProperty({ required: false })
@@ -153,20 +164,24 @@ export class CreateClientDto {
   @ApiProperty({ required: false, description: 'ID do colaborador (User) responsável' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   responsibleUserId?: string;
 
   @ApiProperty({ required: false, description: 'ID da equipe responsável' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   responsibleTeamId?: string;
 
   @ApiProperty({ required: false, description: 'ID do grupo de clientes (ClientTaxonomy kind=GROUP)' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   groupId?: string;
 
   @ApiProperty({ required: false, description: 'ID do segmento (ClientTaxonomy kind=SEGMENT)' })
   @IsString()
   @IsOptional()
+  @Transform(emptyToUndefined)
   segmentId?: string;
 }

@@ -3,23 +3,6 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 
-const STANDARD_MODULE_PERMISSIONS: Record<string, string[]> = {
-  DASHBOARD: [],
-  COMMERCIAL: ['clients:view', 'quotes:view'],
-  SERVICE_ORDERS: [
-    'orders:view', 'orders:create', 'orders:edit', 'orders:delete', 'orders:approve',
-    'visits:view', 'visits:create', 'visits:edit', 'visits:delete',
-    'art:view', 'art:manage',
-  ],
-  CLIENTS: ['clients:view', 'clients:create', 'clients:edit', 'clients:delete'],
-  INVENTORY: ['inventory:view', 'inventory:manage', 'material-requests:view', 'material-requests:manage'],
-  EQUIPMENTS: ['equipment:view', 'equipment:manage', 'warranty:view', 'warranty:manage'],
-  PROCUREMENT: ['procurement:view', 'procurement:manage', 'suppliers:view', 'suppliers:manage'],
-  FINANCIAL: ['expenses:view', 'expenses:create', 'expenses:edit', 'expenses:delete', 'expenses:approve'],
-  FLEET: ['fleet:view', 'fleet:manage', 'fleet:fuel-request', 'fleet:fuel-approve'],
-  RH: ['rh:view', 'rh:manage'],
-};
-
 @ApiTags('Access Control - Modules')
 @Controller('access-control')
 @UseGuards(JwtAuthGuard)
@@ -115,15 +98,12 @@ export class AccessControlController {
           };
         }
 
-        // Se o módulo possui permissões no banco ou nas constantes padrão, verifica se o usuário tem acesso
+        // Se o módulo possui permissões no banco, o usuário PRECISA ter pelo menos uma permissão ativa
         let hasAccess = false;
-        if (m.permissions.length > 0 && m.permissions.some((p) => userPermNames.has(p.name))) {
-          hasAccess = true;
-        } else {
-          const fallbackPerms = STANDARD_MODULE_PERMISSIONS[m.code] || [];
-          if (fallbackPerms.length > 0 && fallbackPerms.some((p) => userPermNames.has(p))) {
-            hasAccess = true;
-          }
+        if (m.permissions.length > 0) {
+          hasAccess = m.permissions.some((p) => userPermNames.has(p.name));
+        } else if (m.code === 'COMMERCIAL') {
+          hasAccess = userPermNames.has('clients:view') || userPermNames.has('quotes:view');
         }
 
         if (!hasAccess) {

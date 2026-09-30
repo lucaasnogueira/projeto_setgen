@@ -221,15 +221,21 @@ export function ModulePage({ announcement }: ModulePageProps) {
       const data = response.data;
       const rawModules: any[] = Array.isArray(data) ? data : data.modules || [];
 
+      if (rawModules.length === 0) {
+        setModules(filteredDefaults);
+        return;
+      }
+
       const isAdminUser = isAdmin || data.isAdmin === true;
       const enabledModules = rawModules
         .filter((mod: any) => {
           const code = (mod.code || mod.name || "").toUpperCase();
-          // Bloqueio estrito de Configurador para quem não for ADMIN
           if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
             return isAdminUser;
           }
-          return mod.isEnabled === true || mod.active === true || mod.isActive === true;
+          const authorized = isAdminUser || isUserAuthorizedForModule(userRole, code, userRoleName);
+          const active = isAdminUser || mod.isEnabled === true || mod.active === true;
+          return authorized && active;
         })
         .map((mod: any) => ({
           id: String(mod.id),
@@ -242,7 +248,7 @@ export function ModulePage({ announcement }: ModulePageProps) {
         }))
         .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
 
-      setModules(enabledModules);
+      setModules(enabledModules.length > 0 ? enabledModules : filteredDefaults);
     } catch (err: any) {
       console.error("Erro ao buscar catálogo de módulos:", err);
       setError(

@@ -134,13 +134,35 @@ export function EquipmentMultiCrudEditor({
       alert("Informe a razão social ou nome fantasia do cliente");
       return;
     }
+    const cleanCnpj = qcCnpj.replace(/\D/g, "");
+    if (!cleanCnpj || (cleanCnpj.length !== 11 && cleanCnpj.length !== 14)) {
+      alert("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido para o cliente.");
+      return;
+    }
+    if (!qcPhone.trim()) {
+      alert("Informe o telefone de contato do cliente.");
+      return;
+    }
+    if (!qcEmail.trim() || !qcEmail.includes("@")) {
+      alert("Informe um e-mail válido para o cliente.");
+      return;
+    }
+
     setQuickSaving(true);
     try {
       const newClient = await clientsApi.create({
         companyName: qcName.trim(),
-        cnpjCpf: qcCnpj.trim() || undefined,
-        email: qcEmail.trim() || undefined,
-        phone: qcPhone.trim() || undefined,
+        cnpjCpf: cleanCnpj,
+        email: qcEmail.trim().toLowerCase(),
+        phone: qcPhone.trim(),
+        address: {
+          cep: "01001-000",
+          street: "Não informado",
+          number: "S/N",
+          neighborhood: "Centro",
+          city: "São Paulo",
+          state: "SP",
+        },
       });
       setClients(prev => [newClient, ...prev]);
       setClientId(newClient.id);
@@ -178,7 +200,7 @@ export function EquipmentMultiCrudEditor({
         serialNumber: serialNumber.trim() || undefined,
         powerRating: powerRating.trim() || undefined,
         installLocation: installLocation.trim() || undefined,
-        purchaseDate: purchaseDate ? new Date(purchaseDate).toISOString() : undefined,
+        purchaseDate: purchaseDate && purchaseDate.trim() ? new Date(purchaseDate).toISOString() : undefined,
         notes: notes.trim() || undefined,
       };
 

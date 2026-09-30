@@ -170,17 +170,12 @@ export default function UsersAndPermissionsPage() {
       setRoles(rolesData || []);
       setPermissionGroups(permsData || []);
 
-      if (rolesData && rolesData.length > 0) {
-        if (!selectedRoleId) {
-          setSelectedRoleId(rolesData[0].id);
-          const initialPerms = new Set(
-            rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
-          );
-          setSelectedRolePermissions(initialPerms);
-        }
-        if (!createRoleId) {
-          setCreateRoleId(rolesData[0].id);
-        }
+      if (rolesData && rolesData.length > 0 && !selectedRoleId) {
+        setSelectedRoleId(rolesData[0].id);
+        const initialPerms = new Set(
+          rolesData[0].permissions?.map((p) => p.permission.name || "").filter(Boolean) || []
+        );
+        setSelectedRolePermissions(initialPerms);
       }
     } catch (err) {
       console.error("Erro ao carregar dados de usuários e permissões:", err);
@@ -224,7 +219,7 @@ export default function UsersAndPermissionsPage() {
       const assignedRole = mapRoleNameToUserRole(selectedRoleObj?.name || "Técnico");
       const finalLogin = (login || formatNameToLogin(fullName) || corporateEmail.split("@")[0]).toLowerCase().trim();
 
-      await usersApi.create({
+      const created = await usersApi.create({
         name: fullName.trim(),
         email: corporateEmail.toLowerCase().trim(),
         password: provisionalPassword,
@@ -236,8 +231,7 @@ export default function UsersAndPermissionsPage() {
         active: true,
       } as any);
 
-      const freshUsers = await usersApi.getAll();
-      setUsers(freshUsers || []);
+      setUsers((prev) => [created, ...prev]);
       toast.success(`Usuário ${fullName} (${selectedRoleObj?.name || assignedRole}) cadastrado com sucesso!`);
 
       // Limpa campos
@@ -355,9 +349,27 @@ export default function UsersAndPermissionsPage() {
         updatePayload.password = editNewPassword.trim();
       }
 
-      await usersApi.update(editModalUser.id, updatePayload);
-      const freshUsers = await usersApi.getAll();
-      setUsers(freshUsers || []);
+      const updated = await usersApi.update(editModalUser.id, updatePayload);
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editModalUser.id
+            ? {
+                ...u,
+                ...updated,
+                name: editFullName.trim(),
+                email: editEmail.toLowerCase().trim(),
+                login: finalLogin,
+                role: assignedRole as any,
+                roleId: selectedRoleObj?.id,
+                jobTitle: editJobTitle.trim() || selectedRoleObj?.name,
+                roleRef: selectedRoleObj ? { id: selectedRoleObj.id, name: selectedRoleObj.name } : u.roleRef,
+                roleName: selectedRoleObj?.name,
+                active: editActive,
+              }
+            : u
+        )
+      );
 
       toast.success(`Usuário ${editFullName} atualizado com sucesso!`);
       setEditModalUser(null);
