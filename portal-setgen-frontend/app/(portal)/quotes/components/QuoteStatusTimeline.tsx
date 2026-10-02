@@ -8,7 +8,7 @@ interface QuoteStatusTimelineProps {
 }
 
 export function QuoteStatusTimeline({ currentStatus }: QuoteStatusTimelineProps) {
-  const currentOrder = QUOTE_STATUS_CONFIG[currentStatus].order;
+  const currentOrder = QUOTE_STATUS_CONFIG[currentStatus]?.order ?? 0;
   const isOffMainFlow = !QUOTE_MAIN_FLOW.includes(currentStatus);
 
   return (
@@ -54,7 +54,7 @@ export function QuoteStatusTimeline({ currentStatus }: QuoteStatusTimelineProps)
       </div>
 
       {isOffMainFlow && (() => {
-        const config = QUOTE_STATUS_CONFIG[currentStatus];
+        const config = QUOTE_STATUS_CONFIG[currentStatus] || { label: currentStatus, icon: QUOTE_STATUS_CONFIG[QUOTE_MAIN_FLOW[0]].icon, color: "gray" as const, order: -1 };
         const Icon = config.icon;
         const hex = statusColorHex(config.color);
         return (

@@ -76,11 +76,14 @@ export default function EmployeesPage() {
     setCurrentPage(1); // Reset to first page when filter changes
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.cpf.includes(searchTerm) ||
-    (emp.position?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredEmployees = employees.filter((emp) => {
+    if (!emp) return false;
+    const term = (searchTerm || '').toLowerCase();
+    const name = (emp.name || '').toLowerCase();
+    const cpf = emp.cpf || '';
+    const position = (emp.position || '').toLowerCase();
+    return name.includes(term) || cpf.includes(searchTerm) || position.includes(term);
+  });
 
   const getASOStatus = (aso: any) => {
     if (!aso) return { label: 'Pendente', color: 'bg-red-100 text-red-800', icon: AlertTriangle };

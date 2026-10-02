@@ -40,12 +40,12 @@ export default function PurchaseOrdersPage() {
   }, []);
 
   const filtered = orders.filter((o) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      o.orderNumber.toLowerCase().includes(term) ||
-      (o.quote?.quoteNumber && o.quote.quoteNumber.toLowerCase().includes(term)) ||
-      (o.client?.companyName && o.client.companyName.toLowerCase().includes(term))
-    );
+    if (!o) return false;
+    const term = (searchTerm || '').toLowerCase();
+    const orderNum = (o.orderNumber || '').toLowerCase();
+    const quoteNum = (o.quote?.quoteNumber || '').toLowerCase();
+    const clientName = (o.client?.companyName || '').toLowerCase();
+    return orderNum.includes(term) || quoteNum.includes(term) || clientName.includes(term);
   });
 
   const totalApproved = orders.filter(o => o.status === PurchaseOrderStatus.APPROVED).length;

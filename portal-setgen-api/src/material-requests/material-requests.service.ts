@@ -129,7 +129,7 @@ export class MaterialRequestsService {
             client: { select: { id: true, companyName: true } },
           },
         },
-        items: { include: { product: true } },
+        items: { include: { product: { include: { location: true } } } },
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
     });
@@ -146,7 +146,7 @@ export class MaterialRequestsService {
             client: { select: { id: true, companyName: true } },
           },
         },
-        items: { include: { product: true } },
+        items: { include: { product: { include: { location: true } } } },
         procurementOrders: {
           select: { id: true, status: true, supplierId: true },
         },

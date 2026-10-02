@@ -146,7 +146,7 @@ export default function QuoteDetailsPage() {
         icon={FileText}
         tone="blue"
         title={`Orçamento #${quote.quoteNumber}`}
-        badge={{ label: QUOTE_STATUS_CONFIG[quote.status].label, className: quoteStatusBadgeClass(quote.status) }}
+        badge={{ label: QUOTE_STATUS_CONFIG[quote.status]?.label || quote.status || "Pendente", className: quoteStatusBadgeClass(quote.status) }}
         meta={<>{quote.client?.companyName}</>}
         backLabel="Voltar para lista"
         onBack={() => router.back()}

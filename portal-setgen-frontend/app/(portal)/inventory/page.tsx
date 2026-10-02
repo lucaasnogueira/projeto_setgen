@@ -146,24 +146,41 @@ export default function InventoryPage() {
     );
   }
 
-  const lowStockItems = items.filter((item) => item.currentStock <= item.minStock && item.currentStock > item.minStock / 2);
-  const criticalItems = items.filter((item) => item.currentStock <= item.minStock / 2);
-  const regularItems = items.filter((item) => item.currentStock > item.minStock);
+  const itemsList = Array.isArray(items) ? items : [];
 
-  const filtered = items.filter((item) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(term) ||
-      item.code.toLowerCase().includes(term) ||
-      item.barcode?.toLowerCase().includes(term)
-    );
+  const lowStockItems = itemsList.filter((item) => {
+    const cur = Number(item?.currentStock) || 0;
+    const min = Number(item?.minStock) || 0;
+    return min > 0 && cur <= min && cur > min / 2;
+  });
+  const criticalItems = itemsList.filter((item) => {
+    const cur = Number(item?.currentStock) || 0;
+    const min = Number(item?.minStock) || 0;
+    return (min > 0 && cur <= min / 2) || (min === 0 && cur === 0);
+  });
+  const regularItems = itemsList.filter((item) => {
+    const cur = Number(item?.currentStock) || 0;
+    const min = Number(item?.minStock) || 0;
+    return cur > min;
   });
 
-  const selectedProduct = items.find((i) => i.id === selectedProductId);
+  const filtered = itemsList.filter((item) => {
+    if (!item) return false;
+    const term = (searchTerm || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
+    const code = (item.code || '').toLowerCase();
+    const barcode = (item.barcode || '').toLowerCase();
+    return name.includes(term) || code.includes(term) || barcode.includes(term);
+  });
+
+  const selectedProduct = itemsList.find((i) => i?.id === selectedProductId);
 
   const statusOf = (item: Product) => {
-    if (item.currentStock <= item.minStock / 2) return { label: 'Crítico', cls: 'bg-red-100 text-red-700' };
-    if (item.currentStock <= item.minStock) return { label: 'Baixo', cls: 'bg-amber-100 text-amber-700' };
+    const cur = Number(item?.currentStock) || 0;
+    const min = Number(item?.minStock) || 0;
+    if (min > 0 && cur <= min / 2) return { label: 'Crítico', cls: 'bg-red-100 text-red-700' };
+    if (min > 0 && cur <= min) return { label: 'Baixo', cls: 'bg-amber-100 text-amber-700' };
+    if (min === 0 && cur === 0) return { label: 'Sem Estoque', cls: 'bg-red-100 text-red-700' };
     return { label: 'Normal', cls: 'bg-emerald-100 text-emerald-700' };
   };
 
@@ -271,7 +288,7 @@ export default function InventoryPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right text-[12.5px] font-bold text-foreground">
-                      {item.unitPrice ? formatCurrency(item.unitPrice) : '—'}
+                      {item.unitPrice ? formatCurrency(Number(item.unitPrice)) : item.salePrice ? formatCurrency(Number(item.salePrice)) : '—'}
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">

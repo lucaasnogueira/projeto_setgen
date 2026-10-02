@@ -114,7 +114,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                 <div>
                   <h3 className="text-lg font-bold">Confirmar Mudança de Status</h3>
                   <p className="text-orange-100 text-sm mt-1">
-                    {SERVICE_ORDER_STATUS_CONFIG[currentStatus].label} → {SERVICE_ORDER_STATUS_CONFIG[selectedStatus].label}
+                    {SERVICE_ORDER_STATUS_CONFIG[currentStatus]?.label || currentStatus} → {selectedStatus ? (SERVICE_ORDER_STATUS_CONFIG[selectedStatus]?.label || selectedStatus) : ""}
                   </p>
                 </div>
               </div>

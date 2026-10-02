@@ -137,6 +137,8 @@ export function ProductMultiCrudEditor({
     setSaving(true);
 
     try {
+      const numericUnitPrice = unitPrice ? Number(unitPrice) : undefined;
+      const numericUnitCost = unitCost ? Number(unitCost) : undefined;
       const payload: any = {
         code: code.trim(),
         name: name.trim(),
@@ -146,10 +148,10 @@ export function ProductMultiCrudEditor({
         currentStock: Number(currentStock) || 0,
         minStock: Number(minStock) || 0,
         locationId: locationId || undefined,
-        unitPrice: unitPrice ? Number(unitPrice) : undefined,
-        unitCost: unitCost ? Number(unitCost) : undefined,
+        unitPrice: numericUnitPrice,
+        salePrice: numericUnitPrice,
+        unitCost: numericUnitCost,
         ncm: ncm.trim() || undefined,
-        unitsPerPackage: unitsPerPackage ? Number(unitsPerPackage) : 1,
         active,
       };
 

@@ -9,7 +9,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // Permite que campos extras inofensivos sejam filtrados sem rejeitar a requisicao com erro de propriedade
       transform: true,
     }),
   );

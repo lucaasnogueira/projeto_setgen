@@ -114,7 +114,7 @@ export function QuoteStatusManager({ currentStatus, userRole, onStatusChange }: 
                 <div>
                   <h3 className="text-lg font-bold">Confirmar Mudança de Status</h3>
                   <p className="text-orange-100 text-sm mt-1">
-                    {QUOTE_STATUS_CONFIG[currentStatus].label} → {QUOTE_STATUS_CONFIG[selectedStatus].label}
+                    {QUOTE_STATUS_CONFIG[currentStatus]?.label || currentStatus} → {selectedStatus ? (QUOTE_STATUS_CONFIG[selectedStatus]?.label || selectedStatus) : ""}
                   </p>
                 </div>
               </div>

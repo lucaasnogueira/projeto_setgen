@@ -170,10 +170,12 @@ const BADGE_CLASSNAMES: Record<StatusConfigEntry['color'], string> = {
   purple: 'bg-status-purple-bg text-status-purple-fg',
 };
 
-export function quoteStatusBadgeClass(status: QuoteStatus): string {
-  return BADGE_CLASSNAMES[QUOTE_STATUS_CONFIG[status].color];
+export function quoteStatusBadgeClass(status?: QuoteStatus): string {
+  const config = (status && QUOTE_STATUS_CONFIG[status]) || { color: 'gray' as const };
+  return BADGE_CLASSNAMES[config.color] || BADGE_CLASSNAMES.gray;
 }
 
-export function serviceOrderStatusBadgeClass(status: ServiceOrderStatus): string {
-  return BADGE_CLASSNAMES[SERVICE_ORDER_STATUS_CONFIG[status].color];
+export function serviceOrderStatusBadgeClass(status?: ServiceOrderStatus): string {
+  const config = (status && SERVICE_ORDER_STATUS_CONFIG[status]) || { color: 'gray' as const };
+  return BADGE_CLASSNAMES[config.color] || BADGE_CLASSNAMES.gray;
 }

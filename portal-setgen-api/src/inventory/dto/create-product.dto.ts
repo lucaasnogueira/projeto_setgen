@@ -5,6 +5,7 @@ import {
   IsNumber,
   Min,
   IsOptional,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -51,6 +52,23 @@ export class CreateProductDto {
   @IsOptional()
   unitCost?: number;
 
+  @ApiProperty({ example: 500.0, required: false })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  salePrice?: number;
+
+  @ApiProperty({ example: 500.0, required: false })
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  unitPrice?: number;
+
+  @ApiProperty({ example: '8421.23.00', required: false })
+  @IsString()
+  @IsOptional()
+  ncm?: string;
+
   @ApiProperty({ example: '7891234567890', required: false })
   @IsString()
   @IsOptional()
@@ -60,4 +78,29 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   locationId?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  externalCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  photoUrl?: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsBoolean()
+  @IsOptional()
+  active?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  associatedEquipmentId?: string;
 }

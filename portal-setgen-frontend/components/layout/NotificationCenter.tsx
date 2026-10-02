@@ -56,11 +56,12 @@ export function NotificationCenter() {
       wants("materialRequests") && canSeeMaterialRequests ? materialRequestsApi.getAll(MaterialRequestStatus.PENDING) : Promise.resolve([]),
     ])
 
-    if (results[0].status === "fulfilled") {
+    if (results[0].status === "fulfilled" && Array.isArray(results[0].value)) {
       for (const quote of results[0].value) {
+        if (!quote) continue;
         items.push({
           id: `approval-${quote.id}`,
-          title: `Orçamento ${quote.quoteNumber} aguardando aprovação`,
+          title: `Orçamento ${quote.quoteNumber || ""} aguardando aprovação`,
           description: quote.client?.companyName || "Cliente não informado",
           type: "approval",
           href: `/approvals/${quote.id}`,
@@ -68,13 +69,16 @@ export function NotificationCenter() {
       }
     }
 
-    if (results[1].status === "fulfilled") {
+    if (results[1].status === "fulfilled" && Array.isArray(results[1].value)) {
       for (const product of results[1].value) {
-        if (product.currentStock <= product.minStock) {
+        if (!product) continue;
+        const cur = Number(product.currentStock) || 0;
+        const min = Number(product.minStock) || 0;
+        if (min > 0 && cur <= min) {
           items.push({
             id: `stock-${product.id}`,
-            title: `Estoque baixo: ${product.name}`,
-            description: `${product.currentStock} ${product.unit} disponível (mínimo ${product.minStock})`,
+            title: `Estoque baixo: ${product.name || "Item sem nome"}`,
+            description: `${cur} ${product.unit || "un"} disponível (mínimo ${min})`,
             type: "stock",
             href: `/inventory/${product.id}`,
           })
@@ -82,20 +86,22 @@ export function NotificationCenter() {
       }
     }
 
-    if (results[2].status === "fulfilled") {
+    if (results[2].status === "fulfilled" && Array.isArray(results[2].value)) {
       for (const fr of results[2].value) {
+        if (!fr) continue;
         items.push({
           id: `fuel-${fr.id}`,
           title: `Abastecimento pendente: ${fr.vehicle?.name || "Veículo"}`,
-          description: `${fr.liters}L — aguardando aprovação`,
+          description: `${fr.liters || 0}L — aguardando aprovação`,
           type: "fuel",
           href: `/fleet`,
         })
       }
     }
 
-    if (results[3].status === "fulfilled") {
+    if (results[3].status === "fulfilled" && Array.isArray(results[3].value)) {
       for (const mr of results[3].value) {
+        if (!mr) continue;
         items.push({
           id: `material-${mr.id}`,
           title: `Solicitação de material pendente`,

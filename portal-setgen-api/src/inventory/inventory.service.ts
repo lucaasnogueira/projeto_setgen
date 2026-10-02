@@ -27,6 +27,7 @@ export class InventoryService {
       throw new ConflictException('Já existe um produto com este código');
     }
 
+    const rawSalePrice = createProductDto.salePrice ?? createProductDto.unitPrice;
     const productData: Prisma.ProductCreateInput = {
       code: createProductDto.code,
       name: createProductDto.name,
@@ -35,6 +36,12 @@ export class InventoryService {
       minStock: createProductDto.minStock,
       currentStock: createProductDto.currentStock || 0,
       unitCost: createProductDto.unitCost,
+      salePrice: rawSalePrice !== undefined && rawSalePrice !== null ? new Prisma.Decimal(rawSalePrice) : undefined,
+      ncm: createProductDto.ncm,
+      category: createProductDto.category,
+      externalCode: createProductDto.externalCode,
+      photoUrl: createProductDto.photoUrl,
+      active: createProductDto.active ?? true,
       barcode: createProductDto.barcode,
       ...(createProductDto.locationId && {
         location: { connect: { id: createProductDto.locationId } },
@@ -138,9 +145,22 @@ export class InventoryService {
       }
     }
 
+    const { unitPrice, locationId, ...rest } = updateProductDto as any;
+    const rawSalePrice = updateProductDto.salePrice ?? unitPrice;
+
+    const data: Prisma.ProductUpdateInput = {
+      ...rest,
+      ...(rawSalePrice !== undefined && {
+        salePrice: rawSalePrice !== null ? new Prisma.Decimal(rawSalePrice) : null,
+      }),
+      ...(locationId !== undefined && {
+        location: locationId ? { connect: { id: locationId } } : { disconnect: true },
+      }),
+    };
+
     return this.prisma.product.update({
       where: { id },
-      data: updateProductDto,
+      data,
     });
   }
 

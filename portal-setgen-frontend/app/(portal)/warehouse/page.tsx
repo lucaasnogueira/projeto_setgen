@@ -33,6 +33,12 @@ const STATUS_LABELS: Record<MaterialRequestStatus, string> = {
   [MaterialRequestStatus.RELEASED]: "Liberado ao Técnico",
 };
 
+const DEFAULT_BADGE = {
+  bg: "bg-slate-100",
+  text: "text-slate-700",
+  border: "border-slate-200",
+};
+
 const STATUS_BADGES: Record<MaterialRequestStatus, { bg: string; text: string; border: string }> = {
   [MaterialRequestStatus.PENDING]: {
     bg: "bg-slate-100",
@@ -130,7 +136,8 @@ export default function WarehousePage() {
   ).length;
 
   // Filtragem dos registros
-  const filteredRequests = requests.filter((r) => {
+  const filteredRequests = (requests || []).filter((r) => {
+    if (!r) return false;
     // Filtro por status
     if (statusFilter === "PENDING" && r.status !== MaterialRequestStatus.PENDING && r.status !== MaterialRequestStatus.PARTIALLY_RESERVED) return false;
     if (statusFilter === "AWAITING_PURCHASE" && r.status !== MaterialRequestStatus.AWAITING_PURCHASE) return false;
@@ -140,9 +147,10 @@ export default function WarehousePage() {
     // Filtro por termo de busca
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      const matchOs = r.serviceOrder?.orderNumber?.toLowerCase().includes(term);
-      const matchClient = r.serviceOrder?.client?.companyName?.toLowerCase().includes(term);
-      const matchItems = r.items?.some((i) => i.product?.name?.toLowerCase().includes(term) || i.product?.code?.toLowerCase().includes(term));
+      const matchOs = (r.serviceOrder?.orderNumber || "").toLowerCase().includes(term);
+      const matchClient = (r.serviceOrder?.client?.companyName || "").toLowerCase().includes(term);
+      const reqItems = Array.isArray(r.items) ? r.items : [];
+      const matchItems = reqItems.some((i) => (i?.product?.name || "").toLowerCase().includes(term) || (i?.product?.code || "").toLowerCase().includes(term));
       if (!matchOs && !matchClient && !matchItems) return false;
     }
 
@@ -268,8 +276,10 @@ export default function WarehousePage() {
         ) : (
           filteredRequests.map((r) => {
             const expanded = expandedId === r.id;
-            const badge = STATUS_BADGES[r.status];
-            const missingItems = r.items.filter((i) => i.quantityReserved < i.quantityNeeded);
+            const badge = (r.status && STATUS_BADGES[r.status]) || DEFAULT_BADGE;
+            const statusLabel = (r.status && STATUS_LABELS[r.status]) || r.status || "Pendente";
+            const reqItems = Array.isArray(r.items) ? r.items : [];
+            const missingItems = reqItems.filter((i) => (Number(i.quantityReserved) || 0) < (Number(i.quantityNeeded) || 0));
             const isSeparated = r.status === MaterialRequestStatus.SEPARATED;
             const isReleased = r.status === MaterialRequestStatus.RELEASED;
 
@@ -289,13 +299,19 @@ export default function WarehousePage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Link
-                          href={`/orders/${r.serviceOrder?.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm font-black text-gray-900 hover:text-[#E2661D] transition-colors"
-                        >
-                          OS #{r.serviceOrder?.orderNumber}
-                        </Link>
+                        {r.serviceOrder?.id ? (
+                          <Link
+                            href={`/orders/${r.serviceOrder.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm font-black text-gray-900 hover:text-[#E2661D] transition-colors"
+                          >
+                            OS #{r.serviceOrder?.orderNumber || "S/N"}
+                          </Link>
+                        ) : (
+                          <span className="text-sm font-black text-gray-900">
+                            OS #{r.serviceOrder?.orderNumber || "S/N"}
+                          </span>
+                        )}
                         <span className="text-gray-300">•</span>
                         <span className="text-xs font-bold text-gray-700 truncate max-w-xs">
                           {r.serviceOrder?.client?.companyName || "Cliente não informado"}
@@ -303,7 +319,7 @@ export default function WarehousePage() {
                       </div>
                       <div className="text-[11.5px] text-gray-500 mt-0.5 flex items-center gap-3 flex-wrap">
                         <span>
-                          {r.items.length} item(ns) previstos
+                          {reqItems.length} item(ns) previstos
                         </span>
                         <span>•</span>
                         <span>
@@ -326,7 +342,7 @@ export default function WarehousePage() {
                     <span
                       className={`px-3 py-1 rounded-xl text-xs font-bold border ${badge.bg} ${badge.text} ${badge.border}`}
                     >
-                      {STATUS_LABELS[r.status]}
+                      {statusLabel}
                     </span>
 
                     {/* Botão de Separação */}
@@ -389,9 +405,12 @@ export default function WarehousePage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {r.items.map((item) => {
-                            const hasEnough = (item.product?.currentStock || 0) >= (item.quantityNeeded - item.quantityReserved);
-                            const isFullyReserved = item.quantityReserved >= item.quantityNeeded;
+                          {reqItems.map((item) => {
+                            const qNeeded = Number(item.quantityNeeded) || 0;
+                            const qReserved = Number(item.quantityReserved) || 0;
+                            const currentStock = Number(item.product?.currentStock) || 0;
+                            const hasEnough = currentStock >= (qNeeded - qReserved);
+                            const isFullyReserved = qReserved >= qNeeded;
 
                             return (
                               <tr key={item.id} className="hover:bg-white/60">
@@ -405,13 +424,13 @@ export default function WarehousePage() {
                                   {item.product?.location?.code || "Galpão Principal"}
                                 </td>
                                 <td className="py-2.5 text-right font-black text-gray-900">
-                                  {item.quantityNeeded} {item.product?.unit || "un"}
+                                  {qNeeded} {item.product?.unit || "un"}
                                 </td>
                                 <td className="py-2.5 text-right font-bold text-emerald-600">
-                                  {item.quantityReserved} {item.product?.unit || "un"}
+                                  {qReserved} {item.product?.unit || "un"}
                                 </td>
                                 <td className="py-2.5 text-right font-medium text-gray-600">
-                                  {item.product?.currentStock} {item.product?.unit || "un"}
+                                  {currentStock} {item.product?.unit || "un"}
                                 </td>
                                 <td className="py-2.5 text-center">
                                   {isFullyReserved ? (
@@ -455,7 +474,7 @@ export default function WarehousePage() {
                           </span>
                         </div>
                         <Link
-                          href={`/procurement?new=true&productId=${missingItems[0].productId}&qty=${Math.max(1, missingItems[0].quantityNeeded - missingItems[0].quantityReserved)}&materialRequestId=${r.id}`}
+                          href={`/procurement?new=true&productId=${missingItems[0]?.productId || ""}&qty=${Math.max(1, (Number(missingItems[0]?.quantityNeeded) || 0) - (Number(missingItems[0]?.quantityReserved) || 0))}&materialRequestId=${r.id}`}
                         >
                           <Button
                             size="sm"

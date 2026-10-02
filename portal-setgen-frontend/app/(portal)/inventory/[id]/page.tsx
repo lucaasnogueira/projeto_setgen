@@ -135,19 +135,22 @@ export default function ProductDetailsPage() {
 
   if (!product) return null;
 
-  const isLowStock = product.currentStock <= product.minStock;
-  const movements = product.movements || [];
+  const currentStock = Number(product.currentStock) || 0;
+  const minStock = Number(product.minStock) || 0;
+  const isLowStock = minStock > 0 && currentStock <= minStock;
+  const movements = Array.isArray(product.movements) ? product.movements : [];
   const now = new Date();
   const monthMovements = movements.filter((m) => {
+    if (!m?.createdAt) return false;
     const d = new Date(m.createdAt);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
   const monthEntries = monthMovements
     .filter((m) => INBOUND_TYPES.includes(m.type))
-    .reduce((sum, m) => sum + m.quantity, 0);
+    .reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
   const monthExits = monthMovements
     .filter((m) => !INBOUND_TYPES.includes(m.type) && m.type !== MovementType.TRANSFER)
-    .reduce((sum, m) => sum + m.quantity, 0);
+    .reduce((sum, m) => sum + (Number(m.quantity) || 0), 0);
 
   return (
     <div className="max-w-5xl mx-auto space-y-4 pb-12">

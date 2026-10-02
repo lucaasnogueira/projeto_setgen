@@ -35,11 +35,14 @@ export default function SuppliersPage() {
     suppliersApi.getAll().then(setSuppliers).catch((e) => console.error(e)).finally(() => setLoading(false));
   }, []);
 
-  const filtered = suppliers.filter((s) =>
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.cnpj && s.cnpj.includes(searchTerm)) ||
-    (s.contact && s.contact.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filtered = suppliers.filter((s) => {
+    if (!s) return false;
+    const term = (searchTerm || '').toLowerCase();
+    const name = (s.name || '').toLowerCase();
+    const cnpj = s.cnpj || '';
+    const contact = (s.contact || '').toLowerCase();
+    return name.includes(term) || cnpj.includes(searchTerm) || contact.includes(term);
+  });
 
   const totalActive = suppliers.filter(s => s.active).length;
   const totalInactive = suppliers.filter(s => !s.active).length;

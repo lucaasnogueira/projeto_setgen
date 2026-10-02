@@ -211,7 +211,7 @@ export default function VisitDetailsPage() {
       <Tabs defaultValue="detalhes">
         <TabsList>
           <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
-          {visit.checklist && visit.checklist.length > 0 && (
+          {Array.isArray(visit.checklist) && visit.checklist.length > 0 && (
             <TabsTrigger value="checklist">Checklist</TabsTrigger>
           )}
           <TabsTrigger value="checkin">Check-in / Check-out</TabsTrigger>
@@ -309,7 +309,7 @@ export default function VisitDetailsPage() {
                 </InfoRow>
               )}
 
-              {visit.equipments && visit.equipments.length > 0 && (
+              {Array.isArray(visit.equipments) && visit.equipments.length > 0 && (
                 <InfoRow icon={Zap} label="Equipamentos">
                   <div className="flex flex-wrap gap-1.5 mt-1">
                     {visit.equipments.map((link) => (

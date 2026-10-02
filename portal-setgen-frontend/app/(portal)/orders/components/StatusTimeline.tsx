@@ -8,7 +8,7 @@ interface StatusTimelineProps {
 }
 
 export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
-  const currentOrder = SERVICE_ORDER_STATUS_CONFIG[currentStatus].order;
+  const currentOrder = SERVICE_ORDER_STATUS_CONFIG[currentStatus]?.order ?? 0;
   const isOffMainFlow = !SERVICE_ORDER_MAIN_FLOW.includes(currentStatus);
 
   return (
@@ -54,7 +54,7 @@ export function StatusTimeline({ currentStatus }: StatusTimelineProps) {
       </div>
 
       {isOffMainFlow && (() => {
-        const config = SERVICE_ORDER_STATUS_CONFIG[currentStatus];
+        const config = SERVICE_ORDER_STATUS_CONFIG[currentStatus] || { label: currentStatus, icon: SERVICE_ORDER_STATUS_CONFIG[SERVICE_ORDER_MAIN_FLOW[0]].icon, color: "gray" as const, order: -1 };
         const Icon = config.icon;
         const hex = statusColorHex(config.color);
         return (
