@@ -684,7 +684,7 @@ export default function OrderDetailsPage() {
 
   const handleZeroAccumulatorLabor = async () => {
     if (!order) return;
-    if (!window.confirm("Zerar horas e custo de mão de obra padrão?")) return;
+    if (!window.confirm("Zerar diárias e custo de mão de obra padrão?")) return;
     try {
       await ordersApi.updateWorkedHours(order.id, 0, 0);
       toast.success("Mão de obra zerada com sucesso!");
@@ -949,16 +949,16 @@ export default function OrderDetailsPage() {
     if (!order) return;
     const hrs = Number(customHours.replace(',', '.'));
     if (isNaN(hrs) || hrs < 0) {
-      toast.error('Informe uma quantidade de horas válida.');
+      toast.error('Informe uma quantidade de diárias válida.');
       return;
     }
     setSavingHours(true);
     try {
       await ordersApi.updateWorkedHours(order.id, hrs);
-      toast.success(`Horas trabalhadas atualizadas para ${hrs}h!`);
+      toast.success(`Diárias trabalhadas atualizadas para ${hrs} diária(s)!`);
       loadOrderData();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Erro ao atualizar horas trabalhadas.');
+      toast.error(err?.response?.data?.message || 'Erro ao atualizar diárias trabalhadas.');
     } finally {
       setSavingHours(false);
     }
@@ -2480,10 +2480,10 @@ export default function OrderDetailsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#E2661D]" /> Mão de Obra Técnica (Jornada & Equipe)
+                  <Clock className="h-4 w-4 text-[#E2661D]" /> Mão de Obra Técnica (Diárias & Equipe)
                 </h3>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  Lance turnos, horas trabalhadas e técnicos alocados com taxa horária apurada para o DRE.
+                  Lance turnos, diárias trabalhadas e técnicos alocados com valor de diária apurada para o DRE.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -2518,7 +2518,7 @@ export default function OrderDetailsPage() {
             {showAddLabor && (
               <form onSubmit={handleAddLaborEntry} className="p-4 rounded-xl bg-orange-50/50 border border-orange-200 space-y-3">
                 <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
-                  <Plus className="h-3.5 w-3.5 text-[#E2661D]" /> Adicionar Turno / Horas de Técnico
+                  <Plus className="h-3.5 w-3.5 text-[#E2661D]" /> Adicionar Turno / Diárias de Técnico
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
@@ -2553,20 +2553,20 @@ export default function OrderDetailsPage() {
                     </select>
                   </div>
                   <div>
-                    <Label className="text-[11px] font-bold text-gray-600">Horas Trabalhadas *</Label>
+                    <Label className="text-[11px] font-bold text-gray-600">Diárias Trabalhadas *</Label>
                     <Input
                       value={newLaborHours}
                       onChange={(e) => setNewLaborHours(e.target.value)}
-                      placeholder="Ex: 4.5"
+                      placeholder="Ex: 1 ou 0.5"
                       className="h-8 text-xs rounded-lg bg-white mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-[11px] font-bold text-gray-600">Taxa Horária (R$/h) *</Label>
+                    <Label className="text-[11px] font-bold text-gray-600">Valor da Diária (R$/dia) *</Label>
                     <Input
                       value={newLaborRate}
                       onChange={(e) => setNewLaborRate(e.target.value)}
-                      placeholder="85.00"
+                      placeholder="Ex: 250.00"
                       className="h-8 text-xs rounded-lg bg-white mt-1"
                     />
                   </div>
@@ -2596,32 +2596,32 @@ export default function OrderDetailsPage() {
               {editingAccumLabor && (
                 <div className="p-3.5 rounded-xl bg-orange-50/60 border border-orange-200 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-gray-800">Editar Acumulador Padrão de Horas</p>
+                    <p className="text-xs font-bold text-gray-800">Editar Acumulador Padrão de Diárias</p>
                     <button type="button" onClick={() => setEditingAccumLabor(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancelar</button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-[11px] font-bold text-gray-600">Total de Horas Trabalhadas</Label>
+                      <Label className="text-[11px] font-bold text-gray-600">Total de Diárias Trabalhadas</Label>
                       <Input
                         value={accumLaborHours}
                         onChange={e => setAccumLaborHours(e.target.value)}
-                        placeholder="Ex: 0 ou 4.5"
+                        placeholder="Ex: 1 ou 0.5"
                         className="h-8 text-xs bg-white mt-1"
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] font-bold text-gray-600">Taxa Horária Snapshot (R$/h)</Label>
+                      <Label className="text-[11px] font-bold text-gray-600">Valor da Diária Snapshot (R$/dia)</Label>
                       <Input
                         value={accumLaborRate}
                         onChange={e => setAccumLaborRate(e.target.value)}
-                        placeholder="85.00"
+                        placeholder="Ex: 250.00"
                         className="h-8 text-xs bg-white mt-1"
                       />
                     </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button type="button" size="sm" variant="ghost" onClick={handleZeroAccumulatorLabor} className="h-8 text-xs text-rose-600 hover:bg-rose-50 font-bold">
-                      Zerar Horas e Custo
+                      Zerar Diárias e Custo
                     </Button>
                     <Button type="button" size="sm" onClick={handleSaveAccumulatorLabor} disabled={savingAccumLabor} className="h-8 text-xs bg-[#E2661D] text-white font-bold">
                       {savingAccumLabor ? "Salvando..." : "Salvar Acumulador"}
@@ -2635,7 +2635,7 @@ export default function OrderDetailsPage() {
                   <div className="space-y-0.5">
                     <span className="text-gray-700 font-semibold block">Acumulador Padrão da OS:</span>
                     <span className="text-gray-500">
-                      <strong>{order.totalWorkedHours || 0} horas</strong> @ {formatMoney(Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85)}/hora
+                      <strong>{order.totalWorkedHours || 0} diária(s)</strong> @ {formatMoney(Number(order.hourlyRateSnapshot) || Number(order.assignedCollaborator?.hourlyRate) || 85)}/dia
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2662,7 +2662,7 @@ export default function OrderDetailsPage() {
                         variant="ghost"
                         onClick={handleZeroAccumulatorLabor}
                         className="h-7 text-xs px-2 text-rose-600 hover:bg-rose-50"
-                        title="Zerar horas e custo"
+                        title="Zerar diárias e custo"
                       >
                         Zerar
                       </Button>
@@ -2678,7 +2678,7 @@ export default function OrderDetailsPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-gray-900">{l.user?.name || 'Técnico'}</span>
-                          <span className="text-gray-500 font-medium">({p.hours || 0}h @ {formatMoney(p.hourlyRate || 85)}/h)</span>
+                          <span className="text-gray-500 font-medium">({p.hours || 0} diária(s) @ {formatMoney(p.hourlyRate || 85)}/dia)</span>
                         </div>
                         <p className="text-[11px] text-gray-500 mt-0.5">{p.description || 'Atendimento técnico de campo'}</p>
                       </div>
@@ -4344,7 +4344,7 @@ export default function OrderDetailsPage() {
               <span>Cadastrar Novo Técnico / Colaborador</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Cadastre um técnico de campo para alocação direta de horas e cálculo do DRE.
+              Cadastre um técnico de campo para alocação direta de diárias e cálculo do DRE.
             </DialogDescription>
           </DialogHeader>
 
@@ -4384,11 +4384,11 @@ export default function OrderDetailsPage() {
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-gray-700">Taxa Horária (R$/h)</Label>
+                <Label className="text-xs font-bold text-gray-700">Valor da Diária (R$/dia)</Label>
                 <Input
                   value={quickUserRate}
                   onChange={e => setQuickUserRate(e.target.value)}
-                  placeholder="Ex: 85,00"
+                  placeholder="Ex: 250,00"
                   className="h-9 text-xs bg-white mt-1"
                 />
               </div>
@@ -4431,7 +4431,7 @@ export default function OrderDetailsPage() {
               <span>Editar Registro de Mão de Obra</span>
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Altere o técnico responsável, horas trabalhadas ou taxa horária deste lançamento.
+              Altere o técnico responsável, diárias trabalhadas ou valor da diária deste lançamento.
             </DialogDescription>
           </DialogHeader>
 
@@ -4454,22 +4454,22 @@ export default function OrderDetailsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-gray-700">Horas Trabalhadas *</Label>
+                <Label className="text-xs font-bold text-gray-700">Diárias Trabalhadas *</Label>
                 <Input
                   required
                   value={editLaborHours}
                   onChange={e => setEditLaborHours(e.target.value)}
-                  placeholder="Ex: 4.5"
+                  placeholder="Ex: 1 ou 0.5"
                   className="h-9 text-xs bg-white mt-1"
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-gray-700">Taxa Horária (R$/h) *</Label>
+                <Label className="text-xs font-bold text-gray-700">Valor da Diária (R$/dia) *</Label>
                 <Input
                   required
                   value={editLaborRate}
                   onChange={e => setEditLaborRate(e.target.value)}
-                  placeholder="85.00"
+                  placeholder="Ex: 250.00"
                   className="h-9 text-xs bg-white mt-1"
                 />
               </div>

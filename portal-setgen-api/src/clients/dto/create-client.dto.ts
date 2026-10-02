@@ -78,10 +78,11 @@ export class CreateClientDto {
   @IsNotEmpty({ message: 'Telefone é obrigatório' })
   phone: string;
 
-  @ApiProperty({ example: 'contato@empresa.com' })
+  @ApiProperty({ example: 'contato@empresa.com', required: false })
   @IsEmail({}, { message: 'E-mail inválido' })
-  @IsNotEmpty({ message: 'E-mail é obrigatório' })
-  email: string;
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  email?: string;
 
   @ApiProperty({ type: 'array', required: false, default: [] })
   @IsOptional()
