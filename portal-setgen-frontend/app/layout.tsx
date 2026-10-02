@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -11,9 +11,30 @@ const manrope = Manrope({
   variable: "--font-manrope",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#1c2733" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "Portal Setgen - Gestão de Serviços",
-  description: "Sistema completo de gestão de serviços técnicos",
+  description: "Sistema completo de gestão de serviços técnicos e operacionais",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Portal Setgen",
+  },
+  formatDetection: {
+    telephone: true,
+  },
 };
 
 export default function RootLayout({

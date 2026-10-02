@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { authApi } from '@/lib/api/auth';
-import { Search, Bell, User, Settings, LogOut, ChevronRight, Home } from 'lucide-react';
+import { Search, Bell, User, Settings, LogOut, ChevronRight, Home, Menu } from 'lucide-react';
 import { CommandMenu } from './CommandMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationCenter } from './NotificationCenter';
+import { useUIStore } from '@/store/ui';
 
 const BREADCRUMB_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -43,6 +44,7 @@ export default function Topbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { user, clearAuth } = useAuthStore();
+  const { toggleMobileMenu } = useUIStore();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -67,35 +69,53 @@ export default function Topbar() {
   };
 
   const breadcrumb = getBreadcrumb();
+  const currentLabel = breadcrumb.length > 0 ? breadcrumb[breadcrumb.length - 1].label : 'Início';
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-20 h-16 shrink-0">
-      <div className="h-full px-6 flex items-center justify-between">
-        {/* Breadcrumb com botão Início apontando para /modules */}
-        <div className="flex items-center gap-2 text-[13.5px]">
+    <header className="bg-card border-b border-border sticky top-0 z-20 h-14 sm:h-16 pt-safe shrink-0">
+      <div className="h-full px-3 sm:px-6 flex items-center justify-between gap-2">
+        {/* Lado Esquerdo: Botão Menu (Mobile) + Breadcrumb (Desktop) */}
+        <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => router.push('/modules')}
-            className="text-text-muted font-semibold hover:text-foreground transition-colors flex items-center gap-1.5"
-            title="Ir para a seleção de módulos"
+            onClick={toggleMobileMenu}
+            className="md:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors shrink-0"
+            title="Abrir Menu"
+            aria-label="Abrir Menu"
           >
-            <Home className="w-3.5 h-3.5 text-primary" />
-            Início
+            <Menu className="w-5 h-5" />
           </button>
-          {breadcrumb.map((item, index) => (
-            <div key={item.href} className="flex items-center gap-2">
-              <ChevronRight className="h-3.5 w-3.5 text-border" />
-              <button
-                onClick={() => router.push(item.href)}
-                className={
-                  index === breadcrumb.length - 1
-                    ? 'text-foreground font-bold'
-                    : 'text-text-muted font-semibold hover:text-foreground transition-colors'
-                }
-              >
-                {item.label}
-              </button>
-            </div>
-          ))}
+
+          {/* Breadcrumb em Mobile (Apenas título atual) */}
+          <div className="md:hidden font-bold text-sm text-foreground truncate">
+            {currentLabel}
+          </div>
+
+          {/* Breadcrumb Completo em Desktop */}
+          <div className="hidden md:flex items-center gap-2 text-[13.5px]">
+            <button
+              onClick={() => router.push('/modules')}
+              className="text-text-muted font-semibold hover:text-foreground transition-colors flex items-center gap-1.5"
+              title="Ir para a seleção de módulos"
+            >
+              <Home className="w-3.5 h-3.5 text-primary" />
+              Início
+            </button>
+            {breadcrumb.map((item, index) => (
+              <div key={item.href} className="flex items-center gap-2">
+                <ChevronRight className="h-3.5 w-3.5 text-border" />
+                <button
+                  onClick={() => router.push(item.href)}
+                  className={
+                    index === breadcrumb.length - 1
+                      ? 'text-foreground font-bold'
+                      : 'text-text-muted font-semibold hover:text-foreground transition-colors'
+                  }
+                >
+                  {item.label}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Busca Global e Ações */}

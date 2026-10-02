@@ -54,7 +54,7 @@ export class ClientsService {
       tradeName: createClientDto.tradeName,
       address: createClientDto.address as Prisma.InputJsonValue,
       phone: createClientDto.phone,
-      email: createClientDto.email,
+      email: createClientDto.email?.trim() || '',
       contacts: createClientDto.contacts ?? [],
       status: createClientDto.status,
       notes: createClientDto.notes ?? (createClientDto as any).nãotes,
@@ -153,7 +153,7 @@ export class ClientsService {
         address: updateClientDto.address as Prisma.InputJsonValue,
       }),
       ...(updateClientDto.phone && { phone: updateClientDto.phone }),
-      ...(updateClientDto.email && { email: updateClientDto.email }),
+      ...(updateClientDto.email !== undefined && { email: updateClientDto.email ? updateClientDto.email.trim() : '' }),
       ...(updateClientDto.contacts && {
         contacts: updateClientDto.contacts,
       }),

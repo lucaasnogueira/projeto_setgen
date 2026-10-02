@@ -33,11 +33,13 @@ import {
   ChevronDown,
   Building2,
   Home,
+  X,
 } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { usersApi } from '@/lib/api/users';
 import { DASHBOARD_PERMISSIONS } from '@/lib/dashboard-access';
 import { isUserAuthorizedForModule, isUserAuthorizedForRoute } from '@/lib/permissions';
+import { useUIStore } from '@/store/ui';
 
 export interface ModuleDefinition {
   id: string;
@@ -156,6 +158,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, clearAuth, updateUser } = useAuthStore();
+  const { mobileMenuOpen, closeMobileMenu } = useUIStore();
   const [collapsed, setCollapsed] = useState(false);
   const [showModuleSwitcher, setShowModuleSwitcher] = useState(false);
 
@@ -172,8 +175,14 @@ export default function Sidebar() {
   }, []);
 
   const handleLogout = () => {
+    closeMobileMenu();
     clearAuth();
     router.push('/auth/login');
+  };
+
+  const handleNavigate = (href: string) => {
+    closeMobileMenu();
+    router.push(href);
   };
 
   const roleName = user?.roleName || (user as any)?.roleRef?.name;
@@ -214,179 +223,218 @@ export default function Sidebar() {
     });
   }, [currentModule, isAdmin, user?.role, user?.permissions, roleName]);
 
-  return (
-    <div
-      className={cn(
-        'flex flex-col h-screen sticky top-0 shrink-0 overflow-hidden bg-sidebar text-sidebar-fg transition-[width] duration-200 ease-out z-30',
-        collapsed ? 'w-[76px]' : 'w-64'
-      )}
-    >
-      {/* Header com Logo Setgen (clica para ir à Home de Módulos) */}
-      <div className="flex items-center justify-between gap-3 px-4.5 py-4 border-b border-sidebar-border whitespace-nowrap">
-        <button
-          onClick={() => router.push('/modules')}
-          className="flex items-center gap-2.5 min-w-0 text-left group transition-opacity hover:opacity-90"
-          title="Ir para o Hub de Módulos"
-        >
-          <div className="w-8 h-8 rounded-[8px] bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-orange-950/30">
-            <span className="font-black text-white text-xs">S</span>
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <span className="font-extrabold text-[14px] tracking-wide text-white block leading-tight">
-                SETGEN
-              </span>
-              <span className="text-[10px] text-sidebar-fg-dim font-medium tracking-tight group-hover:text-primary transition-colors">
-                Módulos do Sistema
-              </span>
+  const renderContent = (isMobile = false) => {
+    const isCollapsed = !isMobile && collapsed;
+
+    return (
+      <>
+        {/* Header com Logo Setgen */}
+        <div className="flex items-center justify-between gap-3 px-4.5 py-4 border-b border-sidebar-border whitespace-nowrap">
+          <button
+            onClick={() => handleNavigate('/modules')}
+            className="flex items-center gap-2.5 min-w-0 text-left group transition-opacity hover:opacity-90"
+            title="Ir para o Hub de Módulos"
+          >
+            <div className="w-8 h-8 rounded-[8px] bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-orange-950/30">
+              <span className="font-black text-white text-xs">S</span>
             </div>
-          )}
-        </button>
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="w-[26px] h-[26px] rounded-[7px] bg-sidebar-hover text-sidebar-fg-muted flex items-center justify-center shrink-0 hover:text-white transition-colors"
-          title={collapsed ? 'Expandir Menu' : 'Recolher Menu'}
-        >
-          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
-        </button>
-      </div>
-
-      {/* Botão de Atalho "Início / Todos os Módulos" */}
-      <div className="px-3 pt-3">
-        <button
-          onClick={() => router.push('/modules')}
-          className={cn(
-            "w-full flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[12px] font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors border border-sidebar-border/40",
-            collapsed && "justify-center px-0"
-          )}
-          title="Ir para a seleção de módulos"
-        >
-          <Home className="w-4 h-4 text-[#E2661D] shrink-0" />
-          {!collapsed && <span>Início / Módulos</span>}
-        </button>
-      </div>
-
-      {/* Identificação Dinâmica do Módulo Atual */}
-      {!collapsed && (
-        <div className="px-3 pt-2.5 pb-2 border-b border-sidebar-border/60">
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-sidebar-hover/60 border border-sidebar-border/40">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E2661D]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2661D]">
-                  {currentModule?.badge || "SETGEN"}
+            {!isCollapsed && (
+              <div className="min-w-0">
+                <span className="font-extrabold text-[14px] tracking-wide text-white block leading-tight">
+                  SETGEN
+                </span>
+                <span className="text-[10px] text-sidebar-fg-dim font-medium tracking-tight group-hover:text-primary transition-colors">
+                  Módulos do Sistema
                 </span>
               </div>
-              <h3 className="text-[12px] font-bold text-white truncate mt-0.5">
-                {currentModule?.name || "Módulos"}
-              </h3>
-            </div>
+            )}
+          </button>
+          
+          {isMobile ? (
             <button
-              onClick={() => setShowModuleSwitcher(!showModuleSwitcher)}
-              className="text-sidebar-fg-dim hover:text-white p-1 rounded transition-colors"
-              title="Trocar de Módulo"
+              onClick={closeMobileMenu}
+              className="w-8 h-8 rounded-[8px] bg-sidebar-hover text-sidebar-fg-muted flex items-center justify-center shrink-0 hover:text-white transition-colors"
+              title="Fechar Menu"
             >
-              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showModuleSwitcher && "rotate-180")} />
+              <X className="h-4 w-4" />
             </button>
-          </div>
-
-          {/* Switcher Rápido de Módulo (Dropdown) */}
-          {showModuleSwitcher && (
-            <div className="mt-2 p-1.5 bg-[#0C111D] border border-sidebar-border rounded-lg shadow-xl space-y-1">
-              <div className="text-[10px] font-semibold text-sidebar-fg-dim px-2 py-1">
-                Trocar de Ambiente:
-              </div>
-              {allowedModules.map((mod) => (
-                <button
-                  key={mod.id}
-                  onClick={() => {
-                    setShowModuleSwitcher(false);
-                    router.push(mod.prefixes[0]);
-                  }}
-                  className={cn(
-                    "w-full text-left px-2 py-1.5 rounded text-[11px] font-medium transition-colors flex items-center justify-between",
-                    mod.id === currentModule.id
-                      ? "bg-primary text-white font-bold"
-                      : "text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white"
-                  )}
-                >
-                  <span className="truncate">{mod.name}</span>
-                  <span className="text-[9px] opacity-70 ml-1">{mod.badge}</span>
-                </button>
-              ))}
-              <div className="pt-1 border-t border-sidebar-border/40">
-                <button
-                  onClick={() => {
-                    setShowModuleSwitcher(false);
-                    router.push('/modules');
-                  }}
-                  className="w-full text-left px-2 py-1.5 rounded text-[11px] font-semibold text-[#E2661D] hover:bg-sidebar-hover flex items-center gap-1.5"
-                >
-                  <LayoutGrid className="w-3 h-3" /> Ver Todos os Módulos
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Navegação Dinâmica: Apenas itens pertinentes ao módulo ativo */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 whitespace-nowrap scrollbar-thin-sidebar">
-        <div className="space-y-0.5">
-          {visibleItems.length === 0 ? (
-            <div className="p-4 text-center text-sidebar-fg-dim text-xs">
-              Nenhuma ação permitida neste módulo.
-            </div>
           ) : (
-            visibleItems.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13px] font-medium transition-colors mb-0.5',
-                    isActive
-                      ? 'bg-primary text-white font-bold shadow-xs'
-                      : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
-                  )}
-                  title={collapsed ? item.name : ''}
-                >
-                  <Icon className="h-[18px] w-[18px] shrink-0" />
-                  {!collapsed && <span className="truncate">{item.name}</span>}
-                </button>
-              );
-            })
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="w-[26px] h-[26px] rounded-[7px] bg-sidebar-hover text-sidebar-fg-muted flex items-center justify-center shrink-0 hover:text-white transition-colors"
+              title={collapsed ? 'Expandir Menu' : 'Recolher Menu'}
+            >
+              {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+            </button>
           )}
         </div>
-      </nav>
 
-      {/* Perfil do Usuário e Logout */}
-      <div className="border-t border-sidebar-border p-3 whitespace-nowrap">
-        {user && (
-          <div className="flex items-center gap-2.5 p-1.5 rounded-[9px] mb-1 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-primary text-white font-bold text-[12px] flex items-center justify-center shrink-0">
-              {user.name.charAt(0).toUpperCase()}
+        {/* Botão de Atalho "Início / Todos os Módulos" */}
+        <div className="px-3 pt-3">
+          <button
+            onClick={() => handleNavigate('/modules')}
+            className={cn(
+              "w-full flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[12px] font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors border border-sidebar-border/40",
+              isCollapsed && "justify-center px-0"
+            )}
+            title="Ir para a seleção de módulos"
+          >
+            <Home className="w-4 h-4 text-[#E2661D] shrink-0" />
+            {!isCollapsed && <span>Início / Módulos</span>}
+          </button>
+        </div>
+
+        {/* Identificação Dinâmica do Módulo Atual */}
+        {!isCollapsed && (
+          <div className="px-3 pt-2.5 pb-2 border-b border-sidebar-border/60">
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-sidebar-hover/60 border border-sidebar-border/40">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#E2661D]" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2661D]">
+                    {currentModule?.badge || "SETGEN"}
+                  </span>
+                </div>
+                <h3 className="text-[12px] font-bold text-white truncate mt-0.5">
+                  {currentModule?.name || "Módulos"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowModuleSwitcher(!showModuleSwitcher)}
+                className="text-sidebar-fg-dim hover:text-white p-1 rounded transition-colors"
+                title="Trocar de Módulo"
+              >
+                <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showModuleSwitcher && "rotate-180")} />
+              </button>
             </div>
-            {!collapsed && (
-              <div className="min-w-0 overflow-hidden">
-                <div className="text-white text-[12px] font-bold truncate leading-tight">{user.name}</div>
-                <div className="text-sidebar-fg-dim text-[10.5px] truncate">{roleName || getRoleLabel(user.role)}</div>
+
+            {/* Switcher Rápido de Módulo (Dropdown) */}
+            {showModuleSwitcher && (
+              <div className="mt-2 p-1.5 bg-[#0C111D] border border-sidebar-border rounded-lg shadow-xl space-y-1">
+                <div className="text-[10px] font-semibold text-sidebar-fg-dim px-2 py-1">
+                  Trocar de Ambiente:
+                </div>
+                {allowedModules.map((mod) => (
+                  <button
+                    key={mod.id}
+                    onClick={() => {
+                      setShowModuleSwitcher(false);
+                      handleNavigate(mod.prefixes[0]);
+                    }}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 rounded text-[11px] font-medium transition-colors flex items-center justify-between",
+                      mod.id === currentModule?.id
+                        ? "bg-primary text-white font-bold"
+                        : "text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white"
+                    )}
+                  >
+                    <span className="truncate">{mod.name}</span>
+                    <span className="text-[9px] opacity-70 ml-1">{mod.badge}</span>
+                  </button>
+                ))}
+                <div className="pt-1 border-t border-sidebar-border/40">
+                  <button
+                    onClick={() => {
+                      setShowModuleSwitcher(false);
+                      handleNavigate('/modules');
+                    }}
+                    className="w-full text-left px-2 py-1.5 rounded text-[11px] font-semibold text-[#E2661D] hover:bg-sidebar-hover flex items-center gap-1.5"
+                  >
+                    <LayoutGrid className="w-3 h-3" /> Ver Todos os Módulos
+                  </button>
+                </div>
               </div>
             )}
           </div>
         )}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[9px] text-sidebar-fg-muted text-[12px] font-semibold hover:bg-sidebar-hover hover:text-white transition-colors"
-          title={collapsed ? 'Sair' : ''}
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Sair</span>}
-        </button>
-      </div>
-    </div>
+
+        {/* Navegação Dinâmica: Apenas itens pertinentes ao módulo ativo */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 whitespace-nowrap scrollbar-thin-sidebar">
+          <div className="space-y-0.5">
+            {visibleItems.length === 0 ? (
+              <div className="p-4 text-center text-sidebar-fg-dim text-xs">
+                Nenhuma ação permitida neste módulo.
+              </div>
+            ) : (
+              visibleItems.map((item) => {
+                const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.href}
+                    onClick={() => handleNavigate(item.href)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13px] font-medium transition-colors mb-0.5',
+                      isActive
+                        ? 'bg-primary text-white font-bold shadow-xs'
+                        : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
+                    )}
+                    title={isCollapsed ? item.name : ''}
+                  >
+                    <Icon className="h-[18px] w-[18px] shrink-0" />
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </nav>
+
+        {/* Perfil do Usuário e Logout */}
+        <div className="border-t border-sidebar-border p-3 whitespace-nowrap">
+          {user && (
+            <div className="flex items-center gap-2.5 p-1.5 rounded-[9px] mb-1 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-primary text-white font-bold text-[12px] flex items-center justify-center shrink-0">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0 overflow-hidden">
+                  <div className="text-white text-[12px] font-bold truncate leading-tight">{user.name}</div>
+                  <div className="text-sidebar-fg-dim text-[10.5px] truncate">{roleName || getRoleLabel(user.role)}</div>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[9px] text-sidebar-fg-muted text-[12px] font-semibold hover:bg-sidebar-hover hover:text-white transition-colors"
+            title={isCollapsed ? 'Sair' : ''}
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!isCollapsed && <span>Sair</span>}
+          </button>
+        </div>
+      </>
+    );
+  };
+
+  return (
+    <>
+      {/* 1. Sidebar Fixa Desktop */}
+      <aside
+        className={cn(
+          'hidden md:flex flex-col h-screen sticky top-0 shrink-0 overflow-hidden bg-sidebar text-sidebar-fg transition-[width] duration-200 ease-out z-30',
+          collapsed ? 'w-[76px]' : 'w-64'
+        )}
+      >
+        {renderContent(false)}
+      </aside>
+
+      {/* 2. Drawer Retrátil Mobile */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={closeMobileMenu}
+          />
+          {/* Drawer Panel */}
+          <div className="relative w-72 max-w-[85vw] h-full flex flex-col bg-sidebar text-sidebar-fg shadow-2xl pt-safe pb-safe z-10 animate-in slide-in-from-left duration-200">
+            {renderContent(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -37,7 +37,7 @@ const clientSchema = z.object({
   companyName: z.string().min(3, "Razão Social deve ter no mínimo 3 caracteres"),
   tradeName: z.string().optional(),
   externalCode: z.string().optional(),
-  email: z.string().email("E-mail inválido"),
+  email: z.string().email("E-mail inválido").optional().or(z.literal("")),
   phone: z.string().min(10, "Telefone inválido"),
   status: z.nativeEnum(ClientStatus).optional(),
   onSiteContact: z.string().optional(),
@@ -247,6 +247,7 @@ export function ClientForm({
       internalNotes: (data.internalNotes && data.internalNotes.trim()) ? data.internalNotes.trim() : undefined,
       stateRegistration: (data.stateRegistration && data.stateRegistration.trim()) ? data.stateRegistration.trim() : undefined,
       municipalRegistration: (data.municipalRegistration && data.municipalRegistration.trim()) ? data.municipalRegistration.trim() : undefined,
+      email: (data.email && data.email.trim()) ? data.email.trim() : undefined,
       billingEmail: data.billingEmail || undefined,
       responsibleUserId: cleanId(data.responsibleUserId),
       responsibleTeamId: cleanId(data.responsibleTeamId),
@@ -379,7 +380,7 @@ export function ClientForm({
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             <div className="space-y-2">
-              <Label className="font-bold text-sm">E-mail Comercial *</Label>
+              <Label className="font-bold text-sm">E-mail Comercial <span className="text-muted-foreground font-normal text-xs">(Opcional)</span></Label>
               <div className="relative group">
                 <Mail className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-orange-600 transition-colors" />
                 <Input
@@ -789,7 +790,10 @@ export function ClientForm({
         onNext={async (nextKey) => {
           let isValid = false;
           if (activeStep === "dados") {
-            isValid = await form.trigger(["cnpjCpf", "companyName", "email", "phone"]);
+            const emailVal = form.getValues("email");
+            isValid = emailVal && emailVal.trim().length > 0
+              ? await form.trigger(["cnpjCpf", "companyName", "email", "phone"])
+              : await form.trigger(["cnpjCpf", "companyName", "phone"]);
           } else if (activeStep === "contato") {
             isValid = await form.trigger(["address.cep", "address.street", "address.neighborhood", "address.city", "address.state", "address.number"]);
           } else {
