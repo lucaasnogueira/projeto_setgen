@@ -322,12 +322,12 @@ export function ExpenseMultiCrudEditor({
                   name="categoryId"
                   control={control}
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <SelectTrigger className="h-9 text-xs rounded-lg mt-1 bg-white">
                         <SelectValue placeholder="Selecione a categoria..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {displayedCategories.map((cat) => (
+                        {(Array.isArray(displayedCategories) ? displayedCategories : []).map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             <div className="flex items-center gap-2">
                               <span
@@ -527,13 +527,16 @@ export function ExpenseMultiCrudEditor({
                     name="clientId"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(val) => field.onChange(val === "NONE" ? "" : val)}
+                        value={field.value || "NONE"}
+                      >
                         <SelectTrigger className="h-9 text-xs rounded-lg mt-1 bg-white">
                           <SelectValue placeholder="Nenhum (Despesa interna)" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhum (Despesa interna)</SelectItem>
-                          {clients.map((c) => (
+                          <SelectItem value="NONE">Nenhum (Despesa interna)</SelectItem>
+                          {(Array.isArray(clients) ? clients : []).map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.companyName}
                             </SelectItem>
@@ -551,15 +554,18 @@ export function ExpenseMultiCrudEditor({
                     name="serviceOrderId"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(val) => field.onChange(val === "NONE" ? "" : val)}
+                        value={field.value || "NONE"}
+                      >
                         <SelectTrigger className="h-9 text-xs rounded-lg mt-1 bg-white font-mono">
                           <SelectValue placeholder="Selecione a O.S..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhuma O.S. vinculada</SelectItem>
-                          {serviceOrders.map((o) => (
+                          <SelectItem value="NONE">Nenhuma O.S. vinculada</SelectItem>
+                          {(Array.isArray(serviceOrders) ? serviceOrders : []).map((o) => (
                             <SelectItem key={o.id} value={o.id}>
-                              {o.orderNumber} - {o.client?.companyName || "Cliente"}
+                              {o.orderNumber || o.id} - {o.client?.companyName || "Cliente"}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -575,15 +581,18 @@ export function ExpenseMultiCrudEditor({
                     name="visitId"
                     control={control}
                     render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select
+                        onValueChange={(val) => field.onChange(val === "NONE" ? "" : val)}
+                        value={field.value || "NONE"}
+                      >
                         <SelectTrigger className="h-9 text-xs rounded-lg mt-1 bg-white">
                           <SelectValue placeholder="Selecione a visita..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Nenhuma visita vinculada</SelectItem>
-                          {visits.map((v) => (
+                          <SelectItem value="NONE">Nenhuma visita vinculada</SelectItem>
+                          {(Array.isArray(visits) ? visits : []).map((v) => (
                             <SelectItem key={v.id} value={v.id}>
-                              {v.location} ({new Date(v.visitDate).toLocaleDateString()})
+                              {v.location || "Visita Técnica"} {v.visitDate ? `(${new Date(v.visitDate).toLocaleDateString()})` : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
