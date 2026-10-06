@@ -643,10 +643,10 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
   );
 
   return (
-    <div className="flex flex-col lg:flex-row h-full w-full bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full w-full bg-white overflow-hidden">
 
       {/* ===== PAINEL LATERAL (ESQUERDA) ===== */}
-      <aside className="w-full lg:w-64 bg-gray-50/95 border-r border-gray-200 p-5 shrink-0 flex flex-col justify-between text-xs">
+      <aside className="w-full lg:w-60 xl:w-64 bg-gray-50/95 border-r border-gray-200 p-4 lg:p-5 shrink-0 flex flex-col justify-between text-xs overflow-y-auto">
         <div className="space-y-4">
           
           {/* Identificação do Modo */}
@@ -698,7 +698,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
           )}
 
           {/* Navegação por abas na sidebar */}
-          <nav className="space-y-1">
+          <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible pb-1 lg:pb-0 scrollbar-none">
             {tabs.map(({ key, icon: Icon, label }) => {
               const isActive = activeTab === key;
               const hasError =
@@ -710,14 +710,14 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   key={key}
                   type="button"
                   onClick={() => setActiveTab(key)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all ${
+                  className={`shrink-0 lg:shrink w-auto lg:w-full flex items-center gap-2.5 px-3 py-2 lg:py-2.5 rounded-xl text-xs font-semibold text-left transition-all whitespace-nowrap ${
                     isActive
                       ? "bg-[#FFF3EC] text-[#E2661D] border border-orange-200/80 shadow-xs"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent"
                   }`}
                 >
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-[#E2661D]" : "text-gray-400"}`} />
-                  <span className="truncate">{label}</span>
+                  <span>{label}</span>
                   {hasError && (
                     <span className="ml-auto w-2 h-2 rounded-full bg-red-500 shrink-0" title="Contém erros" />
                   )}
@@ -815,7 +815,8 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         </div>
 
         {/* ===== CONTEÚDO SCROLLÁVEL ===== */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs bg-[#FAFAFB]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 text-xs bg-[#FAFAFB]">
+          <div className="max-w-6xl mx-auto space-y-5">
 
           {/* ============================================================== */}
           {/* === ABA 1: DADOS CADASTRAIS === */}
@@ -903,8 +904,8 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                 </div>
 
                 {/* Razão Social / Nome Completo e Nome Fantasia / Apelido */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                  <div className="xl:col-span-2">
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       {personType === "PF" ? <UserIcon className="w-3.5 h-3.5 text-[#E2661D]" /> : <Building2 className="w-3.5 h-3.5 text-[#E2661D]" />}
                       {personType === "PF" ? "Nome Completo" : "Razão Social"} <span className="text-[#E2661D]">*</span>
@@ -971,7 +972,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Percent className="w-3.5 h-3.5 text-[#E2661D]" />
@@ -1044,7 +1045,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Mail className="w-3.5 h-3.5 text-[#E2661D]" />
@@ -1111,7 +1112,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   {/* Telefones adicionais */}
                   <div className="space-y-2">
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700">
@@ -1209,8 +1210,8 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  <div className="md:col-span-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+                  <div className="sm:col-span-1 xl:col-span-1">
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <MapPin className="w-3.5 h-3.5 text-[#E2661D]" />
                       CEP <span className="text-[#E2661D]">*</span>
@@ -1233,7 +1234,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                     <Err field="cep" />
                   </div>
 
-                  <div className="md:col-span-4">
+                  <div className="sm:col-span-2 xl:col-span-4">
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Navigation className="w-3.5 h-3.5 text-[#E2661D]" />
                       Logradouro / Rua <span className="text-[#E2661D]">*</span>
@@ -1251,7 +1252,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Hash className="w-3.5 h-3.5 text-[#E2661D]" />
@@ -1363,7 +1364,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                   {/* Colaborador Responsável com botão "+" */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1516,7 +1517,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                   {/* Grupo de Clientes com botão "+" */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1680,7 +1681,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {(clientId ? clientEquipments : stagedEquipments).map((eq: any) => {
                       const idKey = clientId ? eq.id : eq.tempId;
                       return (
@@ -1763,7 +1764,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <FileText className="w-3.5 h-3.5 text-[#E2661D]" />
@@ -1795,7 +1796,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
               </div>
             </div>
           )}
-
+          </div>
         </div>
 
         {/* ===== BARRA DE AÇÕES INFERIOR (STICKY / FIXA NO RODAPÉ) ===== */}
