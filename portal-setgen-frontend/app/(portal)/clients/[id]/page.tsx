@@ -25,6 +25,8 @@ import {
   formatDateTime,
   formatCurrency,
   formatPhone,
+  formatCPF,
+  formatCNPJ,
   cn,
 } from '@/lib/utils';
 import {
@@ -327,7 +329,11 @@ export default function ClientDetailsPage() {
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
               {client.tradeName && <span className="font-semibold text-slate-700">{client.tradeName}</span>}
-              {client.cnpjCpf && <span>• CNPJ/CPF: {client.cnpjCpf}</span>}
+              {client.cnpjCpf && (
+                <span>
+                  • {client.cnpjCpf.length === 11 ? "CPF: " + formatCPF(client.cnpjCpf) : client.cnpjCpf.length === 14 ? "CNPJ: " + formatCNPJ(client.cnpjCpf) : "Documento: " + client.cnpjCpf}
+                </span>
+              )}
               {client.address?.city && <span>• {client.address.city}/{client.address.state}</span>}
               {client.createdAt && <span>• Cliente desde {formatDate(client.createdAt)}</span>}
             </div>
@@ -444,9 +450,12 @@ export default function ClientDetailsPage() {
                 Dados Cadastrais e Fiscais
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FieldBlock label="Razão Social" value={client.companyName} />
-                <FieldBlock label="Nome Fantasia" value={client.tradeName || '—'} />
-                <FieldBlock label="CNPJ / CPF" value={client.cnpjCpf} />
+                <FieldBlock label="Razão Social / Nome" value={client.companyName} />
+                <FieldBlock label="Nome Fantasia / Apelido" value={client.tradeName || '—'} />
+                <FieldBlock
+                  label={client.cnpjCpf?.length === 11 ? "CPF" : client.cnpjCpf?.length === 14 ? "CNPJ" : "CNPJ / CPF"}
+                  value={client.cnpjCpf ? (client.cnpjCpf.length === 11 ? formatCPF(client.cnpjCpf) : client.cnpjCpf.length === 14 ? formatCNPJ(client.cnpjCpf) : client.cnpjCpf) : "—"}
+                />
                 <FieldBlock
                   label="Status Cadastral"
                   value={

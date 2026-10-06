@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { clientsApi } from "@/lib/api/clients";
 import { Client, ClientStatus, UserRole } from "@/types";
 import { useAuthStore } from "@/store/auth";
-import { getInitials, getAvatarColor, formatDate } from "@/lib/utils";
+import { getInitials, getAvatarColor, formatDate, formatCNPJ, formatCPF } from "@/lib/utils";
 import { Plus, Search, Users, UserCheck, UserX, Building2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -156,9 +156,15 @@ export default function ClientsPage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground font-mono">{client.cnpjCpf}</TableCell>
+                    <TableCell className="text-[12.5px] text-muted-foreground font-mono">
+                      {client.cnpjCpf?.length === 11
+                        ? formatCPF(client.cnpjCpf)
+                        : client.cnpjCpf?.length === 14
+                        ? formatCNPJ(client.cnpjCpf)
+                        : client.cnpjCpf || "—"}
+                    </TableCell>
                     <TableCell className="text-[12px] text-muted-foreground">
-                      <div>{client.email}</div>
+                      <div>{client.email || "—"}</div>
                       <div className="text-muted-foreground/70">{client.phone}</div>
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">

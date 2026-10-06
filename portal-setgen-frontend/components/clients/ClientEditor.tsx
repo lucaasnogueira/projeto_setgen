@@ -13,8 +13,9 @@ import {
   PhoneCall, MailCheck, Navigation, Home, Layers, Lock, ShieldAlert,
   Percent, FileText, Sparkles, Globe, CreditCard, ArrowLeft,
   ChevronRight, AlertCircle, Info, Shield, UserCog, UserRound,
-  Zap, Trash2, Wrench
+  Zap, Trash2, Wrench, User as UserIcon
 } from "lucide-react";
+import { formatCPF, formatCNPJ } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,7 @@ import { fetchCep } from "@/lib/api/cep";
 import { toast } from "sonner";
 
 type TabKey = "dados" | "contato" | "detalhes" | "equipamentos" | "notas";
+type PersonType = "PJ" | "PF";
 
 interface Props {
   clientId?: string;
@@ -45,6 +47,7 @@ interface Props {
 
 export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("dados");
+  const [personType, setPersonType] = useState<PersonType>("PJ");
 
   // === Dados Cadastrais ===
   const [cnpjCpf, setCnpjCpf] = useState("");
@@ -150,7 +153,16 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         .catch(console.error)
         .finally(() => setLoadingEquipments(false));
       clientsApi.getOne(clientId).then(c => {
-        setCnpjCpf(c.cnpjCpf || "");
+        const cleanDoc = (c.cnpjCpf || "").replace(/\D/g, "");
+        if (cleanDoc.length === 11) {
+          setPersonType("PF");
+          setCnpjCpf(formatCPF(cleanDoc));
+        } else if (cleanDoc.length === 14) {
+          setPersonType("PJ");
+          setCnpjCpf(formatCNPJ(cleanDoc));
+        } else {
+          setCnpjCpf(c.cnpjCpf || "");
+        }
         setCompanyName(c.companyName || "");
         setTradeName(c.tradeName || "");
         setExternalCode(c.externalCode || "");
@@ -188,10 +200,45 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
     }
   }, [clientId]);
 
+  const handleDocChange = (val: string) => {
+    const digits = val.replace(/\D/g, "");
+    if (personType === "PF") {
+      const limited = digits.slice(0, 11);
+      setCnpjCpf(limited.length === 11 ? formatCPF(limited) : val);
+    } else {
+      const limited = digits.slice(0, 14);
+      setCnpjCpf(limited.length === 14 ? formatCNPJ(limited) : val);
+    }
+  };
+
+  const handleSwitchPersonType = (newType: PersonType) => {
+    setPersonType(newType);
+    const digits = cnpjCpf.replace(/\D/g, "");
+    if (newType === "PF") {
+      const limited = digits.slice(0, 11);
+      setCnpjCpf(limited.length === 11 ? formatCPF(limited) : limited);
+    } else {
+      const limited = digits.slice(0, 14);
+      setCnpjCpf(limited.length === 14 ? formatCNPJ(limited) : limited);
+    }
+  };
+
   const restoreDraft = () => {
     try {
       const d = JSON.parse(localStorage.getItem("setgen_client_draft") || "{}");
-      if (d.cnpjCpf) setCnpjCpf(d.cnpjCpf);
+      if (d.personType) setPersonType(d.personType);
+      if (d.cnpjCpf) {
+        const cleanDoc = d.cnpjCpf.replace(/\D/g, "");
+        if (cleanDoc.length === 11) {
+          setPersonType("PF");
+          setCnpjCpf(formatCPF(cleanDoc));
+        } else if (cleanDoc.length === 14) {
+          setPersonType("PJ");
+          setCnpjCpf(formatCNPJ(cleanDoc));
+        } else {
+          setCnpjCpf(d.cnpjCpf);
+        }
+      }
       if (d.companyName) setCompanyName(d.companyName);
       if (d.tradeName) setTradeName(d.tradeName);
       if (d.externalCode) setExternalCode(d.externalCode);
@@ -235,7 +282,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
   const handleSaveDraft = () => {
     try {
       localStorage.setItem("setgen_client_draft", JSON.stringify({
-        cnpjCpf, companyName, tradeName, externalCode, status, email, phone, billingEmail,
+        personType, cnpjCpf, companyName, tradeName, externalCode, status, email, phone, billingEmail,
         corporatePhones, corporateEmails, cep, street, number, complement, neighborhood, city, state,
         onSiteContact, responsibleUserId, responsibleTeamId, groupId, segmentId, notes, internalNotes,
         icmsTaxpayerType, stateRegistration, municipalRegistration,
@@ -449,15 +496,29 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
+    const cleanDoc = cnpjCpf.replace(/\D/g, "");
+
+    if (!cleanDoc) {
+      e.cnpjCpf = personType === "PF" ? "CPF obrigatório" : "CNPJ obrigatório";
+    } else if (personType === "PF" && cleanDoc.length !== 11) {
+      e.cnpjCpf = "CPF deve conter exatamente 11 dígitos";
+    } else if (personType === "PJ" && cleanDoc.length !== 14) {
+      e.cnpjCpf = "CNPJ deve conter exatamente 14 dígitos";
+    } else if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
+      e.cnpjCpf = "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido";
+    }
+
     if (!companyName.trim() || companyName.trim().length < 3) {
-      e.companyName = "Razão Social obrigatória (mín. 3 caracteres)";
+      e.companyName = personType === "PF"
+        ? "Nome Completo obrigatório (mín. 3 caracteres)"
+        : "Razão Social obrigatória (mín. 3 caracteres)";
     }
-    if (!cnpjCpf.replace(/\D/g, "")) {
-      e.cnpjCpf = "CPF/CNPJ obrigatório";
+
+    // E-mail é facultativo; se preenchido, valida formato básico
+    if (email.trim() && !email.includes("@")) {
+      e.email = "E-mail comercial informado é inválido";
     }
-    if (!email.trim() || !email.includes("@")) {
-      e.email = "E-mail comercial válido é obrigatório";
-    }
+
     if (!phone.replace(/\D/g, "") || phone.replace(/\D/g, "").length < 10) {
       e.phone = "Telefone com DDD obrigatório (mín. 10 dígitos)";
     }
@@ -494,7 +555,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         tradeName: tradeName.trim() || undefined,
         externalCode: externalCode.trim() || undefined,
         status,
-        email: email.trim(),
+        email: email.trim() || undefined,
         phone: phone.replace(/\D/g, ""),
         billingEmail: billingEmail.trim() || undefined,
         corporatePhones: corporatePhones.filter(p => p.trim()),
@@ -764,60 +825,100 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
               
               {/* Card 1: Identificação Legal */}
               <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                  <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[#E2661D]">
-                    <Building2 className="w-4 h-4" />
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[#E2661D]">
+                      {personType === "PF" ? <UserIcon className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">Identificação Legal</h4>
+                      <p className="text-[11px] text-gray-400">Dados oficiais e fiscais da pessoa física ou jurídica</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-sm">Identificação Legal</h4>
-                    <p className="text-[11px] text-gray-400">Dados oficiais e fiscais da pessoa jurídica ou física</p>
+
+                  {/* Seletor Tipo: Pessoa Jurídica vs Pessoa Física */}
+                  <div className="flex items-center p-1 bg-gray-100/80 rounded-xl border border-gray-200/80">
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchPersonType("PJ")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        personType === "PJ"
+                          ? "bg-white text-gray-900 shadow-xs"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-[#E2661D]" />
+                      Pessoa Jurídica (CNPJ)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchPersonType("PF")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        personType === "PF"
+                          ? "bg-white text-gray-900 shadow-xs"
+                          : "text-gray-500 hover:text-gray-900"
+                      }`}
+                    >
+                      <UserIcon className="w-3.5 h-3.5 text-[#E2661D]" />
+                      Pessoa Física (CPF)
+                    </button>
                   </div>
                 </div>
 
-                {/* CPF / CNPJ + Consulta automática */}
+                {/* CPF / CNPJ + Consulta */}
                 <div>
                   <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                     <Hash className="w-3.5 h-3.5 text-[#E2661D]" />
-                    CPF / CNPJ <span className="text-[#E2661D]">*</span>
+                    {personType === "PF" ? "CPF do Cliente" : "CNPJ da Empresa"} <span className="text-[#E2661D]">*</span>
                   </Label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <Hash className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <Input
                         value={cnpjCpf}
-                        onChange={e => setCnpjCpf(e.target.value)}
-                        placeholder="00.000.000/0000-00 ou 000.000.000-00"
+                        onChange={e => handleDocChange(e.target.value)}
+                        placeholder={personType === "PF" ? "000.000.000-00" : "00.000.000/0000-00"}
                         className="h-10 text-xs bg-white pl-9 border-gray-200 focus:border-[#E2661D]"
                       />
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCNPJLookup}
-                      disabled={lookupLoading}
-                      className="h-10 px-3.5 border-orange-200 text-[#E2661D] hover:bg-orange-50 text-xs font-semibold gap-1.5 whitespace-nowrap"
-                    >
-                      {lookupLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      {lookupLoading ? "Consultando..." : "Consultar CNPJ"}
-                    </Button>
+                    {personType === "PJ" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCNPJLookup}
+                        disabled={lookupLoading}
+                        className="h-10 px-3.5 border-orange-200 text-[#E2661D] hover:bg-orange-50 text-xs font-semibold gap-1.5 whitespace-nowrap"
+                      >
+                        {lookupLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                        {lookupLoading ? "Consultando..." : "Consultar CNPJ"}
+                      </Button>
+                    ) : (
+                      <div className="flex items-center px-3.5 rounded-lg border border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500 whitespace-nowrap">
+                        Pessoa Física
+                      </div>
+                    )}
                   </div>
                   <Err field="cnpjCpf" />
                 </div>
 
-                {/* Razão Social e Nome Fantasia */}
+                {/* Razão Social / Nome Completo e Nome Fantasia / Apelido */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2">
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-[#E2661D]" />
-                      Razão Social <span className="text-[#E2661D]">*</span>
+                      {personType === "PF" ? <UserIcon className="w-3.5 h-3.5 text-[#E2661D]" /> : <Building2 className="w-3.5 h-3.5 text-[#E2661D]" />}
+                      {personType === "PF" ? "Nome Completo" : "Razão Social"} <span className="text-[#E2661D]">*</span>
                     </Label>
                     <div className="relative">
-                      <Building2 className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      {personType === "PF" ? (
+                        <UserIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      ) : (
+                        <Building2 className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      )}
                       <Input
                         value={companyName}
                         onChange={e => setCompanyName(e.target.value)}
-                        placeholder="Razão Social completa da empresa"
+                        placeholder={personType === "PF" ? "Nome completo do cliente" : "Razão Social completa da empresa"}
                         className="h-10 text-xs bg-white pl-9 border-gray-200 focus:border-[#E2661D]"
                       />
                     </div>
@@ -826,14 +927,14 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Store className="w-3.5 h-3.5 text-[#E2661D]" />
-                      Nome Fantasia
+                      {personType === "PF" ? "Apelido (Opcional)" : "Nome Fantasia"}
                     </Label>
                     <div className="relative">
                       <Store className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <Input
                         value={tradeName}
                         onChange={e => setTradeName(e.target.value)}
-                        placeholder="Nome comercial conhecido"
+                        placeholder={personType === "PF" ? "Como prefere ser chamado" : "Nome comercial conhecido"}
                         className="h-10 text-xs bg-white pl-9 border-gray-200 focus:border-[#E2661D]"
                       />
                     </div>
@@ -947,7 +1048,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                   <div>
                     <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
                       <Mail className="w-3.5 h-3.5 text-[#E2661D]" />
-                      E-mail Comercial <span className="text-[#E2661D]">*</span>
+                      E-mail Comercial <span className="text-gray-400 font-normal text-[11px]">(Opcional)</span>
                     </Label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
