@@ -1,24 +1,25 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ExpenseForm } from '@/components/financial/ExpenseForm';
-import { expensesApi } from '@/lib/api/expenses';
-import { clientsApi } from '@/lib/api/clients';
-import { visitsApi } from '@/lib/api/visits';
-import { ordersApi } from '@/lib/api/orders';
-import { useToast } from '@/components/ui/use-toast';
-import { PageHeader } from '@/components/layout/PageHeader';
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ExpenseMultiCrudEditor } from "@/components/financial/ExpenseMultiCrudEditor";
+import { expensesApi } from "@/lib/api/expenses";
+import { clientsApi } from "@/lib/api/clients";
+import { visitsApi } from "@/lib/api/visits";
+import { ordersApi } from "@/lib/api/orders";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function NewExpensePage() {
   const router = useRouter();
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({
     categories: [],
     clients: [],
     visits: [],
-    serviceOrders: []
+    serviceOrders: [],
   });
 
   useEffect(() => {
@@ -26,82 +27,71 @@ export default function NewExpensePage() {
       try {
         const [categories, clients, visits, serviceOrders] = await Promise.all([
           expensesApi.getCategories(),
-          clientsApi.getAll(),
-          visitsApi.getAll(),
-          ordersApi.getAll()
+          clientsApi.getAll().catch(() => []),
+          visitsApi.getAll().catch(() => []),
+          ordersApi.getAll().catch(() => []),
         ]);
 
         setData({
           categories,
           clients,
           visits,
-          serviceOrders
+          serviceOrders,
         });
       } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível carregar os dados necessários.',
-          variant: 'destructive',
-        });
+        console.error("Erro ao carregar dados:", error);
+        toast.error("Não foi possível carregar os dados necessários.");
+      } finally {
+        setLoading(false);
       }
     }
 
     loadData();
-  }, [toast]);
+  }, []);
 
   const handleSubmit = async (expenseData: any) => {
-    setIsLoading(true);
     try {
-      const sanitizedData = {
-        ...expenseData,
-        costCenterId: expenseData.costCenterId || undefined,
-        visitId: expenseData.visitId || undefined,
-        serviceOrderId: expenseData.serviceOrderId || undefined,
-        clientId: expenseData.clientId || undefined,
-        paymentMethod: expenseData.paymentMethod || undefined,
-        documentNumber: expenseData.documentNumber || undefined,
-        notes: expenseData.notes || undefined,
-        supplier: expenseData.supplier || undefined,
-        totalInstallments: expenseData.totalInstallments ? Number(expenseData.totalInstallments) : undefined,
-        installmentDaysOffsetsText: expenseData.installmentDaysOffsetsText || undefined,
-      };
-
-      await expensesApi.create(sanitizedData);
-      toast({
-        title: 'Sucesso',
-        description: 'Despesa criada com sucesso!',
-      });
-      router.push('/financial/expenses');
+      await expensesApi.create(expenseData);
+      toast.success("Despesa registrada com sucesso!");
+      router.push("/financial/expenses");
       router.refresh();
     } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.response?.data?.message || 'Não foi possível criar a despesa.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
+      console.error("Erro ao criar despesa:", error);
+      toast.error(error?.response?.data?.message || "Não foi possível criar a despesa.");
+      throw error;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Nova Despesa"
         subtitle="Registre uma nova despesa ou conta a pagar no sistema financeiro"
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => router.push("/financial/expenses")}
+            className="rounded-[9px] font-bold text-xs gap-1.5 h-9"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar para Despesas
+          </Button>
+        }
       />
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-xs">
-        <ExpenseForm
+      {loading ? (
+        <div className="flex h-64 items-center justify-center bg-white rounded-2xl border border-gray-200">
+          <Loader2 className="h-7 w-7 animate-spin text-[#E2661D]" />
+        </div>
+      ) : (
+        <ExpenseMultiCrudEditor
           categories={data.categories}
           clients={data.clients}
           visits={data.visits}
           serviceOrders={data.serviceOrders}
           onSubmit={handleSubmit}
-          isLoading={isLoading}
+          onCancel={() => router.push("/financial/expenses")}
         />
-      </div>
+      )}
     </div>
   );
 }

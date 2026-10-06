@@ -59,9 +59,23 @@ export const expensesApi = {
     return data;
   },
 
-  getCategories: async (): Promise<ExpenseCategory[]> => {
-    const { data } = await api.get('/expense-categories');
+  getCategories: async (params?: { type?: string; group?: string; active?: boolean }): Promise<ExpenseCategory[]> => {
+    const { data } = await api.get('/expense-categories', { params });
     return data;
+  },
+
+  createCategory: async (category: Partial<ExpenseCategory>): Promise<ExpenseCategory> => {
+    const { data } = await api.post('/expense-categories', category);
+    return data;
+  },
+
+  updateCategory: async (id: string, category: Partial<ExpenseCategory>): Promise<ExpenseCategory> => {
+    const { data } = await api.patch(`/expense-categories/${id}`, category);
+    return data;
+  },
+
+  deleteCategory: async (id: string): Promise<void> => {
+    await api.delete(`/expense-categories/${id}`);
   },
 
   getBankAccounts: async (): Promise<BankAccount[]> => {
