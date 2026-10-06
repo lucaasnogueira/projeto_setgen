@@ -81,15 +81,6 @@ export function ModulePage({ announcement }: ModulePageProps) {
 
     const DEFAULT_MODULES: ModuleItem[] = [
       {
-        id: "armazem-geral",
-        name: "Armazém Geral",
-        code: "WAREHOUSE",
-        description: "Controle de saldo, recebimento e armazenamento de cargas.",
-        route: "/inventory",
-        icon: "Truck",
-        isEnabled: true,
-      },
-      {
         id: "clients",
         name: "Clientes",
         code: "CLIENTS",
@@ -145,9 +136,9 @@ export function ModulePage({ announcement }: ModulePageProps) {
       },
       {
         id: "estoque",
-        name: "Estoque & Peças",
+        name: "Almoxarifado & Estoque",
         code: "INVENTORY",
-        description: "Controle de saldo central e peças de reposição.",
+        description: "Controle de saldo central, peças de reposição e separação.",
         route: "/inventory",
         icon: "Package",
         isEnabled: true,
@@ -190,6 +181,23 @@ export function ModulePage({ announcement }: ModulePageProps) {
       },
     ];
 
+    const deduplicate = (list: ModuleItem[]): ModuleItem[] => {
+      const seenRoutes = new Set<string>();
+      const seenCodes = new Set<string>();
+      const result: ModuleItem[] = [];
+
+      for (const item of list) {
+        const routeKey = (item.route || "").toLowerCase().trim();
+        const codeKey = (item.code || "").toUpperCase().trim();
+        if (routeKey && seenRoutes.has(routeKey)) continue;
+        if (codeKey && seenCodes.has(codeKey)) continue;
+        if (routeKey) seenRoutes.add(routeKey);
+        if (codeKey) seenCodes.add(codeKey);
+        result.push(item);
+      }
+      return result;
+    };
+
     const userRole = user?.role;
     const userRoleName = user?.roleName || (user as any)?.roleRef?.name;
     const normRoleName = (userRoleName || "").toLowerCase().trim();
@@ -200,13 +208,15 @@ export function ModulePage({ announcement }: ModulePageProps) {
         !normRoleName.includes("compras") &&
         (normRoleName.includes("administrador") || normRoleName === "admin"));
 
-    const filteredDefaults = DEFAULT_MODULES.filter((m) => {
-      const code = (m.code || "").toUpperCase();
-      if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
-        return isAdmin;
-      }
-      return isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName, user?.permissions);
-    }).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+    const filteredDefaults = deduplicate(
+      DEFAULT_MODULES.filter((m) => {
+        const code = (m.code || "").toUpperCase();
+        if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
+          return isAdmin;
+        }
+        return isAdmin || isUserAuthorizedForModule(userRole, m.code, userRoleName, user?.permissions);
+      }).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
+    );
 
     try {
       const response = await api.get("/access-control/me/modules").catch(() => {
@@ -227,25 +237,27 @@ export function ModulePage({ announcement }: ModulePageProps) {
       }
 
       const isAdminUser = isAdmin || data.isAdmin === true;
-      const enabledModules = rawModules
-        .filter((mod: any) => {
-          const code = (mod.code || mod.name || "").toUpperCase();
-          // Bloqueio estrito de Configurador para quem não for ADMIN
-          if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
-            return isAdminUser;
-          }
-          return mod.isEnabled === true || mod.active === true || mod.isActive === true;
-        })
-        .map((mod: any) => ({
-          id: String(mod.id),
-          name: mod.name,
-          code: mod.code || mod.name,
-          description: mod.description || "Acesse as funcionalidades deste módulo operacional.",
-          route: mod.route,
-          icon: mod.icon || "Layers",
-          isEnabled: true,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+      const enabledModules = deduplicate(
+        rawModules
+          .filter((mod: any) => {
+            const code = (mod.code || mod.name || "").toUpperCase();
+            // Bloqueio estrito de Configurador para quem não for ADMIN
+            if (code === "SETTINGS" || code === "CONFIGURADOR" || code === "USERS") {
+              return isAdminUser;
+            }
+            return mod.isEnabled === true || mod.active === true || mod.isActive === true;
+          })
+          .map((mod: any) => ({
+            id: String(mod.id),
+            name: mod.name,
+            code: mod.code || mod.name,
+            description: mod.description || "Acesse as funcionalidades deste módulo operacional.",
+            route: mod.route,
+            icon: mod.icon || "Layers",
+            isEnabled: true,
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
+      );
 
       setModules(enabledModules.length > 0 ? enabledModules : filteredDefaults);
     } catch (err: any) {
