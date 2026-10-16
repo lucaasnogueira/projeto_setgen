@@ -24,7 +24,7 @@ export function RouteMap({ visits }: RouteMapProps) {
 
   if (stops.length === 0) {
     return (
-      <div className="h-72 rounded-2xl border flex items-center justify-center text-sm text-muted-foreground">
+      <div className="h-72 rounded-xl border border-gray-200/80 shadow-2xs flex items-center justify-center text-xs text-gray-500 bg-white">
         Nenhum cliente com coordenadas cadastradas para exibir no mapa.
       </div>
     );
@@ -36,7 +36,7 @@ export function RouteMap({ visits }: RouteMapProps) {
   ]);
 
   return (
-    <div className="h-96 rounded-2xl overflow-hidden border">
+    <div className="h-96 rounded-xl overflow-hidden border border-gray-200/80 shadow-2xs">
       <MapContainer bounds={L.latLngBounds(positions)} className="h-full w-full">
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'

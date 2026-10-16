@@ -19,7 +19,7 @@ export function StepRail({ steps, activeKey, onSelect }: StepRailProps) {
   const activeIndex = Math.max(0, steps.findIndex((s) => s.key === activeKey));
 
   return (
-    <div className="flex items-center flex-wrap gap-1 bg-card border rounded-2xl px-4 py-3.5 shadow-sm sticky top-0 z-10">
+    <div className="flex items-center flex-wrap gap-1 bg-card border rounded-xl px-3.5 py-2.5 shadow-2xs sticky top-0 z-10">
       {steps.map((s, i) => {
         const isActive = i === activeIndex;
         const isDone = i < activeIndex;
@@ -32,16 +32,16 @@ export function StepRail({ steps, activeKey, onSelect }: StepRailProps) {
             >
               <span
                 className={cn(
-                  'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 transition-colors',
+                  'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors',
                   isDone ? 'bg-emerald-500 text-white' : isActive ? 'bg-primary text-white' : 'bg-muted text-text-muted'
                 )}
               >
-                {isDone ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                {isDone ? <Check className="h-3 w-3" /> : i + 1}
               </span>
               <span
                 className={cn(
-                  'text-[13px] font-bold whitespace-nowrap',
-                  isActive ? 'text-foreground' : isDone ? 'text-text-secondary' : 'text-text-muted'
+                  'text-xs font-semibold whitespace-nowrap',
+                  isActive ? 'text-foreground font-bold' : isDone ? 'text-text-secondary' : 'text-text-muted'
                 )}
               >
                 {s.label}
@@ -70,14 +70,14 @@ export function StepFooter({ steps, activeKey, onNext, onCancel, loading, submit
   const isLast = activeIndex === steps.length - 1;
 
   return (
-    <div className="flex gap-4 pt-6 pb-12">
+    <div className="flex gap-3 pt-4 pb-6">
       <Button
         type="button"
         variant="outline"
         onClick={onCancel}
-        className="flex-1 h-14 rounded-2xl border-2 hover:bg-muted flex items-center justify-center gap-2 font-bold text-text-secondary transition-all active:scale-95"
+        className="flex-1 h-9 rounded-lg border hover:bg-muted flex items-center justify-center gap-1.5 font-semibold text-xs text-text-secondary transition-all shadow-2xs"
       >
-        <X className="h-5 w-5" />
+        <X className="h-4 w-4" />
         Cancelar
       </Button>
       {!isLast ? (
@@ -85,19 +85,19 @@ export function StepFooter({ steps, activeKey, onNext, onCancel, loading, submit
           key="next"
           type="button"
           onClick={() => onNext(steps[activeIndex + 1].key)}
-          className="flex-1 h-14 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl shadow-lg shadow-orange-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95"
+          className="flex-1 h-9 bg-[#E2661D] hover:bg-[#c95716] text-white rounded-lg shadow-2xs flex items-center justify-center gap-1.5 font-bold text-xs transition-all"
         >
           Avançar para {steps[activeIndex + 1].label}
-          <ArrowRight className="h-5 w-5" />
+          <ArrowRight className="h-4 w-4" />
         </Button>
       ) : (
         <Button
           key="submit"
           type="submit"
           disabled={loading}
-          className="flex-1 h-14 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl shadow-lg shadow-orange-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
+          className="flex-1 h-9 bg-[#E2661D] hover:bg-[#c95716] text-white rounded-lg shadow-2xs flex items-center justify-center gap-1.5 font-bold text-xs transition-all disabled:opacity-50"
         >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {loading ? 'Salvando...' : submitLabel}
         </Button>
       )}

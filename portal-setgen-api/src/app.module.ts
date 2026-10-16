@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,6 +17,7 @@ import { ServiceOrdersModule } from './service-orders/service-orders.module';
 import { ChecklistTemplatesModule } from './checklist-templates/checklist-templates.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { ArtModule } from './art/art.module';
+import { OrderDocumentsModule } from './order-documents/order-documents.module';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -40,6 +41,7 @@ import { ServicesModule } from './services/services.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { GeoModule } from './geo/geo.module';
 import { SystemModulesModule } from './system-modules/system-modules.module';
+import { OperationsModule } from './operations/operations.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -64,6 +66,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     ChecklistTemplatesModule,
     ApprovalsModule,
     ArtModule,
+    OrderDocumentsModule,
     PurchaseOrdersModule,
     DeliveriesModule,
     WarrantiesModule,
@@ -87,6 +90,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PaymentMethodsModule,
     GeoModule,
     SystemModulesModule,
+    OperationsModule,
     ThrottlerModule.forRoot([{
       ttl: 60000,
       limit: 10,

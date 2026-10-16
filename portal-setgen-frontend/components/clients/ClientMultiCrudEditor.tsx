@@ -13,7 +13,7 @@ import {
   PhoneCall, MailCheck, Navigation, Home, Layers, Lock, ShieldAlert,
   Percent, FileText, Sparkles, Globe, CreditCard, ArrowLeft,
   ChevronRight, AlertCircle, Info, Shield, UserCog, UserRound,
-  Zap, Trash2, Wrench, User as UserIcon
+  Zap, Trash2, Wrench, User as UserIcon, Repeat, DollarSign, ShieldCheck, Calendar
 } from "lucide-react";
 import { formatCPF, formatCNPJ } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,15 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // === Contrato de Manutenção & Periodicidade de Visitas ===
+  const [hasContract, setHasContract] = useState(false);
+  const [contractNumber, setContractNumber] = useState("");
+  const [contractRecurrence, setContractRecurrence] = useState("MENSAL");
+  const [contractStartDate, setContractStartDate] = useState("");
+  const [contractEndDate, setContractEndDate] = useState("");
+  const [contractMonthlyValue, setContractMonthlyValue] = useState("");
+  const [contractScope, setContractScope] = useState("");
 
   // === Equipamentos (Multi-CRUD / Staged para novos clientes) ===
   const [clientEquipments, setClientEquipments] = useState<Equipment[]>([]);
@@ -191,6 +200,30 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         setMunicipalRegistration(c.municipalRegistration || "");
         setNotes(c.notes || "");
         setInternalNotes(c.internalNotes || "");
+        try {
+          const rawNotes = `${c.internalNotes || ""} ${c.notes || ""}`;
+          const contractMatch = rawNotes.match(/<!--CONTRACT_DATA:(.*?)-->/);
+          if (contractMatch && contractMatch[1]) {
+            const cd = JSON.parse(contractMatch[1]);
+            setHasContract(Boolean(cd.hasContract));
+            setContractNumber(cd.contractNumber || "");
+            setContractRecurrence(cd.contractRecurrence || "MENSAL");
+            setContractStartDate(cd.contractStartDate || "");
+            setContractEndDate(cd.contractEndDate || "");
+            setContractMonthlyValue(cd.contractMonthlyValue || "");
+            setContractScope(cd.contractScope || "");
+          } else {
+            const lower = rawNotes.toLowerCase();
+            if (lower.includes("contrato") || lower.includes("mensal") || lower.includes("bimestral") || lower.includes("trimestral")) {
+              setHasContract(true);
+              if (lower.includes("bimestral")) setContractRecurrence("BIMESTRAL");
+              else if (lower.includes("trimestral")) setContractRecurrence("TRIMESTRAL");
+              else if (lower.includes("semestral")) setContractRecurrence("SEMESTRAL");
+              else if (lower.includes("anual")) setContractRecurrence("ANUAL");
+              else setContractRecurrence("MENSAL");
+            }
+          }
+        } catch {}
       }).catch(console.error).finally(() => setLoading(false));
     } else {
       try {
@@ -265,6 +298,13 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
       if (d.icmsTaxpayerType) setIcmsTaxpayerType(d.icmsTaxpayerType);
       if (d.stateRegistration) setStateRegistration(d.stateRegistration);
       if (d.municipalRegistration) setMunicipalRegistration(d.municipalRegistration);
+      if (d.hasContract !== undefined) setHasContract(d.hasContract);
+      if (d.contractNumber) setContractNumber(d.contractNumber);
+      if (d.contractRecurrence) setContractRecurrence(d.contractRecurrence);
+      if (d.contractStartDate) setContractStartDate(d.contractStartDate);
+      if (d.contractEndDate) setContractEndDate(d.contractEndDate);
+      if (d.contractMonthlyValue) setContractMonthlyValue(d.contractMonthlyValue);
+      if (d.contractScope) setContractScope(d.contractScope);
       toast.success("Rascunho restaurado com sucesso!");
     } catch {
       toast.error("Não foi possível restaurar o rascunho.");
@@ -286,6 +326,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         corporatePhones, corporateEmails, cep, street, number, complement, neighborhood, city, state,
         onSiteContact, responsibleUserId, responsibleTeamId, groupId, segmentId, notes, internalNotes,
         icmsTaxpayerType, stateRegistration, municipalRegistration,
+        hasContract, contractNumber, contractRecurrence, contractStartDate, contractEndDate, contractMonthlyValue, contractScope,
       }));
       toast.success("Rascunho salvo no navegador!");
     } catch {
@@ -300,27 +341,104 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
       return;
     }
     setLookupLoading(true);
+
     try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
-      if (!res.ok) {
-        toast.error("CNPJ não encontrado na Receita Federal.");
-        return;
+      // 1ª Tentativa: BrasilAPI
+      let foundData: any = null;
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${clean}`);
+        if (res.ok) {
+          const d = await res.json();
+          foundData = {
+            companyName: d.razao_social,
+            tradeName: d.nome_fantasia,
+            email: d.email,
+            phone: d.ddd_telefone_1 ? d.ddd_telefone_1.replace(/\D/g, "") : "",
+            cep: d.cep,
+            street: d.logradouro,
+            number: d.numero,
+            complement: d.complemento,
+            neighborhood: d.bairro,
+            city: d.municipio,
+            state: d.uf?.toUpperCase(),
+          };
+        }
+      } catch (e) {
+        console.warn("BrasilAPI falhou, tentando fallback...", e);
       }
-      const d = await res.json();
-      if (d.razao_social) setCompanyName(d.razao_social);
-      if (d.nome_fantasia) setTradeName(d.nome_fantasia);
-      if (d.email) setEmail(d.email);
-      if (d.ddd_telefone_1) setPhone(d.ddd_telefone_1);
-      if (d.cep) { setCep(d.cep); handleCepLookup(d.cep); }
-      if (d.logradouro) setStreet(d.logradouro);
-      if (d.numero) setNumber(d.numero);
-      if (d.complemento) setComplement(d.complemento);
-      if (d.bairro) setNeighborhood(d.bairro);
-      if (d.municipio) setCity(d.municipio);
-      if (d.uf) setState(d.uf.toUpperCase());
-      toast.success("Dados preenchidos via Receita Federal!");
+
+      // 2ª Tentativa: CNPJ.ws (Receita Federal pública)
+      if (!foundData) {
+        try {
+          const resWs = await fetch(`https://publica.cnpj.ws/cnpj/${clean}`);
+          if (resWs.ok) {
+            const d = await resWs.json();
+            const est = d.estabelecimento;
+            foundData = {
+              companyName: d.razao_social,
+              tradeName: est?.nome_fantasia || d.razao_social,
+              email: est?.email,
+              phone: est?.ddd1 && est?.telefone1 ? `${est.ddd1}${est.telefone1}` : "",
+              cep: est?.cep,
+              street: est?.tipo_logradouro ? `${est.tipo_logradouro} ${est.logradouro}` : est?.logradouro,
+              number: est?.numero,
+              complement: est?.complemento,
+              neighborhood: est?.bairro,
+              city: est?.cidade?.nome,
+              state: est?.estado?.sigla?.toUpperCase(),
+            };
+          }
+        } catch (e) {
+          console.warn("CNPJ.ws falhou, tentando backend...", e);
+        }
+      }
+
+      // 3ª Tentativa: Backend local da Setgen (clientsApi.fetchCNPJ)
+      if (!foundData) {
+        try {
+          const backData = await clientsApi.fetchCNPJ(clean);
+          if (backData) {
+            foundData = {
+              companyName: backData.razaoSocial,
+              tradeName: backData.nomeFantasia || backData.razaoSocial,
+              email: backData.email,
+              phone: backData.telefone,
+              cep: backData.cep,
+              street: backData.logradouro,
+              number: backData.numero,
+              complement: backData.complemento,
+              neighborhood: backData.bairro,
+              city: backData.municipio,
+              state: backData.uf?.toUpperCase(),
+            };
+          }
+        } catch (e) {
+          console.warn("Backend fetchCNPJ falhou...", e);
+        }
+      }
+
+      if (foundData) {
+        if (foundData.companyName) setCompanyName(foundData.companyName);
+        if (foundData.tradeName) setTradeName(foundData.tradeName);
+        if (foundData.email) setEmail(foundData.email);
+        if (foundData.phone) setPhone(foundData.phone);
+        if (foundData.cep) {
+          setCep(foundData.cep);
+          handleCepLookup(foundData.cep);
+        }
+        if (foundData.street) setStreet(foundData.street);
+        if (foundData.number) setNumber(foundData.number);
+        if (foundData.complement) setComplement(foundData.complement);
+        if (foundData.neighborhood) setNeighborhood(foundData.neighborhood);
+        if (foundData.city) setCity(foundData.city);
+        if (foundData.state) setState(foundData.state);
+
+        toast.success("Dados preenchidos via Receita Federal!");
+      } else {
+        toast.error("CNPJ não localizado na base pública da Receita Federal. Você pode preencher os campos manualmente.");
+      }
     } catch {
-      toast.error("Erro ao consultar CNPJ. Preencha os campos manualmente.");
+      toast.error("Erro na comunicação com a Receita Federal. Você pode preencher os dados manualmente.");
     } finally {
       setLookupLoading(false);
     }
@@ -578,7 +696,22 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         stateRegistration: stateRegistration.trim() || undefined,
         municipalRegistration: municipalRegistration.trim() || undefined,
         notes: notes.trim() || undefined,
-        internalNotes: internalNotes.trim() || undefined,
+        internalNotes: (() => {
+          let raw = internalNotes.replace(/<!--CONTRACT_DATA:.*?-->/g, "").replace(/\[Contrato de Manutenção:.*?\]/g, "").trim();
+          if (hasContract) {
+            const meta = `<!--CONTRACT_DATA:${JSON.stringify({
+              hasContract,
+              contractNumber: contractNumber.trim(),
+              contractRecurrence,
+              contractStartDate,
+              contractEndDate,
+              contractMonthlyValue,
+              contractScope: contractScope.trim(),
+            })}-->\n[Contrato de Manutenção: ${contractNumber.trim() || "Ativo"} | Periodicidade: ${contractRecurrence}]`;
+            raw = raw ? `${meta}\n${raw}` : meta;
+          }
+          return raw || undefined;
+        })(),
       };
 
       if (clientId) {
@@ -626,7 +759,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
   const tabs: { key: TabKey; icon: React.ComponentType<{ className?: string }>; label: string; desc: string }[] = [
     { key: "dados", icon: Building2, label: "Dados Cadastrais", desc: "Razão social, CNPJ e dados fiscais" },
     { key: "contato", icon: Phone, label: "Contato & Endereço", desc: "Telefones, e-mails e localização física" },
-    { key: "detalhes", icon: Users, label: "Detalhes & Responsáveis", desc: "Atribuição interna, equipe e contato no local" },
+    { key: "detalhes", icon: Users, label: "Contrato & Responsáveis", desc: "Contrato de manutenção, periodicidade de visitas e equipe" },
     { key: "equipamentos", icon: Zap, label: "Equipamentos", desc: "Geradores e máquinas vinculadas" },
     { key: "notas", icon: StickyNote, label: "Observações", desc: "Notas internas e instruções de atendimento" },
   ];
@@ -815,7 +948,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
         </div>
 
         {/* ===== CONTEÚDO SCROLLÁVEL ===== */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 text-xs bg-[#FAFAFB]">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 text-xs bg-[#FAFAFB]">
           <div className="max-w-6xl mx-auto space-y-5">
 
           {/* ============================================================== */}
@@ -1618,6 +1751,162 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                 </div>
               </div>
 
+              {/* Card 4: Contrato de Manutenção & Periodicidade das Visitas */}
+              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-[#E2661D]">
+                      <Repeat className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-900 text-sm">
+                        Contrato de Manutenção & Periodicidade das Visitas
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        Defina se o cliente possui contrato de preventiva contínua e a frequência das visitas técnicas
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle: Contrato vs Avulso */}
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 bg-orange-50/70 hover:bg-orange-100/60 px-3 py-1.5 rounded-xl border border-orange-200 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={hasContract}
+                      onChange={e => setHasContract(e.target.checked)}
+                      className="rounded border-gray-300 text-[#E2661D] focus:ring-[#E2661D]"
+                    />
+                    <span>Cliente com Contrato de Manutenção</span>
+                  </label>
+                </div>
+
+                {hasContract ? (
+                  <div className="space-y-4 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Periodicidade das Visitas */}
+                      <div>
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Periodicidade das Visitas *
+                        </Label>
+                        <select
+                          value={contractRecurrence}
+                          onChange={e => setContractRecurrence(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-[#E2661D] font-bold text-gray-800"
+                        >
+                          <option value="MENSAL">Mensal (12 visitas preventivas / ano)</option>
+                          <option value="BIMESTRAL">Bimestral (6 visitas preventivas / ano)</option>
+                          <option value="TRIMESTRAL">Trimestral (4 visitas preventivas / ano)</option>
+                          <option value="SEMESTRAL">Semestral (2 visitas preventivas / ano)</option>
+                          <option value="ANUAL">Anual (1 visita preventiva / ano)</option>
+                          <option value="PERSONALIZADO">Personalizado / Sob Demanda</option>
+                        </select>
+                        <p className="text-[10.5px] text-gray-400 mt-1">
+                          Frequência padrão de atendimento preventivo
+                        </p>
+                      </div>
+
+                      {/* Número do Contrato */}
+                      <div>
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <FileText className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Número do Contrato / Termo
+                        </Label>
+                        <Input
+                          value={contractNumber}
+                          onChange={e => setContractNumber(e.target.value)}
+                          placeholder="Ex: CTR-2026/045"
+                          className="h-10 text-xs bg-white border-gray-200 focus:border-[#E2661D]"
+                        />
+                        <p className="text-[10.5px] text-gray-400 mt-1">
+                          Código ou identificador do documento jurídico
+                        </p>
+                      </div>
+
+                      {/* Valor Mensal */}
+                      <div>
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <DollarSign className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Valor Mensal / Parcela (R$)
+                        </Label>
+                        <Input
+                          value={contractMonthlyValue}
+                          onChange={e => setContractMonthlyValue(e.target.value)}
+                          placeholder="Ex: 2.850,00"
+                          className="h-10 text-xs bg-white border-gray-200 focus:border-[#E2661D]"
+                        />
+                        <p className="text-[10.5px] text-gray-400 mt-1">
+                          Mensalidade fixa de manutenção contratada
+                        </p>
+                      </div>
+
+                      {/* Data de Início da Vigência */}
+                      <div>
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Início da Vigência
+                        </Label>
+                        <Input
+                          type="date"
+                          value={contractStartDate}
+                          onChange={e => setContractStartDate(e.target.value)}
+                          className="h-10 text-xs bg-white border-gray-200 focus:border-[#E2661D]"
+                        />
+                      </div>
+
+                      {/* Data de Término / Renovação */}
+                      <div>
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Término / Renovação
+                        </Label>
+                        <Input
+                          type="date"
+                          value={contractEndDate}
+                          onChange={e => setContractEndDate(e.target.value)}
+                          className="h-10 text-xs bg-white border-gray-200 focus:border-[#E2661D]"
+                        />
+                      </div>
+
+                      {/* Escopo do Contrato */}
+                      <div className="sm:col-span-2 lg:col-span-1">
+                        <Label className="flex items-center gap-1.5 font-semibold text-gray-700 mb-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#E2661D]" />
+                          Escopo Coberto
+                        </Label>
+                        <Input
+                          value={contractScope}
+                          onChange={e => setContractScope(e.target.value)}
+                          placeholder="Ex: Preventiva + Troca de Filtros + Plantão 24h"
+                          className="h-10 text-xs bg-white border-gray-200 focus:border-[#E2661D]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-[11px] leading-relaxed flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        Este cliente será categorizado como <strong>Contratista Ativo</strong>. Ao agendar novas visitas técnicas para ele, o sistema vinculará automaticamente o contrato com periodicidade <strong>{contractRecurrence}</strong>.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-center text-gray-500 text-xs">
+                    <p className="font-semibold text-gray-700">Cliente Sem Contrato Fixo (Atendimento Avulso / Spot)</p>
+                    <p className="text-[11px] text-gray-400 mt-1 max-w-md mx-auto">
+                      As visitas técnicas e ordens de serviço serão faturadas individualmente sob demanda, sem periodicidade automática de preventivas.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setHasContract(true)}
+                      className="mt-2.5 text-xs font-bold text-[#E2661D] hover:underline inline-flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Ativar Contrato de Manutenção
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
           )}
 
@@ -1637,7 +1926,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                       <p className="text-[11px] text-gray-400">
                         {clientId
                           ? "Equipamentos registrados e vinculados a este cliente."
-                          : "Adicione os equipamentos deste cliente. Eles serão criados e vinculados automaticamente ao salvar o cadastro."}
+                          : "Adicione os equipamentos deste cliente em lista. Eles serão vinculados automaticamente ao salvar o cadastro."}
                       </p>
                     </div>
                   </div>
@@ -1665,7 +1954,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                     <Wrench className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                     <p className="text-xs font-semibold text-gray-600">Nenhum equipamento vinculado a este cliente</p>
                     <p className="text-[11px] text-gray-400 mt-1 max-w-sm mx-auto">
-                      Clique no botão acima para adicionar grupos geradores, subestações ou painéis de comando deste cliente.
+                      Clique no botão acima para adicionar grupos geradores, subestações ou painéis de comando deste cliente na lista.
                     </p>
                     <Button
                       type="button"
@@ -1681,17 +1970,25 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                     </Button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                    {(clientId ? clientEquipments : stagedEquipments).map((eq: any) => {
-                      const idKey = clientId ? eq.id : eq.tempId;
-                      return (
-                        <div
-                          key={idKey}
-                          className="p-3.5 rounded-xl border border-gray-200 bg-white hover:border-orange-200 transition-all shadow-xs flex flex-col justify-between"
-                        >
-                          <div className="space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-gray-50/90 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10.5px]">
+                        <tr>
+                          <th className="py-2.5 px-3">Tipo</th>
+                          <th className="py-2.5 px-3">Marca & Modelo</th>
+                          <th className="py-2.5 px-3">Potência</th>
+                          <th className="py-2.5 px-3">Nº de Série</th>
+                          <th className="py-2.5 px-3">Local de Instalação</th>
+                          <th className="py-2.5 px-3">Observações</th>
+                          <th className="py-2.5 px-3 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-gray-700">
+                        {(clientId ? clientEquipments : stagedEquipments).map((eq: any) => {
+                          const idKey = clientId ? eq.id : eq.tempId;
+                          return (
+                            <tr key={idKey} className="hover:bg-orange-50/30 transition-colors">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
                                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-orange-50 text-[#E2661D] border border-orange-100">
                                   {eq.type === EquipmentType.GENERATOR
                                     ? "Grupo Gerador"
@@ -1699,49 +1996,37 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
                                     ? "Subestação"
                                     : "Outro"}
                                 </span>
-                                <h5 className="font-bold text-gray-900 text-xs mt-1">
-                                  {[eq.brand, eq.model].filter(Boolean).join(" - ") || "Equipamento Sem Identificação"}
-                                </h5>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteEquipment(idKey)}
-                                className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors"
-                                title="Remover equipamento"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-gray-600">
-                              {eq.powerRating && (
-                                <div>
-                                  <span className="text-gray-400">Potência:</span>{" "}
-                                  <span className="font-semibold">{eq.powerRating}</span>
-                                </div>
-                              )}
-                              {eq.serialNumber && (
-                                <div>
-                                  <span className="text-gray-400">Nº Série:</span>{" "}
-                                  <span className="font-mono text-[10.5px] font-semibold">{eq.serialNumber}</span>
-                                </div>
-                              )}
-                              {eq.installLocation && (
-                                <div className="col-span-2">
-                                  <span className="text-gray-400">Local:</span>{" "}
-                                  <span className="font-medium text-gray-700">{eq.installLocation}</span>
-                                </div>
-                              )}
-                              {eq.notes && (
-                                <div className="col-span-2 text-gray-500 text-[10px] italic bg-gray-50 p-1.5 rounded">
-                                  {eq.notes}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                              </td>
+                              <td className="py-2.5 px-3 font-bold text-gray-900 whitespace-nowrap">
+                                {[eq.brand, eq.model].filter(Boolean).join(" - ") || "Equipamento Sem Identificação"}
+                              </td>
+                              <td className="py-2.5 px-3 font-semibold text-gray-700 whitespace-nowrap">
+                                {eq.powerRating || "—"}
+                              </td>
+                              <td className="py-2.5 px-3 font-mono text-[11px] text-gray-600 whitespace-nowrap">
+                                {eq.serialNumber || "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-gray-600">
+                                {eq.installLocation || "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-gray-400 italic text-[11px] max-w-xs truncate">
+                                {eq.notes || "—"}
+                              </td>
+                              <td className="py-2.5 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEquipment(idKey)}
+                                  className="text-gray-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors inline-flex items-center"
+                                  title="Remover equipamento"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -1796,52 +2081,53 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
               </div>
             </div>
           )}
-          </div>
-        </div>
 
-        {/* ===== BARRA DE AÇÕES INFERIOR (STICKY / FIXA NO RODAPÉ) ===== */}
-        <div className="sticky bottom-0 z-20 h-14 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-6 flex items-center justify-between shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSaveDraft}
-            className="text-xs text-gray-600 hover:text-[#E2661D] hover:bg-orange-50/60 rounded-lg gap-1.5 transition-colors"
-          >
-            <Save className="w-3.5 h-3.5 text-[#E2661D]" />
-            <span>Salvar como Rascunho</span>
-          </Button>
+            {/* Ações ao final do formulário (in-flow, zero barra fixa consumindo tela) */}
+            <div className="flex items-center justify-between pt-4 pb-2 border-t border-gray-200">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleSaveDraft}
+                className="text-xs text-gray-500 hover:text-[#E2661D] gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5 text-[#E2661D]" />
+                <span>Salvar como Rascunho</span>
+              </Button>
 
-          <div className="flex items-center gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              className="text-xs h-9 px-4 rounded-lg border-gray-200 hover:bg-gray-50 text-gray-700"
-            >
-              Cancelar
-            </Button>
+              <div className="flex items-center gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onClose}
+                  className="text-xs h-9 px-4 rounded-lg border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  Cancelar
+                </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving}
-              onClick={handleSave}
-              className="bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs h-9 px-5 rounded-lg shadow-xs gap-1.5 transition-all"
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Salvando...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  <span>{clientId ? "Salvar Alterações" : "Cadastrar Cliente"}</span>
-                </>
-              )}
-            </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={saving}
+                  onClick={handleSave}
+                  className="bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs h-9 px-5 rounded-lg shadow-xs gap-1.5 transition-all"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>{clientId ? "Salvar Alterações" : "Cadastrar Cliente"}</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -1849,7 +2135,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
 
       {/* ===== MODAL DE CADASTRO RÁPIDO (MULTI-CRUD "+") ===== */}
       <Dialog open={!!quickModal} onOpenChange={(open) => !open && setQuickModal(null)}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="space-y-1 pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -1970,7 +2256,7 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
       </Dialog>
       {/* ===== MODAL ADICIONAR EQUIPAMENTO AO CLIENTE ===== */}
       <Dialog open={showAddEquipmentModal} onOpenChange={setShowAddEquipmentModal}>
-        <DialogContent className="max-w-xl bg-white border border-gray-200 rounded-2xl shadow-xl p-6">
+        <DialogContent className="max-w-xl bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="space-y-1 pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">

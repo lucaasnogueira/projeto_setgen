@@ -26,7 +26,7 @@ export default function NewExpensePage() {
     async function loadData() {
       try {
         const [categories, clients, visits, serviceOrders] = await Promise.all([
-          expensesApi.getCategories(),
+          expensesApi.getCategories().catch(() => []),
           clientsApi.getAll().catch(() => []),
           visitsApi.getAll().catch(() => []),
           ordersApi.getAll().catch(() => []),
@@ -79,7 +79,7 @@ export default function NewExpensePage() {
       />
 
       {loading ? (
-        <div className="flex h-64 items-center justify-center bg-white rounded-2xl border border-gray-200">
+        <div className="flex h-64 items-center justify-center bg-white rounded-xl border border-gray-200/80 shadow-2xs">
           <Loader2 className="h-7 w-7 animate-spin text-[#E2661D]" />
         </div>
       ) : (

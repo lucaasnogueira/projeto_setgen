@@ -33,3 +33,4 @@ coverage/
 
 # ─── Config local ───────────────────────────────────────────
 .mcp.json
+.claude/

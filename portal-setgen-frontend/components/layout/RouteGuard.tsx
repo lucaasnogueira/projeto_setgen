@@ -32,13 +32,13 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
     return (
       <div className="flex items-center justify-center min-h-[75vh] px-4">
-        <div className="max-w-md w-full bg-white rounded-3xl border border-red-100 p-8 text-center shadow-lg shadow-red-950/5 space-y-5">
-          <div className="w-16 h-16 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-200/60 shadow-xs">
-            <ShieldAlert className="w-8 h-8" />
+        <div className="max-w-md w-full bg-white rounded-xl border border-red-100 p-6 text-center shadow-2xs space-y-4">
+          <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-200/60 shadow-2xs">
+            <ShieldAlert className="w-6 h-6" />
           </div>
 
-          <div className="space-y-2">
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">
+          <div className="space-y-1.5">
+            <h2 className="text-base font-bold text-gray-900">
               Acesso Restrito
             </h2>
             <p className="text-xs text-gray-500 leading-relaxed">
@@ -46,12 +46,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
             </p>
           </div>
 
-          <div className="pt-2 flex flex-col gap-2">
+          <div className="pt-1 flex flex-col gap-2">
             <Button
               onClick={() => router.push(defaultRoute)}
-              className="w-full rounded-xl bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs h-10 gap-2 shadow-xs"
+              className="w-full rounded-lg bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs h-9 gap-2 shadow-2xs"
             >
-              <LayoutGrid className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
               Ir para Meus Módulos Autorizados
             </Button>
             <Button

@@ -12,6 +12,16 @@ export const inventoryApi = {
     }
   },
 
+  async getLowStock(): Promise<Product[]> {
+    try {
+      const { data } = await api.get("/inventory/products/low-stock");
+      return data;
+    } catch (error) {
+      console.error("Erro ao buscar estoque baixo:", error);
+      return [];
+    }
+  },
+
   async getById(id: string): Promise<Product> {
     const { data } = await api.get(`/inventory/products/${id}`);
     return data;
@@ -63,6 +73,20 @@ export const inventoryApi = {
     items: { productId: string; quantity: number }[];
   }): Promise<StockMovement[]> {
     const { data } = await api.post("/inventory/movements/batch", payload);
+    return data;
+  },
+
+  async bulkImport(items: any[]): Promise<any> {
+    const { data } = await api.post("/inventory/products/bulk-import", { items });
+    return data;
+  },
+
+  async getMovements(params?: { productId?: string; type?: string }): Promise<StockMovement[]> {
+    const query = new URLSearchParams();
+    if (params?.productId) query.append("productId", params.productId);
+    if (params?.type) query.append("type", params.type);
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    const { data } = await api.get(`/inventory/movements${queryString}`);
     return data;
   },
 };

@@ -25,7 +25,7 @@ import {
 
 const RouteMap = dynamic(
   () => import("./RouteMap").then((m) => m.RouteMap),
-  { ssr: false, loading: () => <div className="h-96 rounded-2xl bg-muted animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-96 rounded-xl bg-muted animate-pulse" /> },
 );
 
 type ViewMode = "day" | "week";
@@ -147,21 +147,21 @@ export function VisitsAgendaView() {
   const weekDays = viewMode === "week" ? eachDayOfInterval({ start: rangeStart, end: rangeEnd }) : [];
 
   return (
-    <div className="space-y-5">
-      <Card className="p-4 space-y-4">
+    <div className="space-y-4">
+      <Card className="p-3.5 sm:p-4 space-y-3.5 rounded-xl border border-gray-200/80 shadow-2xs bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => navigate(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" onClick={() => setReferenceDate(new Date())}>
+            <Button variant="outline" className="h-9 px-3 rounded-lg text-xs font-semibold" onClick={() => setReferenceDate(new Date())}>
               Hoje
             </Button>
-            <Button variant="outline" size="icon" onClick={() => navigate(1)}>
+            <Button variant="outline" size="icon" className="h-9 w-9 rounded-lg" onClick={() => navigate(1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <span className="ml-2 font-bold text-[14px] flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-orange-600" />
+            <span className="ml-2 font-bold text-xs sm:text-sm flex items-center gap-2 text-gray-900">
+              <CalendarDays className="h-3.5 w-3.5 text-[#E2661D]" />
               {viewMode === "day"
                 ? format(referenceDate, "EEEE, dd 'de' MMMM", { locale: ptBR })
                 : `${format(rangeStart, "dd/MM")} - ${format(rangeEnd, "dd/MM")}`}
@@ -169,24 +169,24 @@ export function VisitsAgendaView() {
           </div>
 
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-            <TabsList>
-              <TabsTrigger value="day">Dia</TabsTrigger>
-              <TabsTrigger value="week">Semana</TabsTrigger>
+            <TabsList className="h-9 rounded-lg">
+              <TabsTrigger value="day" className="text-xs">Dia</TabsTrigger>
+              <TabsTrigger value="week" className="text-xs">Semana</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
           <Tabs value={filterMode} onValueChange={(v) => setFilterMode(v as FilterMode)}>
-            <TabsList>
-              <TabsTrigger value="technician">Por Técnico</TabsTrigger>
-              <TabsTrigger value="team">Por Equipe</TabsTrigger>
+            <TabsList className="h-9 rounded-lg">
+              <TabsTrigger value="technician" className="text-xs">Por Técnico</TabsTrigger>
+              <TabsTrigger value="team" className="text-xs">Por Equipe</TabsTrigger>
             </TabsList>
           </Tabs>
 
           {filterMode === "technician" ? (
             <Select value={selectedTechnicianId} onValueChange={setSelectedTechnicianId}>
-              <SelectTrigger className="w-56 h-10 rounded-xl">
+              <SelectTrigger className="w-56 h-9 rounded-lg text-xs border-gray-200">
                 <SelectValue placeholder="Selecione um técnico" />
               </SelectTrigger>
               <SelectContent>
@@ -197,7 +197,7 @@ export function VisitsAgendaView() {
             </Select>
           ) : (
             <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-              <SelectTrigger className="w-56 h-10 rounded-xl">
+              <SelectTrigger className="w-56 h-9 rounded-lg text-xs border-gray-200">
                 <SelectValue placeholder="Selecione uma equipe" />
               </SelectTrigger>
               <SelectContent>
@@ -210,11 +210,11 @@ export function VisitsAgendaView() {
 
           <Button
             variant="outline"
-            className="gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+            className="h-9 px-3 rounded-lg text-xs font-semibold gap-1.5 text-[#E2661D] border-orange-200 hover:bg-orange-50"
             onClick={handleOptimize}
             disabled={!canOptimize || optimizing}
           >
-            {optimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Route className="h-4 w-4" />}
+            {optimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Route className="h-3.5 w-3.5" />}
             Otimizar rota do dia
           </Button>
         </div>

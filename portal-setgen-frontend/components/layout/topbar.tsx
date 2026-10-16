@@ -25,7 +25,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   financial: 'Despesas',
   expenses: 'Despesas',
   invoices: 'Faturamento',
-  'purchase-orders': 'Ordens de Compra (Clientes)',
+  'purchase-orders': 'Ordens de Compra & Retirada',
   rh: 'RH',
   employees: 'Funcionários',
   reports: 'Relatórios',
@@ -69,7 +69,7 @@ export default function Topbar() {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-20 h-16 shrink-0">
+    <header className="bg-card border-b border-border sticky top-0 z-20 h-14 shrink-0 print:hidden">
       <div className="h-full px-6 flex items-center justify-between">
         {/* Breadcrumb com botão Início apontando para /modules */}
         <div className="flex items-center gap-2 text-[13.5px]">

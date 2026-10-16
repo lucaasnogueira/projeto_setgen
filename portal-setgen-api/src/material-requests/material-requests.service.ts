@@ -7,6 +7,7 @@ import {
   Prisma,
   MaterialRequestStatus,
   ProcurementOrderStatus,
+  ServiceOrderStatus,
   MovementType,
   AuditAction,
 } from '@prisma/client';
@@ -126,10 +127,22 @@ export class MaterialRequestsService {
           select: {
             id: true,
             orderNumber: true,
-            client: { select: { id: true, companyName: true } },
+            deadline: true,
+            scope: true,
+            client: { select: { id: true, companyName: true, tradeName: true } },
+            equipment: { select: { id: true, model: true, serialNumber: true } },
           },
         },
         items: { include: { product: { include: { location: true } } } },
+        procurementOrders: {
+          select: {
+            id: true,
+            status: true,
+            supplierId: true,
+            supplier: { select: { name: true } },
+            items: { select: { id: true, quantity: true, productId: true } },
+          },
+        },
       },
       orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
     });
@@ -143,12 +156,21 @@ export class MaterialRequestsService {
           select: {
             id: true,
             orderNumber: true,
-            client: { select: { id: true, companyName: true } },
+            deadline: true,
+            scope: true,
+            client: { select: { id: true, companyName: true, tradeName: true } },
+            equipment: { select: { id: true, model: true, serialNumber: true } },
           },
         },
         items: { include: { product: { include: { location: true } } } },
         procurementOrders: {
-          select: { id: true, status: true, supplierId: true },
+          select: {
+            id: true,
+            status: true,
+            supplierId: true,
+            supplier: { select: { name: true } },
+            items: { select: { id: true, quantity: true, productId: true } },
+          },
         },
       },
     });
@@ -285,6 +307,19 @@ export class MaterialRequestsService {
       data: { status: MaterialRequestStatus.RELEASED },
     });
 
+    // Se a Ordem de Serviço estiver aguardando materiais, avança para em execução
+    if (materialRequest.serviceOrderId) {
+      const so = await this.prisma.serviceOrder.findUnique({
+        where: { id: materialRequest.serviceOrderId },
+      });
+      if (so && so.status === ServiceOrderStatus.AWAITING_MATERIALS) {
+        await this.prisma.serviceOrder.update({
+          where: { id: so.id },
+          data: { status: ServiceOrderStatus.IN_PROGRESS },
+        });
+      }
+    }
+
     await this.auditService.record(
       userId,
       AuditAction.UPDATE,
@@ -315,15 +350,23 @@ export class MaterialRequestsService {
     });
 
     if (existingActive) {
+      // Se ainda estiver em cotação, sincroniza os itens para garantir que o Admin cote as faltas exatas
+      if (existingActive.status === ProcurementOrderStatus.QUOTING) {
+        await tx.procurementOrderItem.deleteMany({
+          where: { procurementOrderId: existingActive.id },
+        });
+        await tx.procurementOrderItem.createMany({
+          data: shortages.map((s) => ({
+            procurementOrderId: existingActive.id,
+            productId: s.productId,
+            requestedQuantity: s.missing,
+            quantity: s.missing,
+            unitCost: 0,
+          })),
+        });
+      }
       return existingActive;
     }
-
-    const products = await tx.product.findMany({
-      where: { id: { in: shortages.map((s) => s.productId) } },
-    });
-    const unitCostByProduct = new Map(
-      products.map((p) => [p.id, p.unitCost ? Number(p.unitCost) : 0]),
-    );
 
     return tx.procurementOrder.create({
       data: {
@@ -332,8 +375,9 @@ export class MaterialRequestsService {
         items: {
           create: shortages.map((s) => ({
             product: { connect: { id: s.productId } },
+            requestedQuantity: s.missing,
             quantity: s.missing,
-            unitCost: unitCostByProduct.get(s.productId) || 0,
+            unitCost: 0, // Almoxarife solicita apenas quantidade física; o time administrativo define preço e fornecedor
           })),
         },
       },

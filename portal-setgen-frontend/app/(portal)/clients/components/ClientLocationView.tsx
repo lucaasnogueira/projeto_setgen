@@ -21,7 +21,7 @@ interface ClientLocationViewProps {
 export function ClientLocationView({ latitude, longitude }: ClientLocationViewProps) {
   if (latitude == null || longitude == null) {
     return (
-      <div className="h-72 rounded-2xl border flex items-center justify-center text-[13px] text-text-muted">
+      <div className="h-64 rounded-xl border border-gray-200 flex items-center justify-center text-xs text-gray-500">
         Localização não informada para este cliente.
       </div>
     );
@@ -30,7 +30,7 @@ export function ClientLocationView({ latitude, longitude }: ClientLocationViewPr
   const position: [number, number] = [latitude, longitude];
 
   return (
-    <div className="h-72 rounded-2xl overflow-hidden border">
+    <div className="h-64 rounded-xl overflow-hidden border border-gray-200">
       <MapContainer center={position} zoom={15} className="h-full w-full" dragging={false} scrollWheelZoom={false} doubleClickZoom={false}>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'

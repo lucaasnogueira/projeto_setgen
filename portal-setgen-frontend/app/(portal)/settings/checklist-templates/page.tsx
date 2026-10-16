@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { checklistTemplatesApi } from "@/lib/api/checklist-templates";
 import { ChecklistTemplate, ServiceOrderType } from "@/types";
-import { Plus, Edit, Trash2, ClipboardCheck } from "lucide-react";
+import { Plus, Edit, Trash2, ClipboardCheck, Download } from "lucide-react";
+import { downloadBlankChecklistTemplateExcel } from "@/lib/checklist-template-sheet";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TablePagination } from "@/components/ui/pagination";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty,
 } from "@/components/ui/table";
@@ -21,6 +23,8 @@ const typeLabels: Record<ServiceOrderType, string> = {
 export default function ChecklistTemplatesPage() {
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const router = useRouter();
 
   useEffect(() => {
@@ -37,6 +41,12 @@ export default function ChecklistTemplatesPage() {
       setLoading(false);
     }
   };
+
+  const totalPages = Math.ceil(templates.length / ITEMS_PER_PAGE) || 1;
+  const paginatedTemplates = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return templates.slice(start, start + ITEMS_PER_PAGE);
+  }, [templates, currentPage]);
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Tem certeza que deseja excluir este template?")) return;
@@ -62,10 +72,24 @@ export default function ChecklistTemplatesPage() {
         title="Templates de Checklist"
         subtitle={`${templates.length} templates cadastrados`}
         actions={
-          <Button onClick={() => router.push("/settings/checklist-templates/new")} className="rounded-[9px] font-bold gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Template
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={downloadBlankChecklistTemplateExcel}
+              className="rounded-[9px] font-bold gap-2 text-xs"
+            >
+              <Download className="h-4 w-4" />
+              Baixar Modelo (.xlsx)
+            </Button>
+            <Button
+              onClick={() => router.push("/settings/checklist-templates/new")}
+              className="rounded-[9px] font-bold gap-2 text-xs bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Template
+            </Button>
+          </div>
         }
       />
 
@@ -84,7 +108,7 @@ export default function ChecklistTemplatesPage() {
             {templates.length === 0 ? (
               <TableEmpty colSpan={5} message="Nenhum template cadastrado" />
             ) : (
-              templates.map((template) => (
+              paginatedTemplates.map((template) => (
                 <TableRow key={template.id}>
                   <TableCell>
                     <div className="flex items-center gap-2.5">
@@ -124,6 +148,15 @@ export default function ChecklistTemplatesPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={templates.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="modelos"
+        />
       </Card>
     </div>
   );

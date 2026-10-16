@@ -6,12 +6,12 @@ export default function proxy(request: NextRequest) {
   const token = request.cookies.get("auth-storage")?.value;
   const { pathname } = request.nextUrl;
 
-  const publicRoutes = ["/auth/login"];
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route),
-  );
+  const publicRoutes = ["/auth/login", "/images"];
+  const isPublicRoute =
+    publicRoutes.some((route) => pathname.startsWith(route)) ||
+    /\.(?:png|jpg|jpeg|gif|svg|ico|webp)$/i.test(pathname);
 
-  if (isPublicRoute && token) {
+  if (isPublicRoute && token && pathname.startsWith("/auth/login")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -23,5 +23,5 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|images|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

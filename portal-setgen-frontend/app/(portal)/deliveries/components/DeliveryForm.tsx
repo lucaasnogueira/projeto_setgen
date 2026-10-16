@@ -68,23 +68,23 @@ export function DeliveryForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Truck className="h-5 w-5 text-blue-600" />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Truck className="h-3.5 w-3.5 text-[#E2661D]" />
             Dados da Baixa
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">OS Concluída *</Label>
+        <CardContent className="p-4 sm:p-5 space-y-3.5">
+          <div className="space-y-1.5">
+            <Label className="font-semibold text-xs text-gray-700">OS Concluída *</Label>
             <select
               required
               disabled={!!initialData}
               value={formData.serviceOrderId}
               onChange={(e) => setFormData({ ...formData, serviceOrderId: e.target.value })}
-              className="w-full h-12 px-4 rounded-2xl border border-input bg-background text-sm outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:ring-1 focus:ring-[#E2661D] focus:border-[#E2661D] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <option value="">Selecione uma OS</option>
               {serviceOrders.map(order => (
@@ -94,44 +94,44 @@ export function DeliveryForm({
               ))}
             </select>
             {initialData && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-gray-500">
                 A entrega pertence a esta OS e não pode ser transferida.
               </p>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Data da Entrega *</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Data da Entrega *</Label>
               <Input
                 type="date"
                 required
                 value={formData.deliveryDate}
                 onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
-                className="h-12 rounded-2xl"
+                className="h-9 rounded-lg text-xs border-gray-200"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Recebido por *</Label>
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Recebido por *</Label>
               <Input
                 required
                 value={formData.receivedBy}
                 onChange={(e) => setFormData({ ...formData, receivedBy: e.target.value })}
                 placeholder="Nome de quem recebeu"
-                className="h-12 rounded-2xl"
+                className="h-9 rounded-lg text-xs border-gray-200"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Observações</Label>
+          <div className="space-y-1.5">
+            <Label className="font-semibold text-xs text-gray-700">Observações</Label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={4}
+              rows={3}
               placeholder="Observações sobre a entrega..."
-              className="w-full rounded-2xl border border-input bg-background p-4 text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+              className="w-full rounded-lg border border-gray-200 bg-white p-3 text-xs outline-none focus:ring-1 focus:ring-[#E2661D] focus:border-[#E2661D] resize-none"
             />
           </div>
         </CardContent>

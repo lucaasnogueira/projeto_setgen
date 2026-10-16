@@ -8,16 +8,21 @@ import { CreateTemplateDto } from './dto/create-template.dto';
 export class ServicesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(params?: { search?: string; active?: boolean }) {
+  async findAll(params?: { search?: string; active?: boolean; category?: string }) {
     const where: any = {};
 
     if (params?.active !== undefined) {
       where.active = params.active;
     }
 
+    if (params?.category && params.category !== 'TODAS') {
+      where.category = params.category;
+    }
+
     if (params?.search) {
       where.OR = [
         { title: { contains: params.search, mode: 'insensitive' } },
+        { category: { contains: params.search, mode: 'insensitive' } },
         { externalCode: { contains: params.search, mode: 'insensitive' } },
         { defaultObservation: { contains: params.search, mode: 'insensitive' } },
       ];
@@ -28,7 +33,7 @@ export class ServicesService {
       include: {
         templates: true,
       },
-      orderBy: { title: 'asc' },
+      orderBy: [{ category: 'asc' }, { title: 'asc' }],
     });
   }
 
@@ -60,6 +65,8 @@ export class ServicesService {
     return this.prisma.service.create({
       data: {
         title: dto.title,
+        category: dto.category || null,
+        unit: dto.unit || 'sv',
         price: dto.price,
         externalCode: dto.externalCode || null,
         defaultObservation: dto.defaultObservation || null,
@@ -91,6 +98,8 @@ export class ServicesService {
       where: { id },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.unit !== undefined && { unit: dto.unit }),
         ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.externalCode !== undefined && { externalCode: dto.externalCode }),
         ...(dto.defaultObservation !== undefined && { defaultObservation: dto.defaultObservation }),
@@ -109,6 +118,99 @@ export class ServicesService {
       where: { id },
       data: { active: !service.active },
     });
+  }
+
+  async delete(id: string) {
+    await this.findOne(id);
+    return this.prisma.service.delete({
+      where: { id },
+    });
+  }
+
+  async bulkImport(services: CreateServiceDto[]) {
+    let count = 0;
+    for (const s of services) {
+      if (!s.title || !s.title.trim()) continue;
+      const cleanTitle = s.title.trim();
+      let cleanCode = s.externalCode?.trim() || null;
+      const cleanPrice = Number(s.price) || 0;
+
+      try {
+        // 1. Tentar encontrar por externalCode primeiro (se fornecido)
+        let existing: any = null;
+        if (cleanCode) {
+          existing = await this.prisma.service.findFirst({
+            where: { externalCode: cleanCode },
+          });
+        }
+
+        // 2. Se não encontrou por código, tentar por título
+        if (!existing) {
+          existing = await this.prisma.service.findFirst({
+            where: { title: cleanTitle },
+          });
+        }
+
+        if (existing) {
+          // Se já existe, verificar se o código a ser atualizado já pertence a OUTRO registro
+          if (cleanCode && cleanCode !== existing.externalCode) {
+            const conflict = await this.prisma.service.findFirst({
+              where: {
+                externalCode: cleanCode,
+                NOT: { id: existing.id },
+              },
+            });
+            if (conflict) {
+              cleanCode = existing.externalCode;
+            }
+          } else if (!cleanCode) {
+            cleanCode = existing.externalCode;
+          }
+
+          await this.prisma.service.update({
+            where: { id: existing.id },
+            data: {
+              title: cleanTitle,
+              category: s.category || existing.category,
+              unit: s.unit || existing.unit,
+              price: cleanPrice,
+              externalCode: cleanCode,
+              defaultObservation:
+                s.defaultObservation !== undefined
+                  ? s.defaultObservation
+                  : existing.defaultObservation,
+              active: s.active !== undefined ? s.active : existing.active,
+            },
+          });
+        } else {
+          // Novo registro: verificar se o código já está em uso por algum outro
+          if (cleanCode) {
+            const codeTaken = await this.prisma.service.findFirst({
+              where: { externalCode: cleanCode },
+            });
+            if (codeTaken) {
+              cleanCode = null;
+            }
+          }
+
+          await this.prisma.service.create({
+            data: {
+              title: cleanTitle,
+              category: s.category || null,
+              unit: s.unit || 'sv',
+              price: cleanPrice,
+              externalCode: cleanCode,
+              defaultObservation: s.defaultObservation || null,
+              active: s.active ?? true,
+            },
+          });
+        }
+        count++;
+      } catch (rowErr) {
+        console.warn(`[bulkImport] Aviso ao importar serviço "${cleanTitle}":`, rowErr);
+      }
+    }
+    return { count };
   }
 
   async createTemplate(serviceId: string, dto: CreateTemplateDto) {

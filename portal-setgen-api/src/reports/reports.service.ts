@@ -15,6 +15,86 @@ export class ReportsService {
     };
   }
 
+  async getOverview(filters: ReportFiltersDto) {
+    const dateRange = this.dateRange(filters);
+
+    const soWhere: Prisma.ServiceOrderWhereInput = {
+      ...(filters.clientId && { clientId: filters.clientId }),
+      ...(dateRange && { createdAt: dateRange }),
+    };
+
+    const visitWhere: Prisma.TechnicalVisitWhereInput = {
+      ...(filters.clientId && { clientId: filters.clientId }),
+      ...(dateRange && { visitDate: dateRange }),
+    };
+
+    const nfWhere: Prisma.NotaFiscalWhereInput = {
+      ...(filters.clientId && { clientId: filters.clientId }),
+      status: 'AUTORIZADA',
+      ...(dateRange && { createdAt: dateRange }),
+    };
+
+    const [
+      totalVisits,
+      totalOrders,
+      completedOrders,
+      inProgressOrders,
+      awaitingOrders,
+      revenueResult,
+      recentOrders,
+    ] = await Promise.all([
+      this.prisma.technicalVisit.count({ where: visitWhere }),
+      this.prisma.serviceOrder.count({ where: soWhere }),
+      this.prisma.serviceOrder.count({ where: { ...soWhere, status: 'COMPLETED' } }),
+      this.prisma.serviceOrder.count({ where: { ...soWhere, status: 'IN_PROGRESS' } }),
+      this.prisma.serviceOrder.count({ where: { ...soWhere, status: 'AWAITING_MATERIALS' } }),
+      this.prisma.notaFiscal.aggregate({
+        where: nfWhere,
+        _sum: { valorBruto: true },
+      }),
+      this.prisma.serviceOrder.findMany({
+        where: soWhere,
+        take: 6,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          scope: true,
+          createdAt: true,
+          client: {
+            select: {
+              companyName: true,
+              tradeName: true,
+            },
+          },
+          equipment: {
+            select: {
+              model: true,
+              serialNumber: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const completionRate = totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0;
+    const totalRevenue = Number(revenueResult._sum?.valorBruto || 0);
+
+    return {
+      kpis: {
+        totalVisits,
+        totalOrders,
+        completedOrders,
+        inProgressOrders,
+        awaitingOrders,
+        completionRate,
+        totalRevenue,
+      },
+      recentOrders,
+    };
+  }
+
   async getVisitsByMonth(filters: ReportFiltersDto) {
     const visits = await this.prisma.technicalVisit.findMany({
       where: {
@@ -37,8 +117,10 @@ export class ReportsService {
         {
           label: 'Visitas Realizadas',
           data: monthlyData.map((d) => d.count),
-          borderColor: 'rgb(147, 51, 234)',
-          backgroundColor: 'rgba(147, 51, 234, 0.5)',
+          borderColor: 'rgb(249, 115, 22)',
+          backgroundColor: 'rgba(249, 115, 22, 0.15)',
+          tension: 0.35,
+          fill: true,
         },
       ],
     };
@@ -67,25 +149,35 @@ export class ReportsService {
       ...soOrders.map((o) => ({ status: o.status as string, _count: o._count })),
     ];
 
-    const statusLabels = {
+    const statusLabels: Record<string, string> = {
       DRAFT: 'Rascunho',
       PENDING_APPROVAL: 'Aguardando Aprovação',
       APPROVED: 'Aprovada',
       REJECTED: 'Rejeitada',
+      SENT_TO_CLIENT: 'Enviada ao Cliente',
+      AWAITING_RESPONSE: 'Aguardando Resposta',
+      EXPIRED: 'Expirada',
+      ACCEPTED: 'Aceita',
+      AWAITING_MATERIALS: 'Aguardando Materiais',
       IN_PROGRESS: 'Em Andamento',
       COMPLETED: 'Concluída',
       CANCELLED: 'Cancelada',
     };
 
-    const colors = [
-      'rgba(255, 99, 132, 0.8)',
-      'rgba(255, 205, 86, 0.8)',
-      'rgba(75, 192, 192, 0.8)',
-      'rgba(54, 162, 235, 0.8)',
-      'rgba(153, 102, 255, 0.8)',
-      'rgba(46, 204, 113, 0.8)',
-      'rgba(231, 76, 60, 0.8)',
-    ];
+    const statusColors: Record<string, string> = {
+      COMPLETED: 'rgba(16, 185, 129, 0.85)',
+      ACCEPTED: 'rgba(16, 185, 129, 0.85)',
+      IN_PROGRESS: 'rgba(59, 130, 246, 0.85)',
+      AWAITING_MATERIALS: 'rgba(245, 158, 11, 0.85)',
+      PENDING_APPROVAL: 'rgba(251, 191, 36, 0.85)',
+      SENT_TO_CLIENT: 'rgba(139, 92, 246, 0.85)',
+      AWAITING_RESPONSE: 'rgba(236, 72, 153, 0.85)',
+      APPROVED: 'rgba(6, 182, 212, 0.85)',
+      DRAFT: 'rgba(148, 163, 184, 0.85)',
+      REJECTED: 'rgba(239, 68, 68, 0.85)',
+      CANCELLED: 'rgba(100, 116, 139, 0.85)',
+      EXPIRED: 'rgba(156, 163, 175, 0.85)',
+    };
 
     return {
       labels: orders.map((o) => statusLabels[o.status] || o.status),
@@ -93,7 +185,9 @@ export class ReportsService {
         {
           label: 'Quantidade',
           data: orders.map((o) => o._count),
-          backgroundColor: colors,
+          backgroundColor: orders.map(
+            (o) => statusColors[o.status] || 'rgba(107, 114, 128, 0.85)'
+          ),
         },
       ],
     };

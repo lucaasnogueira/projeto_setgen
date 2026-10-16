@@ -4,12 +4,16 @@ export interface ServiceItem {
   id: string;
   title: string;
   name?: string;
+  category?: string;
+  unit?: string;
   price: number;
   externalCode?: string;
   defaultObservation?: string;
   observationEditable?: boolean;
   active?: boolean;
   templates?: ServiceTemplateItem[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ServiceTemplateItem {
@@ -20,9 +24,15 @@ export interface ServiceTemplateItem {
 }
 
 export const servicesApi = {
-  async getAll(search?: string, active?: boolean): Promise<ServiceItem[]> {
+  async getAll(params?: { search?: string; active?: boolean; category?: string } | string, active?: boolean): Promise<ServiceItem[]> {
     try {
-      const { data } = await api.get('/services', { params: { search, active } });
+      let queryParams: any = {};
+      if (typeof params === 'string') {
+        queryParams = { search: params, active };
+      } else if (params) {
+        queryParams = params;
+      }
+      const { data } = await api.get('/services', { params: queryParams });
       return data;
     } catch {
       return [];
@@ -49,6 +59,15 @@ export const servicesApi = {
     return data;
   },
 
+  async delete(id: string): Promise<void> {
+    await api.delete(`/services/${id}/hard`);
+  },
+
+  async bulkImport(services: Partial<ServiceItem>[]): Promise<{ count: number }> {
+    const { data } = await api.post('/services/bulk-import', { services });
+    return data;
+  },
+
   async getTemplates(serviceId: string): Promise<ServiceTemplateItem[]> {
     const { data } = await api.get(`/services/${serviceId}/templates`);
     return data;
@@ -59,4 +78,3 @@ export const servicesApi = {
     return data;
   },
 };
-

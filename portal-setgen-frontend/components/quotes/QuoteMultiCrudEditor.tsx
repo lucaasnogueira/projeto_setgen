@@ -15,13 +15,15 @@
 // =================================================================
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   FileText, Package, Wrench, DollarSign, Calendar, Paperclip,
   CheckCircle2, Plus, Trash2, Save, Clock, X, Building2,
   Users, CreditCard, ChevronRight, CheckCircle, Search, Loader2,
   Printer, Download, Copy, ArrowLeft, ExternalLink, HelpCircle,
-  AlertCircle, FileCheck, Layers, Sparkles, Check
+  AlertCircle, FileCheck, Layers, Sparkles, Check, ClipboardCheck,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,12 +41,14 @@ import { servicesApi, ServiceItem } from "@/lib/api/services";
 import { inventoryApi } from "@/lib/api/inventory";
 import { paymentMethodsApi, PaymentMethodConfigItem } from "@/lib/api/payment-methods";
 import { clientsApi } from "@/lib/api/clients";
+import { ClientMultiCrudEditor } from "@/components/clients/ClientMultiCrudEditor";
 import { usersApi, User } from "@/lib/api/users";
+import { visitsApi } from "@/lib/api/visits";
 import { Client, Product, QuoteLineType, ServiceOrderType, QuoteStatus } from "@/types";
 import { formatCurrency, formatDate, formatPhone, cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export type QuoteTabKey = "dados" | "produtos" | "servicos" | "custos" | "condicoes" | "tarefas" | "anexos" | "status";
+export type QuoteTabKey = "dados" | "produtos" | "servicos" | "custos" | "condicoes" | "anexos" | "status";
 
 export interface ProductItem {
   id?: string;
@@ -73,14 +77,6 @@ export interface AdditionalCostRow {
   amount: number;
 }
 
-export interface TaskRow {
-  id?: string;
-  code: string;
-  type: string;
-  date: string;
-  collaboratorName?: string;
-}
-
 export interface AttachmentRow {
   id?: string;
   fileName: string;
@@ -98,17 +94,6 @@ const DEFAULT_COST_PRESETS = [
   "Locação de Equipamentos / Caminhão Munck",
   "Taxa Administrativa / Emissão de ART",
   "Outro Custo Operacional",
-];
-
-const DEFAULT_TASK_TYPES = [
-  "Preventiva Mecânica",
-  "Corretiva Elétrica",
-  "Inspeção Termográfica",
-  "Comissionamento / Start-up",
-  "Instalação / Cabeamento de Força",
-  "Análise de Óleo / Coleta Laboratorial",
-  "Treinamento Operacional",
-  "Visita Técnica Diagnóstica",
 ];
 
 const DEFAULT_PAYMENT_TERMS = [
@@ -159,19 +144,118 @@ function QuickAddPanel({
   );
 }
 
+function buildScopeFromVisit(v: any): string {
+  const lines: string[] = [];
+  const vCode = v.visitNumber || v.externalCode || `VT-${v.id?.slice(0, 8).toUpperCase()}`;
+  const vDate = v.visitDate ? formatDate(v.visitDate) : "";
+
+  lines.push(`PROPOSTA COMERCIAL — SETGEN ENGENHARIA`);
+  lines.push(`Referência: Levantamento Técnico realizado na Visita Técnica #${vCode}${vDate ? ` em ${vDate}` : ""}.`);
+
+  const eq = v.equipment || v.equipments?.[0]?.equipment;
+  const techItems = Array.isArray(v.technicalData?.checklistItems)
+    ? v.technicalData.checklistItems
+    : Array.isArray(v.checklist)
+    ? v.checklist
+    : [];
+  const getAnswer = (id: number) => techItems.find((i: any) => i.id === id)?.answer || "";
+
+  const obj = getAnswer(14) || v.description;
+  const power = getAnswer(20) || getAnswer(18) || (eq?.powerKva ? `${eq.powerKva} kVA` : "");
+  const regime = getAnswer(16);
+  const partida = getAnswer(101);
+  const carenagem = getAnswer(100);
+
+  if (eq || power || obj) {
+    lines.push(`\n1. ESPECIFICAÇÃO TÉCNICA DO SISTEMA:`);
+    if (obj) lines.push(`• Objetivo / Aplicação: ${obj}`);
+    if (eq?.name) {
+      const details = [
+        eq.name,
+        eq.model ? `Mod. ${eq.model}` : null,
+        eq.serialNumber ? `Nº Série: ${eq.serialNumber}` : null,
+      ].filter(Boolean).join(" — ");
+      lines.push(`• Equipamento: ${details}`);
+    }
+    if (power) lines.push(`• Potência Estimada: ${power}`);
+    if (regime) lines.push(`• Regime Operacional: ${regime}`);
+    if (partida) lines.push(`• Tipo de Partida: ${partida}`);
+    if (carenagem) lines.push(`• Tipo de Instalação: ${carenagem}`);
+  }
+
+  lines.push(`\n2. ESCOPO DOS SERVIÇOS & FORNECIMENTO:`);
+  if (v.suggestedScope && v.suggestedScope.trim()) {
+    lines.push(v.suggestedScope.trim());
+  } else if (v.description && v.description.trim() && v.description !== obj) {
+    lines.push(v.description.trim());
+  } else {
+    lines.push(`• Fornecimento de materiais, mão de obra técnica especializada e comissionamento conforme levantamento em campo.`);
+    lines.push(`• Execução de infraestrutura e conexões conforme normas técnicas vigentes (NBR 5410, NR-10 e regulamentações aplicáveis).`);
+    lines.push(`• Testes de funcionamento, parametrização e entrega técnica assistida.`);
+  }
+
+  const recs =
+    v.conclusionData?.recommendations ||
+    v.conclusionData?.observations ||
+    v.technicalData?.recommendations ||
+    getAnswer(111);
+  if (recs && recs.trim()) {
+    lines.push(`\n3. OBSERVAÇÕES & RECOMENDAÇÕES TÉCNICAS:`);
+    lines.push(`• ${recs.trim()}`);
+  }
+
+  const pendencias = getAnswer(109);
+  if (pendencias && pendencias.trim()) {
+    lines.push(`• Adequações preliminares necessárias: ${pendencias.trim()}`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildInternalNotesFromVisit(v: any): string {
+  const lines: string[] = [];
+  const vCode = v.visitNumber || v.externalCode || `VT-${v.id?.slice(0, 8).toUpperCase()}`;
+  lines.push(`[INTEGRAÇÃO AUTOMÁTICA COMERCIAL — SETGEN]`);
+  lines.push(`• Origem: Visita Técnica #${vCode}`);
+  if (v.technician?.name) lines.push(`• Técnico Avaliador: ${v.technician.name}`);
+  if (v.clientSignerName) lines.push(`• Responsável no Cliente: ${v.clientSignerName}`);
+  if (v.location) lines.push(`• Local da Inspeção: ${v.location}`);
+  if (v.notes && v.notes.trim()) lines.push(`• Anotações de Campo: ${v.notes.trim()}`);
+
+  const techItems = Array.isArray(v.technicalData?.checklistItems) ? v.technicalData.checklistItems : [];
+  const getAnswer = (id: number) => techItems.find((i: any) => i.id === id)?.answer || "";
+  const resultado = getAnswer(108);
+  if (resultado) lines.push(`• Parecer Técnico: ${resultado}`);
+  const docs = getAnswer(106);
+  if (docs) lines.push(`• Documentos Levantados: ${docs}`);
+
+  if (v.conclusionData?.materialsNeeded) {
+    lines.push(`• Materiais/Peças apontados pelo técnico: ${v.conclusionData.materialsNeeded}`);
+  }
+  return lines.join("\n");
+}
+
 interface Props {
   quoteId?: string;
+  initialVisitId?: string;
+  initialClientId?: string;
   onClose?: () => void;
   onSuccess?: () => void;
 }
 
-export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
+export function QuoteMultiCrudEditor({ quoteId, initialVisitId, initialClientId, onClose, onSuccess }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryVisitId = initialVisitId || searchParams?.get("visitId") || "";
+  const queryClientId = initialClientId || searchParams?.get("clientId") || "";
+
   const [activeTab, setActiveTab] = useState<QuoteTabKey>("dados");
-  const [targetType, setTargetType] = useState<"CLIENTE" | "LEAD">("CLIENTE");
 
   // === 1. Dados Gerais ===
   const [clientId, setClientId] = useState("");
+  const [technicalVisitId, setTechnicalVisitId] = useState("");
+  const [technicalVisitObj, setTechnicalVisitObj] = useState<any>(null);
+  const [loadingVisit, setLoadingVisit] = useState(false);
   const [contactPerson, setContactPerson] = useState("");
   const [requestDate, setRequestDate] = useState(new Date().toISOString().split("T")[0]);
   const [validUntil, setValidUntil] = useState(
@@ -288,14 +372,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const [discountType, setDiscountType] = useState<"PERCENTUAL" | "VALOR_FIXO">("VALOR_FIXO");
   const [discountValue, setDiscountValue] = useState(0);
 
-  // === 6. Cronograma & Tarefas ===
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [taskTypePresetsList, setTaskTypePresetsList] = useState<string[]>(DEFAULT_TASK_TYPES);
-  const [fastTaskType, setFastTaskType] = useState(DEFAULT_TASK_TYPES[0]);
-  const [fastTaskDate, setFastTaskDate] = useState(new Date().toISOString().split("T")[0]);
-  const [fastTaskCollab, setFastTaskCollab] = useState("");
-
-  // === 7. Anexos ===
+  // === 6. Anexos ===
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
 
   // === Catálogos ===
@@ -316,11 +393,10 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   // Quick-Add Toggles
   const [showQuickProd, setShowQuickProd] = useState(false);
   const [showQuickSvc, setShowQuickSvc] = useState(false);
-  const [showQuickClient, setShowQuickClient] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [showQuickUser, setShowQuickUser] = useState(false);
   const [showQuickPaymentMethod, setShowQuickPaymentMethod] = useState(false);
   const [showQuickPaymentTerm, setShowQuickPaymentTerm] = useState(false);
-  const [showQuickTaskType, setShowQuickTaskType] = useState(false);
   const [showQuickCostPreset, setShowQuickCostPreset] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
 
@@ -334,7 +410,8 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const [multiSelectedServicesMap, setMultiSelectedServicesMap] = useState<Record<string, { selected: boolean; qty: number }>>({});
 
   const [showCostPresetsModal, setShowCostPresetsModal] = useState(false);
-  const [selectedCostPresetsMap, setSelectedCostPresetsMap] = useState<Record<string, boolean>>({});
+  const [costPresetsSearch, setCostPresetsSearch] = useState("");
+  const [selectedCostPresetsMap, setSelectedCostPresetsMap] = useState<Record<string, { selected: boolean; amount: number }>>({});
 
   const [showPdfModal, setShowPdfModal] = useState(false);
 
@@ -348,12 +425,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const [qsPrice, setQsPrice] = useState("");
   const [qsObs, setQsObs] = useState("");
 
-  const [qcName, setQcName] = useState("");
-  const [qcTradeName, setQcTradeName] = useState("");
-  const [qcCnpj, setQcCnpj] = useState("");
-  const [qcEmail, setQcEmail] = useState("");
-  const [qcPhone, setQcPhone] = useState("");
-  const [qcContact, setQcContact] = useState("");
 
   const [quName, setQuName] = useState("");
   const [quEmail, setQuEmail] = useState("");
@@ -363,7 +434,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const [qpmModality, setQpmModality] = useState("BOLETO");
 
   const [qptTerm, setQptTerm] = useState("");
-  const [qttType, setQttType] = useState("");
   const [qcpCost, setQcpCost] = useState("");
 
   // Carregamento de catálogos
@@ -382,7 +452,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       setUsersList(u);
       if (u.length > 0 && !responsibleName) {
         setResponsibleName(u[0].name);
-        setFastTaskCollab(u[0].name);
       }
     });
   }, []);
@@ -448,6 +517,15 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
               }))
           );
         }
+
+        if (q.technicalVisitId) {
+          setTechnicalVisitId(q.technicalVisitId);
+          if ((q as any).technicalVisit) {
+            setTechnicalVisitObj((q as any).technicalVisit);
+          } else {
+            visitsApi.getOne(q.technicalVisitId).then(setTechnicalVisitObj).catch(() => {});
+          }
+        }
       }).catch((err) => {
         console.error("Erro ao carregar orçamento:", err);
         toast.error("Não foi possível carregar os detalhes do orçamento.");
@@ -459,6 +537,75 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       } catch {}
     }
   }, [quoteId]);
+
+  // Auto-importação de dados ao gerar orçamento a partir de uma Visita Técnica
+  useEffect(() => {
+    if (!quoteId && queryVisitId) {
+      setLoadingVisit(true);
+      visitsApi
+        .getOne(queryVisitId)
+        .then((v: any) => {
+          if (!v) return;
+          setTechnicalVisitId(v.id);
+          setTechnicalVisitObj(v);
+
+          // 1. Cliente
+          if (v.clientId) {
+            setClientId(v.clientId);
+          }
+
+          // 2. Contato no Local
+          if (v.clientSignerName) {
+            setContactPerson(v.clientSignerName);
+          } else if (v.client?.contactName) {
+            setContactPerson(v.client.contactName);
+          } else if (v.client?.tradeName) {
+            setContactPerson(v.client.tradeName);
+          }
+
+          // 3. Responsável Comercial / Técnico
+          if (v.technician?.name) {
+            setResponsibleName(v.technician.name);
+            if (v.technician.id) setSalesRepId(v.technician.id);
+          } else if (v.createdBy?.name) {
+            setResponsibleName(v.createdBy.name);
+          }
+
+          // 4. Código Externo / Referência
+          const vCode = v.visitNumber || v.externalCode || `VT-${v.id.slice(0, 8).toUpperCase()}`;
+          setExternalCode(vCode);
+
+          // 5. Escopo Técnico da Proposta
+          const scopeText = buildScopeFromVisit(v);
+          if (scopeText) {
+            setPublicNotes(scopeText);
+          }
+
+          // 6. Observações Internas
+          const intNotes = buildInternalNotesFromVisit(v);
+          if (intNotes) {
+            setInternalNotes(intNotes);
+          }
+
+          // Desativa alerta de rascunho anterior para priorizar dados da visita
+          setDraftNotice(false);
+
+          toast.success(
+            `Dados da Visita Técnica #${vCode} importados com sucesso para o orçamento!`
+          );
+        })
+        .catch((err) => {
+          console.error("Erro ao importar dados da visita:", err);
+          toast.error("Não foi possível carregar os dados da visita técnica.");
+        })
+        .finally(() => {
+          setLoadingVisit(false);
+        });
+    } else if (!quoteId && queryClientId) {
+      setClientId(queryClientId);
+      setDraftNotice(false);
+    }
+  }, [quoteId, queryVisitId, queryClientId]);
 
   // RESTAURAÇÃO DE RASCUNHO
   const restoreDraft = () => {
@@ -472,7 +619,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       if (d.products) setProducts(d.products);
       if (d.services) setServices(d.services);
       if (d.additionalCosts) setAdditionalCosts(d.additionalCosts);
-      if (d.tasks) setTasks(d.tasks);
       if (d.paymentTerms) setPaymentTerms(d.paymentTerms);
       if (d.publicNotes) setPublicNotes(d.publicNotes);
       if (d.internalNotes) setInternalNotes(d.internalNotes);
@@ -494,7 +640,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const handleSaveDraft = async () => {
     setSavingDraft(true);
     try {
-      if (!clientId && targetType === "CLIENTE") {
+      if (!clientId) {
         toast.error("Por favor, selecione ao menos o cliente para salvar o orçamento como rascunho.");
         setActiveTab("dados");
         setSavingDraft(false);
@@ -505,6 +651,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       const payload: any = {
         type: ServiceOrderType.EXECUTION,
         clientId: clientId || undefined,
+        technicalVisitId: technicalVisitId || undefined,
         scope: publicNotes || "Orçamento em elaboração (Rascunho comercial)",
         paymentTerms: paymentTerms || undefined,
         notes: internalNotes || undefined,
@@ -541,7 +688,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
         "setgen_quote_draft",
         JSON.stringify({
           clientId, contactPerson, requestDate, validUntil, responsibleName,
-          externalCode, products, services, additionalCosts, tasks, paymentTerms,
+          externalCode, products, services, additionalCosts, paymentTerms,
           publicNotes, internalNotes
         })
       );
@@ -581,48 +728,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   };
 
   // Quick-Add Handlers
-  const handleQuickAddClient = async () => {
-    if (!qcName.trim()) {
-      toast.error("Por favor, informe a Razão Social do cliente.");
-      return;
-    }
-    setQuickSaving(true);
-    try {
-      const cleanCnpj = qcCnpj.replace(/\D/g, "") || "00000000000000";
-      const created = await clientsApi.create({
-        companyName: qcName.trim(),
-        tradeName: qcTradeName.trim() || qcName.trim(),
-        cnpjCpf: cleanCnpj,
-        email: qcEmail || "contato@cliente.com",
-        phone: qcPhone || "00000000000",
-        onSiteContact: qcContact || undefined,
-        status: "ACTIVE" as any,
-        address: {
-          cep: "00000000",
-          street: "A definir",
-          number: "S/N",
-          neighborhood: "A definir",
-          city: "São Paulo",
-          state: "SP",
-        },
-      });
-      setClients(prev => [created, ...prev]);
-      handleSelectClient(created.id);
-      setQcName("");
-      setQcTradeName("");
-      setQcCnpj("");
-      setQcEmail("");
-      setQcPhone("");
-      setQcContact("");
-      setShowQuickClient(false);
-      toast.success(`Cliente "${created.companyName}" cadastrado e selecionado!`);
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Erro ao cadastrar cliente.");
-    } finally {
-      setQuickSaving(false);
-    }
-  };
 
   const handleQuickAddUser = async () => {
     if (!quName.trim() || !quEmail.trim()) {
@@ -770,21 +875,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
     toast.success(`Prazo "${val}" cadastrado e selecionado!`);
   };
 
-  const handleQuickAddTaskType = () => {
-    if (!qttType.trim()) {
-      toast.error("Informe o nome do tipo de tarefa.");
-      return;
-    }
-    const val = qttType.trim();
-    if (!taskTypePresetsList.includes(val)) {
-      setTaskTypePresetsList(prev => [...prev, val]);
-    }
-    setFastTaskType(val);
-    setQttType("");
-    setShowQuickTaskType(false);
-    toast.success(`Tipo de tarefa "${val}" adicionado ao sistema!`);
-  };
-
   const handleQuickAddCostPreset = () => {
     if (!qcpCost.trim()) {
       toast.error("Informe a descrição do custo.");
@@ -886,22 +976,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
     toast.success("Custo operacional incluído!");
   };
 
-  // FAST ADD: TAREFAS
-  const handleFastAddTask = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
-    setTasks(prev => [
-      ...prev,
-      {
-        code: nextCode,
-        type: fastTaskType,
-        date: fastTaskDate || requestDate,
-        collaboratorName: fastTaskCollab || responsibleName,
-      },
-    ]);
-    toast.success(`Tarefa ${nextCode} programada!`);
-  };
-
   const addProductRow = () => {
     setProducts(prev => [
       ...prev,
@@ -996,9 +1070,9 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   // MULTI-PICKER: CUSTOS PREDEFINIDOS
   const handleConfirmCostPresets = () => {
     const toAdd: AdditionalCostRow[] = [];
-    Object.entries(selectedCostPresetsMap).forEach(([desc, selected]) => {
-      if (selected) {
-        toAdd.push({ description: desc, amount: 0 });
+    Object.entries(selectedCostPresetsMap).forEach(([desc, item]) => {
+      if (item?.selected) {
+        toAdd.push({ description: desc, amount: item.amount || 0 });
       }
     });
 
@@ -1010,7 +1084,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
     setAdditionalCosts(prev => [...prev, ...toAdd]);
     setSelectedCostPresetsMap({});
     setShowCostPresetsModal(false);
-    toast.success(`${toAdd.length} custo(s) adicionado(s)! Ajuste os valores na tabela.`);
+    toast.success(`${toAdd.length} custo(s) adicionado(s) ao orçamento!`);
   };
 
   // DUPLICAR ITENS
@@ -1042,17 +1116,6 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       ...prev.slice(index + 1),
     ]);
     toast.info("Custo duplicado.");
-  };
-
-  const duplicateTask = (index: number) => {
-    const item = tasks[index];
-    const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
-    setTasks(prev => [
-      ...prev.slice(0, index + 1),
-      { ...item, id: undefined, code: nextCode },
-      ...prev.slice(index + 1),
-    ]);
-    toast.info(`Tarefa duplicada como ${nextCode}.`);
   };
 
   const addAttachmentRow = () => {
@@ -1094,7 +1157,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
   const validateForm = (): boolean => {
     const errs: Record<string, string> = {};
 
-    if (!clientId && targetType === "CLIENTE") {
+    if (!clientId) {
       errs.clientId = "Por favor, selecione um cliente cadastrado.";
       toast.error("Por favor, selecione o cliente na aba 'Dados Gerais'.");
       setActiveTab("dados");
@@ -1180,6 +1243,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
       const payload: any = {
         type: ServiceOrderType.EXECUTION,
         clientId,
+        technicalVisitId: technicalVisitId || undefined,
         scope: publicNotes || "Execução de serviços e fornecimento de materiais conforme proposta técnica.",
         paymentTerms: paymentTerms || undefined,
         notes: internalNotes || undefined,
@@ -1282,10 +1346,51 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
     { key: "servicos", icon: Wrench, label: "Serviços Técnicos", count: services.length },
     { key: "custos", icon: DollarSign, label: "Custos Adicionais", count: additionalCosts.length },
     { key: "condicoes", icon: CreditCard, label: "Condições & Notas" },
-    { key: "tarefas", icon: Calendar, label: "Cronograma de Tarefas", count: tasks.length },
     { key: "anexos", icon: Paperclip, label: "Documentos & Anexos", count: attachments.length },
     { key: "status", icon: CheckCircle2, label: "Status & Aprovação" },
   ];
+
+  // Serviços sugeridos a partir da visita técnica vinculada
+  const suggestedVisitServices = useMemo(() => {
+    if (!technicalVisitObj || !servicesCatalog?.length) return [];
+    const techItems = Array.isArray(technicalVisitObj.technicalData?.checklistItems)
+      ? technicalVisitObj.technicalData.checklistItems
+      : Array.isArray(technicalVisitObj.checklist)
+      ? technicalVisitObj.checklist
+      : [];
+    const getAnswer = (id: number) => techItems.find((i: any) => i.id === id)?.answer || "";
+    const objective = (getAnswer(14) || technicalVisitObj.description || "").toLowerCase();
+    const scope = (technicalVisitObj.suggestedScope || "").toLowerCase();
+
+    return servicesCatalog
+      .filter((s) => {
+        const cat = (s.category || "").toLowerCase();
+        const title = (s.title || "").toLowerCase();
+
+        if (objective.includes("gerador") || scope.includes("gerador")) {
+          if (cat.includes("gerador") || title.includes("gerador")) return true;
+        }
+        if (
+          objective.includes("wallbox") ||
+          objective.includes("carregador") ||
+          scope.includes("wallbox")
+        ) {
+          if (cat.includes("wallbox") || cat.includes("carregador") || title.includes("wallbox"))
+            return true;
+        }
+        if (objective.includes("solar") || scope.includes("solar")) {
+          if (cat.includes("solar") || title.includes("solar")) return true;
+        }
+        if (objective.includes("manuten") || scope.includes("manuten")) {
+          if (cat.includes("manuten") || title.includes("manuten")) return true;
+        }
+        if (objective.includes("subesta") || scope.includes("subesta")) {
+          if (cat.includes("subesta") || title.includes("subesta")) return true;
+        }
+        return false;
+      })
+      .slice(0, 6);
+  }, [technicalVisitObj, servicesCatalog]);
 
   if (loading) {
     return (
@@ -1354,15 +1459,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
         <div className="pt-3 border-t border-gray-200 flex items-center justify-between text-[11px] text-gray-400">
           <span className="truncate">Setgen Comercial</span>
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={savingDraft}
-            className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold"
-          >
-            <Save className="w-3 h-3" />
-            {savingDraft ? "Salvando..." : "Salvar Rascunho"}
-          </button>
+          <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">v2.0</span>
         </div>
       </aside>
 
@@ -1388,6 +1485,12 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Indicador de Total Previsto */}
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-lg text-xs mr-1">
+              <span className="text-slate-400 font-medium text-[11px]">Total:</span>
+              <span className="font-bold text-slate-900 font-mono text-xs">{formatCurrency(grandTotal)}</span>
+            </div>
+
             <Button
               type="button"
               variant="outline"
@@ -1469,94 +1572,91 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
         {/* CONTEÚDO SCROLLÁVEL DA ABA ATIVA */}
         <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
 
+          {/* BANNER DE VÍNCULO DA VISITA TÉCNICA */}
+          {loadingVisit && (
+            <div className="p-3.5 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-2.5 text-xs text-orange-800 animate-pulse">
+              <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
+              <span>Importando dados técnicos da visita selecionada...</span>
+            </div>
+          )}
+
+          {technicalVisitObj && !loadingVisit && (
+            <div className="bg-gradient-to-r from-orange-50 via-amber-50/60 to-white border border-orange-200 rounded-xl p-3.5 sm:p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 text-orange-700 rounded-lg shrink-0">
+                  <ClipboardCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      Vinculado à Visita Técnica #{technicalVisitObj.visitNumber || technicalVisitObj.externalCode || `VT-${technicalVisitObj.id.slice(0, 8).toUpperCase()}`}
+                    </span>
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Dados Importados Automaticamente
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span>Cliente: <strong>{technicalVisitObj.client?.companyName || technicalVisitObj.client?.tradeName}</strong></span>
+                    {technicalVisitObj.technician?.name && (
+                      <>
+                        <span>•</span>
+                        <span>Técnico: <strong>{technicalVisitObj.technician.name}</strong></span>
+                      </>
+                    )}
+                    {technicalVisitObj.visitDate && (
+                      <>
+                        <span>•</span>
+                        <span>Data: <strong>{formatDate(technicalVisitObj.visitDate)}</strong></span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href={`/visits/${technicalVisitObj.id}`}
+                  target="_blank"
+                  className="text-xs font-bold text-orange-700 hover:text-orange-900 bg-white px-3 py-1.5 rounded-lg border border-orange-200 hover:border-orange-300 transition-all flex items-center gap-1.5 shadow-2xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-orange-600" />
+                  Ver Visita Técnica
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* ══ ABA 1: DADOS GERAIS ══════════════════════════════════ */}
           {activeTab === "dados" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-orange-600" />
+                  <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-orange-600 shrink-0" />
                     Identificação do Cliente & Contato
                   </h4>
-                  <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg text-xs">
-                    {(["CLIENTE", "LEAD"] as const).map(t => (
-                      <button
-                        key={t}
-                        type="button"
-                        onClick={() => setTargetType(t)}
-                        className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                          targetType === t ? "bg-white text-orange-700 shadow-xs" : "text-gray-500 hover:text-gray-900"
-                        }`}
-                      >
-                        {t === "CLIENTE" ? "Cliente Cadastrado" : "Lead / Prospecção"}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <Label className="block font-semibold text-gray-700">Cliente *</Label>
-                    <button
+                    <Label className="block font-semibold text-xs text-gray-700">Cliente *</Label>
+                    <Button
                       type="button"
-                      onClick={() => setShowQuickClient(!showQuickClient)}
-                      className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg border transition-all ${
-                        showQuickClient
-                          ? "bg-orange-600 text-white border-orange-600"
-                          : "border-orange-200 text-orange-600 hover:bg-orange-50"
-                      }`}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowClientModal(true)}
+                      className="h-7 text-xs font-bold gap-1.5 border-orange-200 bg-orange-50/70 text-orange-700 hover:bg-orange-100 hover:border-orange-300 rounded-lg shrink-0 shadow-2xs"
                     >
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-3.5 h-3.5 text-orange-600 shrink-0" />
                       Cadastrar Novo Cliente
-                    </button>
+                    </Button>
                   </div>
-
-                  {showQuickClient && (
-                    <QuickAddPanel title="Cadastrar novo cliente rapidamente no sistema" onClose={() => setShowQuickClient(false)}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">Razão Social *</Label>
-                          <Input placeholder="Razão Social completa" value={qcName} onChange={e => setQcName(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">Nome Fantasia</Label>
-                          <Input placeholder="Nome Fantasia" value={qcTradeName} onChange={e => setQcTradeName(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">CNPJ ou CPF</Label>
-                          <Input placeholder="00.000.000/0000-00" value={qcCnpj} onChange={e => setQcCnpj(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">Contato no Local</Label>
-                          <Input placeholder="Nome do responsável técnico" value={qcContact} onChange={e => setQcContact(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">E-mail Comercial</Label>
-                          <Input type="email" placeholder="contato@empresa.com" value={qcEmail} onChange={e => setQcEmail(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                        <div>
-                          <Label className="text-[10px] text-gray-500 block mb-1">Telefone Principal</Label>
-                          <Input placeholder="(11) 99999-9999" value={qcPhone} onChange={e => setQcPhone(e.target.value)} className="h-8 text-xs bg-white" />
-                        </div>
-                      </div>
-                      <div className="flex justify-end pt-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleQuickAddClient}
-                          disabled={quickSaving}
-                          className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-xs"
-                        >
-                          {quickSaving ? "Salvando..." : "Cadastrar e Selecionar Cliente"}
-                        </Button>
-                      </div>
-                    </QuickAddPanel>
-                  )}
 
                   <select
                     value={clientId}
                     onChange={e => handleSelectClient(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   >
                     <option value="">Selecione o cliente na carteira...</option>
                     {clients.map(c => (
@@ -1568,34 +1668,35 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   {errors.clientId && <p className="text-[11px] text-red-500 mt-1 font-semibold">{errors.clientId}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">
                       Contato no Local (Falar com)
                     </Label>
                     <Input
                       placeholder="Ex: Eng. Roberto Lima"
                       value={contactPerson}
                       onChange={e => setContactPerson(e.target.value)}
-                      className="h-10 text-xs bg-white rounded-xl border-gray-200"
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
                     />
                     <span className="text-[10.5px] text-gray-400 mt-1 block">
                       Puxado automaticamente do cadastro do cliente
                     </span>
                   </div>
 
-                  <div className="bg-orange-50/50 p-3.5 rounded-2xl border border-orange-200/80 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="block font-bold text-gray-900 text-xs flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-orange-600" />
-                        Responsável Comercial (Vendedor / Consultor SETGEN) *
+                  <div className="bg-orange-50/40 p-3 rounded-xl border border-orange-200/80 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label className="font-bold text-gray-900 text-xs flex items-center gap-1.5 shrink-0">
+                        <Users className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                        Responsável Comercial *
                       </Label>
                       <button
                         type="button"
                         onClick={() => setShowQuickUser(!showQuickUser)}
-                        className="text-[11px] text-orange-600 font-bold hover:underline flex items-center gap-0.5"
+                        className="text-[11px] text-orange-600 font-bold hover:underline flex items-center gap-1 shrink-0"
                       >
-                        <Plus className="w-3 h-3" />Novo Colaborador
+                        <Plus className="w-3 h-3 shrink-0" />
+                        Novo Colaborador
                       </button>
                     </div>
 
@@ -1623,7 +1724,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                           if (found) setResponsibleName(found.name);
                           else setResponsibleName("");
                         }}
-                        className="w-full h-10 px-3 rounded-xl border border-orange-300 bg-white text-xs font-medium text-gray-900 outline-none focus:ring-2 focus:ring-orange-500/20"
+                        className="w-full h-9 px-3 rounded-lg border border-orange-300 bg-white text-xs font-medium text-gray-900 outline-none focus:ring-2 focus:ring-orange-500/20"
                       >
                         <option value="">Selecione o responsável comercial...</option>
                         {usersList.map(u => (
@@ -1637,7 +1738,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                         value={responsibleName}
                         onChange={e => setResponsibleName(e.target.value)}
                         placeholder="Nome do responsável comercial..."
-                        className="h-10 text-xs bg-white rounded-xl border-orange-200"
+                        className="h-9 text-xs bg-white rounded-lg border-orange-200"
                       />
                     )}
                     <span className="text-[10.5px] text-orange-950/80 font-medium block">
@@ -1646,25 +1747,25 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   </div>
 
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Data da Solicitação *</Label>
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">Data da Solicitação *</Label>
                     <Input
                       type="date"
                       value={requestDate}
                       onChange={e => setRequestDate(e.target.value)}
-                      className="h-10 text-xs bg-white rounded-xl border-gray-200"
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
                     />
                     {errors.requestDate && <p className="text-[11px] text-red-500 mt-1 font-semibold">{errors.requestDate}</p>}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Validade do Orçamento</Label>
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">Validade do Orçamento</Label>
                     <Input
                       type="date"
                       value={validUntil}
                       onChange={e => setValidUntil(e.target.value)}
-                      className="h-10 text-xs bg-white rounded-xl border-gray-200"
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
                     />
                     <span className="text-[10.5px] text-gray-400 mt-1 block">
                       Prazo em que os preços e condições permanecem garantidos
@@ -1672,12 +1773,12 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   </div>
 
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Código de Referência / ERP</Label>
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">Código de Referência / ERP</Label>
                     <Input
                       placeholder="Ex: ORC-2026-001"
                       value={externalCode}
                       onChange={e => setExternalCode(e.target.value)}
-                      className="h-10 text-xs bg-white rounded-xl border-gray-200"
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
                     />
                   </div>
                 </div>
@@ -1687,11 +1788,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
           {/* ══ ABA 2: PRODUTOS & PEÇAS ══════════════════════════════ */}
           {activeTab === "produtos" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
                       <Package className="w-4 h-4 text-orange-600" />
                       Produtos & Peças de Reposição ({products.length})
                     </h4>
@@ -1705,32 +1806,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setShowMultiPickerModal(true)}
-                      className="text-xs h-8 gap-1.5 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-orange-600" />
-                      Selecionar Múltiplos do Estoque
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
                       onClick={() => setShowQuickProd(!showQuickProd)}
                       className="text-xs h-8 gap-1.5 border-gray-200 hover:bg-slate-50 font-semibold"
                     >
                       <Plus className="w-3.5 h-3.5 text-orange-600" />
                       Cadastrar Novo Produto
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => addProductRow()}
-                      className="text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Produto
                     </Button>
                   </div>
                 </div>
@@ -1738,27 +1818,27 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                 {/* BARRA DE ADIÇÃO RÁPIDA: PRODUTOS */}
                 <form
                   onSubmit={handleFastAddProduct}
-                  className="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex flex-wrap items-center gap-2.5"
+                  className="p-3 bg-slate-50 rounded-lg border border-gray-200 flex flex-wrap items-center gap-2.5"
                 >
                   <div className="flex-1 min-w-[200px]">
                     <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">
                       Catálogo de Estoque ou Descrição Direta
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <select
-                        value={fastProdId}
-                        onChange={e => onSelectFastProduct(e.target.value)}
-                        className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-48 shrink-0"
+                      <button
+                        type="button"
+                        onClick={() => setShowMultiPickerModal(true)}
+                        className="h-9 px-3 text-xs rounded-lg border border-gray-300 bg-white hover:bg-orange-50/50 hover:border-orange-400 text-slate-700 flex items-center justify-between gap-2 text-left font-medium w-52 shrink-0 transition-colors shadow-2xs group cursor-pointer"
+                        title="Abrir tela de seleção do estoque"
                       >
-                        <option value="">Buscar no estoque...</option>
-                        {productsCatalog.map(prod => (
-                          <option key={prod.id} value={prod.id}>
-                            {prod.name} · R$ {Number(prod.unitPrice ?? prod.unitCost ?? 0).toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="flex items-center gap-1.5 truncate text-slate-600 group-hover:text-orange-700">
+                          <Layers className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          <span className="truncate">Buscar no estoque...</span>
+                        </span>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-500 shrink-0" />
+                      </button>
                       <Input
-                        placeholder="Ou digite o nome do item..."
+                        placeholder="Ou digite o nome do item avulso..."
                         value={fastProdName}
                         onChange={e => setFastProdName(e.target.value)}
                         className="h-9 text-xs bg-white rounded-lg flex-1"
@@ -1789,16 +1869,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     />
                   </div>
 
-                  <div className="self-end pt-3">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Produto
-                    </Button>
-                  </div>
+                  {fastProdName.trim() && (
+                    <div className="self-end pt-3">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar Item Avulso
+                      </Button>
+                    </div>
+                  )}
                 </form>
 
                 {showQuickProd && (
@@ -1833,11 +1915,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
                 {/* Tabela de Produtos */}
                 {products.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl bg-slate-50/50">
+                  <div className="py-10 text-center border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
                     <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-700 text-sm">Nenhum produto incluído</p>
+                    <p className="font-semibold text-gray-700 text-xs sm:text-sm">Nenhum produto incluído</p>
                     <p className="text-gray-400 text-xs mt-0.5">
-                      Utilize a barra rápida acima ou clique em "Selecionar Múltiplos do Estoque".
+                      Clique em "Buscar no estoque..." acima para selecionar os itens do catálogo.
                     </p>
                   </div>
                 ) : (
@@ -1950,11 +2032,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
           {/* ══ ABA 3: SERVIÇOS TÉCNICOS (Replicado de Produtos) ═══════ */}
           {activeTab === "servicos" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
                       <Wrench className="w-4 h-4 text-orange-600" />
                       Serviços Especializados em Geradores ({services.length})
                     </h4>
@@ -1969,60 +2051,125 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setShowMultiPickerServicesModal(true)}
-                      className="text-xs h-8 gap-1.5 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-orange-600" />
-                      Selecionar Múltiplos Serviços
-                    </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
                       onClick={() => setShowQuickSvc(!showQuickSvc)}
                       className="text-xs h-8 gap-1.5 border-gray-200 hover:bg-slate-50 font-semibold"
                     >
                       <Plus className="w-3.5 h-3.5 text-orange-600" />
                       Cadastrar Novo Serviço
                     </Button>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => addServiceRow()}
-                      className="text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Serviço
-                    </Button>
                   </div>
                 </div>
+
+                {/* SERVIÇOS RECOMENDADOS DA VISITA TÉCNICA */}
+                {suggestedVisitServices.length > 0 && (
+                  <div className="p-3 bg-gradient-to-r from-orange-50/90 to-amber-50/70 border border-orange-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-xs font-bold text-orange-900 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                        Serviços Recomendados para a Visita #{technicalVisitObj?.visitNumber || technicalVisitObj?.externalCode || `VT-${technicalVisitObj?.id?.slice(0, 8).toUpperCase()}`}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          const toAdd = suggestedVisitServices
+                            .filter((s) => !services.some((row) => row.serviceId === s.id || row.title === s.title))
+                            .map((s) => ({
+                              serviceId: s.id,
+                              title: s.title,
+                              quantity: 1,
+                              unitPrice: Number(s.price) || 0,
+                              discount: 0,
+                              total: Number(s.price) || 0,
+                              customObservation: s.defaultObservation || "",
+                            }));
+                          if (toAdd.length > 0) {
+                            setServices((prev) => [...prev, ...toAdd]);
+                            toast.success(`${toAdd.length} serviço(s) recomendado(s) adicionado(s) ao orçamento!`);
+                          } else {
+                            toast.info("Todos os serviços recomendados já foram adicionados.");
+                          }
+                        }}
+                        className="text-[11px] h-7 font-bold text-orange-700 hover:text-orange-900 hover:bg-orange-100/60"
+                      >
+                        + Adicionar Todos Recomendados
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {suggestedVisitServices.map((s) => {
+                        const alreadyAdded = services.some((row) => row.serviceId === s.id || row.title === s.title);
+                        return (
+                          <div
+                            key={s.id}
+                            className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-white border border-orange-100 text-xs shadow-2xs"
+                          >
+                            <div className="truncate flex-1">
+                              <span className="font-semibold text-slate-800 block truncate" title={s.title}>
+                                {s.title}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {s.category || "Serviço"} • {formatCurrency(Number(s.price) || 0)} / {s.unit || "sv"}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={alreadyAdded}
+                              onClick={() => {
+                                setServices((prev) => [
+                                  ...prev,
+                                  {
+                                    serviceId: s.id,
+                                    title: s.title,
+                                    quantity: 1,
+                                    unitPrice: Number(s.price) || 0,
+                                    discount: 0,
+                                    total: Number(s.price) || 0,
+                                    customObservation: s.defaultObservation || "",
+                                  },
+                                ]);
+                                toast.success(`"${s.title}" adicionado ao orçamento!`);
+                              }}
+                              className={`h-7 px-2.5 text-[11px] font-bold ${
+                                alreadyAdded
+                                  ? "bg-slate-100 text-slate-400 border border-slate-200"
+                                  : "bg-orange-600 hover:bg-orange-700 text-white"
+                              }`}
+                            >
+                              {alreadyAdded ? "Adicionado" : "+ Incluir"}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* BARRA DE ADIÇÃO RÁPIDA: SERVIÇOS (Fast Add Bar) */}
                 <form
                   onSubmit={handleFastAddService}
-                  className="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex flex-wrap items-center gap-2.5"
+                  className="p-3 bg-slate-50 rounded-lg border border-gray-200 flex flex-wrap items-center gap-2.5"
                 >
                   <div className="flex-1 min-w-[200px]">
                     <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">
                       Catálogo de Serviços ou Descrição
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <select
-                        value={fastSvcId}
-                        onChange={e => onSelectFastService(e.target.value)}
-                        className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-48 shrink-0"
+                      <button
+                        type="button"
+                        onClick={() => setShowMultiPickerServicesModal(true)}
+                        className="h-9 px-3 text-xs rounded-lg border border-gray-300 bg-white hover:bg-orange-50/50 hover:border-orange-400 text-slate-700 flex items-center justify-between gap-2 text-left font-medium w-52 shrink-0 transition-colors shadow-2xs group cursor-pointer"
+                        title="Abrir catálogo de serviços"
                       >
-                        <option value="">Buscar no catálogo...</option>
-                        {servicesCatalog.map(svc => (
-                          <option key={svc.id} value={svc.id}>
-                            {svc.title} · R$ {Number(svc.price || 0).toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="flex items-center gap-1.5 truncate text-slate-600 group-hover:text-orange-700">
+                          <Wrench className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          <span className="truncate">Buscar no catálogo...</span>
+                        </span>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-500 shrink-0" />
+                      </button>
                       <Input
-                        placeholder="Ou digite o nome do serviço..."
+                        placeholder="Ou digite o nome do serviço avulso..."
                         value={fastSvcTitle}
                         onChange={e => setFastSvcTitle(e.target.value)}
                         className="h-9 text-xs bg-white rounded-lg flex-1"
@@ -2053,16 +2200,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     />
                   </div>
 
-                  <div className="self-end pt-3">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Serviço
-                    </Button>
-                  </div>
+                  {fastSvcTitle.trim() && (
+                    <div className="self-end pt-3">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar Serviço Avulso
+                      </Button>
+                    </div>
+                  )}
                 </form>
 
                 {showQuickSvc && (
@@ -2097,9 +2246,9 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
                 {/* Tabela de Serviços */}
                 {services.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl bg-slate-50/50">
+                  <div className="py-10 text-center border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
                     <Wrench className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-700 text-sm">Nenhum serviço incluído</p>
+                    <p className="font-semibold text-gray-700 text-xs sm:text-sm">Nenhum serviço incluído</p>
                     <p className="text-gray-400 text-xs mt-0.5">
                       Utilize a barra de adição rápida ou selecione do catálogo.
                     </p>
@@ -2224,11 +2373,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
           {/* ══ ABA 4: CUSTOS ADICIONAIS (Replicado de Produtos) ═══════ */}
           {activeTab === "custos" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-orange-600" />
                       Custos Operacionais & Deslocamento ({additionalCosts.length})
                     </h4>
@@ -2241,48 +2390,67 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       type="button"
                       size="sm"
                       variant="outline"
-                      onClick={() => setShowCostPresetsModal(true)}
-                      className="text-xs h-8 gap-1.5 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold"
+                      onClick={() => setShowQuickCostPreset(!showQuickCostPreset)}
+                      className="text-xs h-8 gap-1.5 border-gray-200 hover:bg-slate-50 font-semibold"
                     >
-                      <Layers className="w-3.5 h-3.5 text-orange-600" />
-                      Selecionar Custos Predefinidos
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        setAdditionalCosts(c => [...c, { description: costPresetsList[0], amount: 0 }]);
-                      }}
-                      className="text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Custo
+                      <Plus className="w-3.5 h-3.5 text-orange-600" />
+                      Cadastrar Tipo de Custo
                     </Button>
                   </div>
                 </div>
 
+                {showQuickCostPreset && (
+                  <QuickAddPanel title="Cadastrar novo tipo de custo operacional" onClose={() => setShowQuickCostPreset(false)}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-[10px] text-gray-500 block mb-1">Descrição do Tipo de Custo *</Label>
+                        <Input
+                          placeholder="Ex: Aluguel de Equipamento / Frete Dedicado"
+                          value={qcpCost}
+                          onChange={e => setQcpCost(e.target.value)}
+                          className="h-8 text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleQuickAddCostPreset}
+                        className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs"
+                      >
+                        Cadastrar e Adicionar à Lista
+                      </Button>
+                    </div>
+                  </QuickAddPanel>
+                )}
+
                 {/* BARRA DE ADIÇÃO RÁPIDA: CUSTOS (Fast Add Bar) */}
                 <form
                   onSubmit={handleFastAddCost}
-                  className="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex flex-wrap items-center gap-2.5"
+                  className="p-3 bg-slate-50 rounded-lg border border-gray-200 flex flex-wrap items-center gap-2.5"
                 >
-                  <div className="flex-1 min-w-[220px]">
+                  <div className="flex-1 min-w-[200px]">
                     <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">
-                      Tipo de Custo ou Descrição
+                      Custos Predefinidos ou Descrição Direta
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <select
-                        value={costPresetsList.includes(fastCostDesc) ? fastCostDesc : ""}
-                        onChange={e => setFastCostDesc(e.target.value)}
-                        className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-52 shrink-0"
+                      <button
+                        type="button"
+                        onClick={() => setShowCostPresetsModal(true)}
+                        className="h-9 px-3 text-xs rounded-lg border border-gray-300 bg-white hover:bg-orange-50/50 hover:border-orange-400 text-slate-700 flex items-center justify-between gap-2 text-left font-medium w-52 shrink-0 transition-colors shadow-2xs group cursor-pointer"
+                        title="Abrir tela de seleção de custos operacionais"
                       >
-                        <option value="">Tipo padrão...</option>
-                        {costPresetsList.map((cp, idx) => (
-                          <option key={idx} value={cp}>{cp}</option>
-                        ))}
-                      </select>
+                        <span className="flex items-center gap-1.5 truncate text-slate-600 group-hover:text-orange-700">
+                          <DollarSign className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          <span className="truncate">
+                            {costPresetsList.includes(fastCostDesc) ? fastCostDesc : "Buscar custos predefinidos..."}
+                          </span>
+                        </span>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-orange-500 shrink-0" />
+                      </button>
                       <Input
-                        placeholder="Ou digite a descrição do custo..."
+                        placeholder="Ou digite a descrição do custo avulso..."
                         value={fastCostDesc}
                         onChange={e => setFastCostDesc(e.target.value)}
                         className="h-9 text-xs bg-white rounded-lg flex-1"
@@ -2302,22 +2470,24 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     />
                   </div>
 
-                  <div className="self-end pt-3">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Custo
-                    </Button>
-                  </div>
+                  {fastCostDesc.trim() && (
+                    <div className="self-end pt-3">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar Custo Avulso
+                      </Button>
+                    </div>
+                  )}
                 </form>
 
                 {additionalCosts.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl bg-slate-50/50">
+                  <div className="py-10 text-center border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
                     <DollarSign className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-700 text-sm">Nenhum custo extra lançado</p>
+                    <p className="font-semibold text-gray-700 text-xs sm:text-sm">Nenhum custo extra lançado</p>
                     <p className="text-gray-400 text-xs mt-0.5">
                       Utilize a barra de adição rápida ou selecione dos custos predefinidos.
                     </p>
@@ -2413,18 +2583,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
           {/* ══ ABA 5: CONDIÇÕES & NOTAS ═════════════════════════════ */}
           {activeTab === "condicoes" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
-                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2 pb-3 border-b border-gray-100">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2 pb-3 border-b border-gray-100">
                   <CreditCard className="w-4 h-4 text-orange-600" />
                   Condições Comerciais, Forma de Pagamento & Prazos (Multi-CRUD)
                 </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                   {/* FORMA DE PAGAMENTO COM '+' */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="block font-semibold text-gray-700">Forma de Pagamento</Label>
+                      <Label className="block font-semibold text-xs text-gray-700">Forma de Pagamento</Label>
                       <button
                         type="button"
                         onClick={() => setShowQuickPaymentMethod(!showQuickPaymentMethod)}
@@ -2453,7 +2623,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     <select
                       value={paymentMethodId}
                       onChange={e => setPaymentMethodId(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs outline-none focus:border-orange-500"
+                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-orange-500"
                     >
                       <option value="">Selecione...</option>
                       {paymentMethods.map(m => (
@@ -2467,7 +2637,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   {/* PRAZO DE PAGAMENTO COM SELECT + CRUD '+' */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <Label className="block font-semibold text-gray-700">Prazo / Parcelamento *</Label>
+                      <Label className="block font-semibold text-xs text-gray-700">Prazo / Parcelamento *</Label>
                       <button
                         type="button"
                         onClick={() => setShowQuickPaymentTerm(!showQuickPaymentTerm)}
@@ -2496,7 +2666,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     <select
                       value={paymentTerms}
                       onChange={e => setPaymentTerms(e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-xs outline-none focus:border-orange-500"
+                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-orange-500"
                     >
                       {paymentTermsList.map((term, idx) => (
                         <option key={idx} value={term}>{term}</option>
@@ -2505,18 +2675,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   </div>
 
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Garantia (Meses)</Label>
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">Garantia (Meses)</Label>
                     <Input
                       type="number"
                       min={0}
                       value={warrantyMonths}
                       onChange={e => setWarrantyMonths(Number(e.target.value) || 0)}
-                      className="h-10 text-xs bg-white rounded-xl border-gray-200"
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
                     />
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-orange-50/50 border border-orange-100 space-y-2">
+                <div className="p-3 rounded-lg bg-orange-50/50 border border-orange-100 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-orange-950 flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-orange-600" />
@@ -2537,38 +2707,38 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">
                       Observações / Escopo da Proposta (Visível ao Cliente no PDF)
                     </Label>
                     <textarea
-                      rows={5}
+                      rows={4}
                       value={publicNotes}
                       onChange={e => setPublicNotes(e.target.value)}
-                      className="w-full p-3 bg-white rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-orange-500 resize-none leading-relaxed"
+                      className="w-full p-2.5 bg-white rounded-lg border border-gray-200 text-xs focus:outline-none focus:border-orange-500 resize-none leading-relaxed"
                       placeholder="Condições comerciais impressas na proposta formal..."
                     />
                   </div>
 
                   <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">
+                    <Label className="block font-semibold text-xs text-gray-700 mb-1">
                       Notas Internas (Privado para a Equipe SETGEN)
                     </Label>
                     <textarea
-                      rows={5}
+                      rows={4}
                       value={internalNotes}
                       onChange={e => setInternalNotes(e.target.value)}
-                      className="w-full p-3 bg-slate-50 rounded-xl border border-gray-200 text-xs focus:outline-none resize-none leading-relaxed"
+                      className="w-full p-2.5 bg-slate-50 rounded-lg border border-gray-200 text-xs focus:outline-none resize-none leading-relaxed"
                       placeholder="Histórico interno, condições negociadas pelo vendedor..."
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6 shadow-xs">
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="grid grid-cols-3 gap-6 text-xs w-full md:w-auto">
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4 sm:p-5 shadow-2xs">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-5">
+                  <div className="grid grid-cols-3 gap-5 text-xs w-full md:w-auto">
                     <div>
                       <span className="text-gray-500 text-[11px] block">Produtos</span>
                       <span className="font-bold text-gray-900 text-sm">{formatCurrency(subP)}</span>
@@ -2583,7 +2753,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-5">
+                  <div className="flex items-center gap-4">
                     <div>
                       <span className="text-[11px] text-gray-500 block mb-1">Desconto Geral</span>
                       <div className="flex items-center gap-1.5">
@@ -2605,11 +2775,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       </div>
                     </div>
 
-                    <div className="pl-6 border-l border-orange-200 text-right">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-orange-800 block">
+                    <div className="pl-5 border-l border-orange-200 text-right">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-orange-800 block">
                         Valor Total da Proposta
                       </span>
-                      <span className="text-2xl font-black text-gray-900 tracking-tight">
+                      <span className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
                         {formatCurrency(grandTotal)}
                       </span>
                     </div>
@@ -2619,265 +2789,13 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
             </div>
           )}
 
-          {/* ══ ABA 6: CRONOGRAMA DE TAREFAS (Com Multi-CRUD e '+' - Ponto 2) ══ */}
-          {activeTab === "tarefas" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-orange-600" />
-                      Cronograma & Atividades Previstas ({tasks.length})
-                    </h4>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      Etapas técnicas vinculadas à execução da Ordem de Serviço
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowQuickTaskType(!showQuickTaskType)}
-                      className="text-xs h-8 gap-1.5 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-orange-600" />
-                      Novo Tipo de Tarefa
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => {
-                        const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
-                        setTasks(t => [
-                          ...t,
-                          {
-                            code: nextCode,
-                            type: taskTypePresetsList[0],
-                            date: requestDate,
-                            collaboratorName: usersList[0]?.name || responsibleName,
-                          },
-                        ]);
-                      }}
-                      className="text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Tarefa
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Painel Inline para Novo Tipo de Tarefa (Multi-CRUD Ponto 2) */}
-                {showQuickTaskType && (
-                  <QuickAddPanel title="Cadastrar Novo Tipo de Tarefa / Etapa Técnica" onClose={() => setShowQuickTaskType(false)}>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Ex: Alinhamento a Laser, Teste de Vibração"
-                        value={qttType}
-                        onChange={e => setQttType(e.target.value)}
-                        className="h-8 text-xs bg-white flex-1"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleQuickAddTaskType}
-                        className="h-8 bg-orange-600 text-white font-bold text-xs px-4"
-                      >
-                        Salvar Tipo
-                      </Button>
-                    </div>
-                  </QuickAddPanel>
-                )}
-
-                {/* BARRA DE ADIÇÃO RÁPIDA: TAREFAS */}
-                <form
-                  onSubmit={handleFastAddTask}
-                  className="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex flex-wrap items-center gap-2.5"
-                >
-                  <div className="flex-1 min-w-[200px]">
-                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Tipo de Atividade Técnica</span>
-                    <select
-                      value={fastTaskType}
-                      onChange={e => setFastTaskType(e.target.value)}
-                      className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-full"
-                    >
-                      {taskTypePresetsList.map((tp, idx) => (
-                        <option key={idx} value={tp}>{tp}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="w-36">
-                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Data Prevista</span>
-                    <Input
-                      type="date"
-                      value={fastTaskDate}
-                      onChange={e => setFastTaskDate(e.target.value)}
-                      className="h-9 text-xs bg-white rounded-lg"
-                    />
-                  </div>
-
-                  <div className="w-48">
-                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Técnico Responsável</span>
-                    {usersList.length > 0 ? (
-                      <select
-                        value={fastTaskCollab}
-                        onChange={e => setFastTaskCollab(e.target.value)}
-                        className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-full"
-                      >
-                        {usersList.map(u => (
-                          <option key={u.id} value={u.name}>{u.name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <Input
-                        value={fastTaskCollab}
-                        onChange={e => setFastTaskCollab(e.target.value)}
-                        placeholder="Nome do técnico"
-                        className="h-9 text-xs bg-white rounded-lg"
-                      />
-                    )}
-                  </div>
-
-                  <div className="self-end pt-3">
-                    <Button
-                      type="submit"
-                      size="sm"
-                      className="h-9 px-3.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Incluir Tarefa
-                    </Button>
-                  </div>
-                </form>
-
-                {tasks.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl bg-slate-50/50">
-                    <Calendar className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-700 text-sm">Nenhuma tarefa programada</p>
-                    <p className="text-gray-400 text-xs mt-0.5">
-                      Adicione as atividades necessárias para a execução técnica do gerador.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200">
-                    <table className="w-full text-left text-xs bg-white">
-                      <thead>
-                        <tr className="border-b border-gray-100 bg-slate-50 text-slate-500">
-                          <th className="py-2.5 px-3 w-24 font-semibold">Código</th>
-                          <th className="py-2.5 px-3 font-semibold">Tipo de Tarefa</th>
-                          <th className="py-2.5 px-3 w-36 font-semibold">Data Prevista</th>
-                          <th className="py-2.5 px-3 w-48 font-semibold">Técnico Responsável</th>
-                          <th className="py-2.5 px-2 w-16 text-center">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {tasks.map((t, i) => (
-                          <tr key={i} className="hover:bg-slate-50/60">
-                            <td className="py-2 px-3 font-mono font-bold text-orange-600">
-                              <Input
-                                value={t.code}
-                                onChange={e => {
-                                  const u = [...tasks];
-                                  u[i].code = e.target.value;
-                                  setTasks(u);
-                                }}
-                                className="h-8 text-xs font-mono font-bold bg-white rounded-lg border-gray-200 w-20"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <select
-                                value={t.type}
-                                onChange={e => {
-                                  const u = [...tasks];
-                                  u[i].type = e.target.value;
-                                  setTasks(u);
-                                }}
-                                className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold outline-none w-full"
-                              >
-                                {taskTypePresetsList.map((tp, idx) => (
-                                  <option key={idx} value={tp}>{tp}</option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="py-2 px-3">
-                              <Input
-                                type="date"
-                                value={t.date}
-                                onChange={e => {
-                                  const u = [...tasks];
-                                  u[i].date = e.target.value;
-                                  setTasks(u);
-                                }}
-                                className="h-8 text-xs bg-white rounded-lg border-gray-200 w-36"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              {usersList.length > 0 ? (
-                                <select
-                                  value={t.collaboratorName || ""}
-                                  onChange={e => {
-                                    const u = [...tasks];
-                                    u[i].collaboratorName = e.target.value;
-                                    setTasks(u);
-                                  }}
-                                  className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-xs outline-none w-full"
-                                >
-                                  <option value="">Técnico Responsável...</option>
-                                  {usersList.map(u => (
-                                    <option key={u.id} value={u.name}>{u.name}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <Input
-                                  value={t.collaboratorName || ""}
-                                  onChange={e => {
-                                    const u = [...tasks];
-                                    u[i].collaboratorName = e.target.value;
-                                    setTasks(u);
-                                  }}
-                                  placeholder="Técnico"
-                                  className="h-8 text-xs bg-white rounded-lg border-gray-200"
-                                />
-                              )}
-                            </td>
-                            <td className="py-2 px-2">
-                              <div className="flex items-center justify-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => duplicateTask(i)}
-                                  title="Duplicar tarefa"
-                                  className="text-gray-400 hover:text-orange-600 p-1 rounded"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setTasks(tasks.filter((_, j) => j !== i))}
-                                  title="Excluir tarefa"
-                                  className="text-gray-400 hover:text-red-500 p-1 rounded"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ══ ABA 7: DOCUMENTOS & ANEXOS ═══════════════════════════ */}
+          {/* ══ ABA 6: DOCUMENTOS & ANEXOS ═══════════════════════════ */}
           {activeTab === "anexos" && (
-            <div className="space-y-5 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-5">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                    <h4 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
                       <Paperclip className="w-4 h-4 text-orange-600" />
                       Documentos, Fotos e Laudos Técnicos ({attachments.length})
                     </h4>
@@ -2897,9 +2815,9 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                 </div>
 
                 {attachments.length === 0 ? (
-                  <div className="py-12 text-center border border-dashed border-gray-200 rounded-2xl bg-slate-50/50">
+                  <div className="py-10 text-center border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
                     <Paperclip className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="font-semibold text-gray-700 text-sm">Nenhum documento anexado</p>
+                    <p className="font-semibold text-gray-700 text-xs sm:text-sm">Nenhum documento anexado</p>
                     <p className="text-gray-400 text-xs mt-0.5">
                       Adicione fotos do gerador, laudos anteriores ou diagramas unifilares.
                     </p>
@@ -2949,16 +2867,16 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
           {/* ══ ABA 8: STATUS & APROVAÇÃO (Padrão Aurora Setgen) ═══════ */}
           {activeTab === "status" && (
-            <div className="space-y-6 max-w-5xl">
-              <div className="bg-white rounded-2xl border border-gray-200/80 p-6 shadow-xs space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div className="space-y-4 max-w-5xl">
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0">
-                      <CheckCircle2 className="w-6 h-6" />
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0">
+                      <CheckCircle2 className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-gray-900 text-base">
+                        <h4 className="font-bold text-gray-900 text-xs sm:text-sm">
                           Gerenciamento de Status & Aprovações
                         </h4>
                         <span className={cn("text-xs px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border", getStatusBadgeClass(status))}>
@@ -2975,15 +2893,15 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider block">
                       Total da Proposta
                     </span>
-                    <span className="text-xl font-black text-gray-900">
+                    <span className="text-lg sm:text-xl font-black text-gray-900">
                       {formatCurrency(grandTotal)}
                     </span>
                   </div>
                 </div>
 
                 {/* Pipeline Visual de Fases */}
-                <div className="bg-slate-50 rounded-xl p-4 border border-gray-200">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-3">
+                <div className="bg-slate-50 rounded-lg p-3 border border-gray-200">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-2.5">
                     Fluxo do Ciclo de Vida Comercial
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -2999,7 +2917,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                         <div
                           key={step.key}
                           className={cn(
-                            "p-2.5 rounded-xl border text-center transition-all",
+                            "p-2 rounded-lg border text-center transition-all",
                             isCurrent
                               ? "bg-orange-500 text-white border-orange-600 shadow-sm"
                               : "bg-white text-slate-700 border-gray-200"
@@ -3018,12 +2936,12 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                 </div>
 
                 {/* Painel de Alteração do Status */}
-                <div className="space-y-4">
+                <div className="space-y-3.5">
                   <h5 className="font-bold text-gray-800 text-xs uppercase tracking-wider">
                     Alterar Status do Orçamento
                   </h5>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     {[
                       { key: "DRAFT", label: "Rascunho", desc: "Voltar para elaboração interna", color: "hover:border-slate-400" },
                       { key: "PENDING_APPROVAL", label: "Pendente de Aprovação", desc: "Encaminhar para gerência", color: "hover:border-amber-400" },
@@ -3041,7 +2959,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                           type="button"
                           onClick={() => setNewStatus(st.key as QuoteStatus)}
                           className={cn(
-                            "p-3 rounded-xl border text-left transition-all flex flex-col justify-between h-20",
+                            "p-2.5 rounded-lg border text-left transition-all flex flex-col justify-between h-18",
                             isSelected
                               ? "border-orange-500 bg-orange-50/60 ring-2 ring-orange-500/20 shadow-xs"
                               : "border-gray-200 bg-white hover:bg-slate-50 " + st.color
@@ -3059,7 +2977,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     })}
                   </div>
 
-                  <div className="space-y-1.5 pt-2">
+                  <div className="space-y-1.5 pt-1">
                     <Label className="text-xs font-semibold text-gray-700">
                       Observação / Justificativa da Alteração (Opcional - Gravado em Auditoria)
                     </Label>
@@ -3067,11 +2985,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       value={statusComment}
                       onChange={e => setStatusComment(e.target.value)}
                       placeholder="Ex: Aprovado tecnicamente pela gerência / Cliente solicitou desconto de 5%..."
-                      className="text-xs h-9 bg-slate-50 border-gray-200"
+                      className="text-xs h-9 bg-slate-50 border-gray-200 rounded-lg"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center justify-between pt-1">
                     <span className="text-[11px] text-gray-400">
                       Status selecionado: <strong className="text-gray-800">{getStatusLabel(newStatus)}</strong>
                     </span>
@@ -3079,7 +2997,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                       type="button"
                       onClick={() => handleUpdateStatus()}
                       disabled={updatingStatus || (status === newStatus && !statusComment.trim())}
-                      className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs font-bold h-9 px-5 gap-2 shadow-xs"
+                      className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs font-bold h-8 sm:h-9 px-4 gap-2 shadow-xs rounded-lg"
                     >
                       {updatingStatus ? (
                         <>
@@ -3097,14 +3015,14 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                 </div>
 
                 {/* Estudo e Link de Aprovação do Cliente */}
-                <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/40 rounded-2xl p-5 border border-orange-200/80 space-y-4">
+                <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/40 rounded-xl p-4 border border-orange-200/80 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-orange-100 border border-orange-300 flex items-center justify-center text-orange-700 shrink-0 mt-0.5">
-                        <Sparkles className="w-5 h-5" />
+                      <div className="w-9 h-9 rounded-lg bg-orange-100 border border-orange-300 flex items-center justify-center text-orange-700 shrink-0 mt-0.5">
+                        <Sparkles className="w-4 h-4" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-orange-950 text-sm flex items-center gap-2">
+                        <h4 className="font-bold text-orange-950 text-xs sm:text-sm flex items-center gap-2">
                           Link Público de Aprovação do Cliente
                           <span className="text-[10px] bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full font-bold">
                             Pronto para Uso
@@ -3117,7 +3035,7 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/90 p-2 rounded-xl border border-orange-200">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/90 p-2 rounded-lg border border-orange-200">
                     <Input
                       readOnly
                       value={quoteId ? `${typeof window !== "undefined" ? window.location.origin.replace(":3000", ":3001") : "http://localhost:3001"}/public/quotes/${quoteId}` : "Salve o orçamento para gerar o link público"}
@@ -3165,69 +3083,35 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
         </div>
 
-        {/* ===== 3. RODAPÉ FIXO NA BASE (Sem scroll - Ponto 9) ===== */}
-        <footer className="h-16 bg-white border-t border-gray-200 px-6 flex items-center justify-between shrink-0 shadow-lg z-20">
-          <div className="flex items-center gap-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleSaveDraft}
-              disabled={savingDraft}
-              className="text-xs h-9 gap-1.5 font-bold border-orange-200 text-orange-700 hover:bg-orange-50"
-              title="Salva o orçamento com status Rascunho e vai direto para a lista de orçamentos"
-            >
-              <Save className="w-4 h-4 text-orange-600" />
-              {savingDraft ? "Salvando..." : "Salvar como Rascunho"}
-            </Button>
-            <div className="hidden sm:block text-xs text-slate-500">
-              Total: <strong className="text-slate-900 text-sm">{formatCurrency(grandTotal)}</strong>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPdfModal(true)}
-              className="text-xs rounded-xl h-9 px-3.5 gap-1.5 border-gray-200 hover:bg-slate-50 text-slate-700 font-semibold"
-            >
-              <Printer className="w-4 h-4 text-slate-500" />
-              Imprimir / PDF
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              className="text-xs rounded-xl h-9 px-4 border-gray-200"
-            >
-              Cancelar
-            </Button>
-
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving}
-              onClick={saveQuote}
-              className="bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs rounded-xl h-9 px-5 gap-1.5 shadow-xs"
-            >
-              <CheckCircle className="w-4 h-4" />
-              {saving ? "Salvando..." : quoteId ? "Salvar Alterações" : "Salvar Orçamento"}
-            </Button>
-          </div>
-        </footer>
-
       </main>
+
+      {/* ===== MODAL: CADASTRO COMPLETO DE CLIENTE (OFICIAL) ===== */}
+      <Dialog open={showClientModal} onOpenChange={setShowClientModal}>
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-0 overflow-hidden rounded-xl border-none shadow-2xl bg-white">
+          <ClientMultiCrudEditor
+            onClose={() => setShowClientModal(false)}
+            onSuccess={async () => {
+              setShowClientModal(false);
+              try {
+                const freshClients = await clientsApi.getAll();
+                setClients(freshClients);
+                if (freshClients.length > 0) {
+                  handleSelectClient(freshClients[0].id);
+                }
+              } catch {
+                // ignore
+              }
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* ===== 4. MODAL: SELEÇÃO MÚLTIPLA DE PRODUTOS ===== */}
       <Dialog open={showMultiPickerModal} onOpenChange={setShowMultiPickerModal}>
-        <DialogContent className="sm:max-w-[700px] rounded-2xl p-6">
+        <DialogContent className="w-full max-w-2xl bg-white rounded-xl p-4 sm:p-5 shadow-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-orange-600" />
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-orange-600 shrink-0" />
               Selecionar Múltiplos Produtos do Estoque
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
@@ -3235,18 +3119,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="relative">
+          <div className="space-y-3.5 py-2 w-full min-w-0">
+            <div className="relative w-full">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
               <Input
                 placeholder="Pesquisar por nome ou código da peça..."
                 value={multiPickerSearch}
                 onChange={e => setMultiPickerSearch(e.target.value)}
-                className="pl-9 h-9 text-xs rounded-xl border-gray-200"
+                className="pl-9 h-9 text-xs rounded-lg border-gray-200 w-full"
               />
             </div>
 
-            <div className="max-h-[340px] overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+            <div className="max-h-[360px] overflow-y-auto overflow-x-hidden border border-gray-200 rounded-lg divide-y divide-gray-100 w-full min-w-0">
               {productsCatalog
                 .filter(p => {
                   const s = multiPickerSearch.toLowerCase();
@@ -3261,11 +3145,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     <div
                       key={prod.id}
                       className={cn(
-                        "p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors",
+                        "p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors w-full min-w-0",
                         isChecked && "bg-orange-50/60"
                       )}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -3275,11 +3159,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                               [prod.id]: { selected: e.target.checked, qty },
                             }));
                           }}
-                          className="rounded text-orange-600 w-4 h-4 cursor-pointer"
+                          className="rounded text-orange-600 w-4 h-4 cursor-pointer shrink-0"
                         />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">{prod.name}</p>
-                          <p className="text-[11px] text-gray-500">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-gray-900 truncate" title={prod.name}>{prod.name}</p>
+                          <p className="text-[11px] text-gray-500 truncate">
                             {prod.code ? `Cód: ${prod.code} · ` : ""}
                             Preço: <strong className="text-slate-700">{formatCurrency(price)}</strong>
                             {prod.currentStock !== undefined && ` · Estoque: ${prod.currentStock}`}
@@ -3316,16 +3200,16 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
               type="button"
               variant="outline"
               onClick={() => setShowMultiPickerModal(false)}
-              className="rounded-xl font-semibold border-gray-200"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-semibold border-gray-200"
             >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleConfirmMultiPicker}
-              className="rounded-xl font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-2"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-1.5"
             >
-              <Check className="w-4 h-4" />
+              <Check className="w-3.5 h-3.5" />
               Adicionar Selecionados ao Orçamento
             </Button>
           </DialogFooter>
@@ -3334,10 +3218,10 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
       {/* ===== 5. MODAL: SELEÇÃO MÚLTIPLA DE SERVIÇOS TÉCNICOS ===== */}
       <Dialog open={showMultiPickerServicesModal} onOpenChange={setShowMultiPickerServicesModal}>
-        <DialogContent className="sm:max-w-[700px] rounded-2xl p-6">
+        <DialogContent className="w-full max-w-2xl bg-white rounded-xl p-4 sm:p-5 shadow-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-orange-600" />
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Wrench className="w-4 h-4 text-orange-600 shrink-0" />
               Selecionar Múltiplos Serviços Técnicos do Catálogo
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
@@ -3345,18 +3229,18 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="relative">
+          <div className="space-y-3.5 py-2 w-full min-w-0">
+            <div className="relative w-full">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
               <Input
                 placeholder="Pesquisar por título do serviço..."
                 value={multiPickerServicesSearch}
                 onChange={e => setMultiPickerServicesSearch(e.target.value)}
-                className="pl-9 h-9 text-xs rounded-xl border-gray-200"
+                className="pl-9 h-9 text-xs rounded-lg border-gray-200 w-full"
               />
             </div>
 
-            <div className="max-h-[340px] overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-100">
+            <div className="max-h-[360px] overflow-y-auto overflow-x-hidden border border-gray-200 rounded-lg divide-y divide-gray-100 w-full min-w-0">
               {servicesCatalog
                 .filter(s => s.title.toLowerCase().includes(multiPickerServicesSearch.toLowerCase()))
                 .map(svc => {
@@ -3368,11 +3252,11 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                     <div
                       key={svc.id}
                       className={cn(
-                        "p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors",
+                        "p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors w-full min-w-0",
                         isChecked && "bg-orange-50/60"
                       )}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -3382,13 +3266,13 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
                               [svc.id]: { selected: e.target.checked, qty },
                             }));
                           }}
-                          className="rounded text-orange-600 w-4 h-4 cursor-pointer"
+                          className="rounded text-orange-600 w-4 h-4 cursor-pointer shrink-0"
                         />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-gray-900 truncate">{svc.title}</p>
-                          <p className="text-[11px] text-gray-500">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-gray-900 truncate" title={svc.title}>{svc.title}</p>
+                          <p className="text-[11px] text-gray-500 truncate">
                             Preço sugerido: <strong className="text-slate-700">{formatCurrency(price)}</strong>
-                            {svc.defaultObservation && ` · ${svc.defaultObservation.slice(0, 50)}...`}
+                            {svc.defaultObservation && ` · ${svc.defaultObservation}`}
                           </p>
                         </div>
                       </div>
@@ -3422,16 +3306,16 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
               type="button"
               variant="outline"
               onClick={() => setShowMultiPickerServicesModal(false)}
-              className="rounded-xl font-semibold border-gray-200"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-semibold border-gray-200"
             >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleConfirmMultiPickerServices}
-              className="rounded-xl font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-2"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-1.5"
             >
-              <Check className="w-4 h-4" />
+              <Check className="w-3.5 h-3.5" />
               Adicionar Selecionados ao Orçamento
             </Button>
           </DialogFooter>
@@ -3440,37 +3324,88 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
       {/* ===== 6. MODAL: SELEÇÃO DE CUSTOS PREDEFINIDOS ===== */}
       <Dialog open={showCostPresetsModal} onOpenChange={setShowCostPresetsModal}>
-        <DialogContent className="sm:max-w-[600px] rounded-2xl p-6">
+        <DialogContent className="w-full max-w-2xl bg-white rounded-xl p-4 sm:p-5 shadow-2xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-orange-600" />
-              Selecionar Custos Operacionais Predefinidos
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-orange-600 shrink-0" />
+              Selecionar Múltiplos Custos Operacionais Predefinidos
             </DialogTitle>
             <DialogDescription className="text-xs text-gray-500">
-              Marque as despesas operacionais da equipe para incluir na proposta.
+              Marque as despesas operacionais da equipe para incluir na proposta comercial.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 py-2 max-h-[300px] overflow-y-auto">
-            {costPresetsList.map((cp, idx) => (
-              <label
-                key={idx}
-                className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-200 hover:bg-slate-50 cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={!!selectedCostPresetsMap[cp]}
-                  onChange={e => {
-                    setSelectedCostPresetsMap(prev => ({
-                      ...prev,
-                      [cp]: e.target.checked,
-                    }));
-                  }}
-                  className="rounded text-orange-600 w-4 h-4 cursor-pointer"
-                />
-                <span className="text-xs font-semibold text-gray-800">{cp}</span>
-              </label>
-            ))}
+          <div className="space-y-3.5 py-2 w-full min-w-0">
+            <div className="relative w-full">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+              <Input
+                placeholder="Pesquisar por tipo de custo ou despesa..."
+                value={costPresetsSearch}
+                onChange={e => setCostPresetsSearch(e.target.value)}
+                className="pl-9 h-9 text-xs rounded-lg border-gray-200 w-full"
+              />
+            </div>
+
+            <div className="max-h-[360px] overflow-y-auto overflow-x-hidden border border-gray-200 rounded-lg divide-y divide-gray-100 w-full min-w-0">
+              {costPresetsList
+                .filter(cp => cp.toLowerCase().includes(costPresetsSearch.toLowerCase()))
+                .map((cp, idx) => {
+                  const entry = selectedCostPresetsMap[cp];
+                  const isChecked = !!entry?.selected;
+                  const amount = entry?.amount ?? 0;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors w-full min-w-0",
+                        isChecked && "bg-orange-50/60"
+                      )}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => {
+                            setSelectedCostPresetsMap(prev => ({
+                              ...prev,
+                              [cp]: { selected: e.target.checked, amount: prev[cp]?.amount || 0 },
+                            }));
+                          }}
+                          className="rounded text-orange-600 w-4 h-4 cursor-pointer shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-gray-900 truncate" title={cp}>{cp}</p>
+                          <p className="text-[11px] text-gray-500 truncate">
+                            Custo operacional / despesa da equipe técnica
+                          </p>
+                        </div>
+                      </div>
+
+                      {isChecked && (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-slate-500 font-semibold">Valor (R$):</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={amount || ""}
+                            placeholder="0,00"
+                            onChange={e => {
+                              const val = Math.max(0, Number(e.target.value) || 0);
+                              setSelectedCostPresetsMap(prev => ({
+                                ...prev,
+                                [cp]: { selected: true, amount: val },
+                              }));
+                            }}
+                            className="h-8 w-24 text-right text-xs bg-white rounded-lg border-gray-200"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-gray-100">
@@ -3478,17 +3413,17 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
               type="button"
               variant="outline"
               onClick={() => setShowCostPresetsModal(false)}
-              className="rounded-xl font-semibold border-gray-200"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-semibold border-gray-200"
             >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleConfirmCostPresets}
-              className="rounded-xl font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-2"
+              className="h-8 sm:h-9 px-3 rounded-lg text-xs font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-1.5"
             >
-              <Check className="w-4 h-4" />
-              Adicionar Custos Selecionados
+              <Check className="w-3.5 h-3.5" />
+              Adicionar Selecionados ao Orçamento
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3496,17 +3431,17 @@ export function QuoteMultiCrudEditor({ quoteId, onClose, onSuccess }: Props) {
 
       {/* ===== 7. MODAL: PRÉ-VISUALIZAÇÃO / IMPRESSÃO EM PDF ===== */}
       <Dialog open={showPdfModal} onOpenChange={setShowPdfModal}>
-        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto rounded-2xl p-6">
+        <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto rounded-xl p-4 sm:p-5">
           <DialogHeader className="print:hidden">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center justify-between">
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-orange-600" />
+                <Printer className="w-4 h-4 text-orange-600" />
                 Proposta Comercial de Orçamento (Visualização para PDF)
               </span>
               <Button
                 size="sm"
                 onClick={() => window.print()}
-                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-xl shadow-xs"
+                className="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs gap-1.5 rounded-lg shadow-xs h-8 px-3"
               >
                 <Download className="w-3.5 h-3.5" />
                 Imprimir / Salvar como PDF

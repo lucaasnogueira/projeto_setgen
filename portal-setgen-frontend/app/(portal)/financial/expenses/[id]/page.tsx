@@ -33,7 +33,7 @@ export default function EditExpensePage() {
 
         const [expenseData, categories, clients, visits, serviceOrders] = await Promise.all([
           expensesApi.getOne(id),
-          expensesApi.getCategories(),
+          expensesApi.getCategories().catch(() => []),
           clientsApi.getAll().catch(() => []),
           visitsApi.getAll().catch(() => []),
           ordersApi.getAll().catch(() => []),
@@ -74,7 +74,7 @@ export default function EditExpensePage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center bg-white rounded-2xl border border-gray-200">
+      <div className="flex h-64 items-center justify-center bg-white rounded-xl border border-gray-200/80 shadow-2xs">
         <Loader2 className="h-7 w-7 animate-spin text-[#E2661D]" />
       </div>
     );

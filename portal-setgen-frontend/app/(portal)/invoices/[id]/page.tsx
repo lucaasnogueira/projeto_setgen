@@ -226,7 +226,7 @@ export default function InvoiceDetailsPage() {
 
                 <Separator />
 
-                <div className="bg-status-blue-bg p-4 rounded-2xl border border-status-blue-fg/15 flex gap-4">
+                <div className="bg-status-blue-bg p-4 rounded-xl border border-status-blue-fg/15 flex gap-4">
                   <Zap className="h-7 w-7 text-status-blue-fg shrink-0" />
                   <div className="space-y-1">
                     <p className="text-[13px] font-bold text-status-blue-fg flex items-center gap-2">
@@ -240,7 +240,7 @@ export default function InvoiceDetailsPage() {
                 </div>
 
                 {invoice.impostos[0].beneficioZfmAtivo && (
-                  <div className="bg-status-amber-bg p-4 rounded-2xl border border-status-amber-fg/15 flex gap-4">
+                  <div className="bg-status-amber-bg p-4 rounded-xl border border-status-amber-fg/15 flex gap-4">
                     <Landmark className="h-7 w-7 text-status-amber-fg shrink-0" />
                     <div className="space-y-1">
                       <p className="text-[13px] font-bold text-status-amber-fg">Benefício Manaus (ZFM)</p>
@@ -262,7 +262,7 @@ export default function InvoiceDetailsPage() {
               </div>
               <div className="p-6 space-y-3">
                 {invoice.eventos.map((evento, idx) => (
-                  <div key={evento.id || idx} className="bg-status-red-bg/50 p-4 rounded-2xl border border-status-red-fg/15 space-y-2">
+                  <div key={evento.id || idx} className="bg-status-red-bg/50 p-4 rounded-xl border border-status-red-fg/15 space-y-2">
                     <div className="flex items-center justify-between">
                       <Badge className="bg-status-red-fg text-white border-none">{evento.codigo}</Badge>
                       <span className="text-[10px] font-bold text-status-red-fg/70">{new Date(evento.createdAt).toLocaleString('pt-BR')}</span>
@@ -285,7 +285,7 @@ export default function InvoiceDetailsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="p-4 bg-muted/40 rounded-2xl border border-border">
+                <div className="p-4 bg-muted/40 rounded-xl border border-border">
                    <p className="text-[11.5px] text-text-muted font-medium">
                      <span className="font-bold text-foreground">O que fazer?</span> Verifique os dados do cliente, NCM dos produtos e a validade do seu certificado digital antes de emitir novamente.
                    </p>
@@ -355,7 +355,7 @@ export default function InvoiceDetailsPage() {
                         <Info className="h-4 w-4 text-status-blue-fg" />
                       )}
                     </div>
-                    <div className="w-[calc(100%-3.5rem)] md:w-[45%] bg-card p-4 rounded-2xl border border-border shadow-sm hover:shadow-md transition-shadow">
+                    <div className="w-[calc(100%-3.5rem)] md:w-[45%] bg-card p-4 rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between space-x-2 mb-1">
                         <div className="font-bold text-foreground text-[13px]">{evento.tipo}</div>
                         <time className="font-mono text-[10px] text-status-green-fg bg-status-green-bg px-2 py-0.5 rounded-full">
@@ -394,24 +394,24 @@ export default function InvoiceDetailsPage() {
 
       {/* Modal Visualizador de XML */}
       <Dialog open={isXmlModalOpen} onOpenChange={setIsXmlModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col rounded-[24px] border-none shadow-2xl p-0 bg-card">
-          <div className="bg-gradient-to-r from-slate-900 to-emerald-950 p-6 text-white flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-4">
-              <div className="bg-white/10 p-2.5 rounded-xl backdrop-blur-md">
-                <Code className="h-6 w-6 text-emerald-400" />
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col rounded-xl border border-gray-200/80 shadow-2xl p-0 bg-white">
+          <div className="bg-gradient-to-r from-slate-900 to-emerald-950 px-4 py-3 text-white flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/10 p-2 rounded-lg backdrop-blur-md">
+                <Code className="h-5 w-5 text-emerald-400" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">Log Técnico SEFAZ (XML)</DialogTitle>
-                <DialogDescription className="text-slate-400 text-xs mt-0.5">
+                <DialogTitle className="text-sm sm:text-base font-bold">Log Técnico SEFAZ (XML)</DialogTitle>
+                <DialogDescription className="text-slate-400 text-[11px] mt-0.5">
                   Visualização bruta da resposta assinada pela autoridade fiscal.
                 </DialogDescription>
               </div>
             </div>
           </div>
 
-          <div className="p-8 overflow-auto flex-1 bg-muted/30">
+          <div className="p-4 sm:p-5 overflow-auto flex-1 bg-muted/30">
             <div className="relative group">
-              <pre className="p-6 bg-card rounded-2xl border border-border text-xs font-mono text-text-secondary leading-relaxed whitespace-pre-wrap break-all shadow-inner overflow-x-auto">
+              <pre className="p-4 bg-white rounded-xl border border-border text-xs font-mono text-text-secondary leading-relaxed whitespace-pre-wrap break-all shadow-inner overflow-x-auto">
                 {selectedXml || 'Sem XML disponível'}
               </pre>
               <Button
@@ -419,9 +419,9 @@ export default function InvoiceDetailsPage() {
                   navigator.clipboard.writeText(selectedXml || '');
                   alert('XML copiado para a área de transferência');
                 }}
-                className="absolute top-4 right-4 bg-status-green-fg hover:bg-status-green-fg/90 text-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2"
+                className="absolute top-3 right-3 bg-status-green-fg hover:bg-status-green-fg/90 text-white rounded-lg shadow-sm text-xs h-8 px-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5"
               >
-                <Eye className="h-4 w-4" />
+                <Eye className="h-3.5 w-3.5" />
                 Copiar
               </Button>
             </div>

@@ -1,156 +1,22 @@
 "use client";
 
-import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth';
-import { getRoleLabel, cn } from '@/lib/utils';
-import { UserRole } from '@/types';
+import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
+import { useAuthStore } from "@/store/auth";
+import { getRoleLabel, cn } from "@/lib/utils";
+import { UserRole } from "@/types";
 import {
-  LayoutDashboard,
-  Users,
-  ClipboardList,
-  FileText,
-  CheckCircle,
-  DollarSign,
-  Truck,
-  Package,
-  BarChart3,
-  LogOut,
   ChevronLeft,
   ChevronRight,
-  UserCog,
-  Wallet,
-  Shield,
-  Tags,
-  ClipboardCheck,
-  Zap,
-  PackageSearch,
-  ShoppingCart,
-  Building,
-  Car,
-  Receipt,
-  LayoutGrid,
-  Layers,
   ChevronDown,
-  Building2,
-  Home,
-} from 'lucide-react';
-import { useEffect, useState, useMemo } from 'react';
-import { usersApi } from '@/lib/api/users';
-import { DASHBOARD_PERMISSIONS } from '@/lib/dashboard-access';
-import { isUserAuthorizedForModule, isUserAuthorizedForRoute } from '@/lib/permissions';
-
-export interface ModuleDefinition {
-  id: string;
-  name: string;
-  badge: string;
-  prefixes: string[];
-  roles: string[];
-  items: {
-    name: string;
-    href: string;
-    icon: any;
-    roles: string[];
-    permissions?: string[];
-  }[];
-}
-
-const SYSTEM_MODULES: ModuleDefinition[] = [
-  {
-    id: 'commercial',
-    name: 'Comercial & Propostas',
-    badge: 'COMERCIAL',
-    prefixes: ['/quotes', '/clients', '/art', '/purchase-orders'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-    items: [
-      { name: 'Orçamentos', href: '/quotes', icon: Receipt, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['quotes:view'] },
-      { name: 'Clientes', href: '/clients', icon: Building2, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['clients:view'] },
-      { name: 'Ordens de Compra (Clientes)', href: '/purchase-orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['orders:view'] },
-    ],
-  },
-  {
-    id: 'orders',
-    name: 'Ordens de Serviço & Campo',
-    badge: 'O.S. & CAMPO',
-    prefixes: ['/orders', '/visits', '/deliveries', '/fleet', '/fuel-requests'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'],
-    items: [
-      { name: 'Ordens de Serviço', href: '/orders', icon: FileText, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
-      { name: 'Gestão de Visitas', href: '/visits', icon: ClipboardList, roles: ['ADMIN', 'MANAGER', 'TECHNICIAN'], permissions: ['visits:view'] },
-      { name: 'Entregas', href: '/deliveries', icon: Truck, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'TECHNICIAN'], permissions: ['orders:view'] },
-      { name: 'Frotas & Veículos', href: '/fleet', icon: Car, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['fleet:view'] },
-    ],
-  },
-  {
-    id: 'inventory',
-    name: 'Estoque & Armazém',
-    badge: 'ESTOQUE',
-    prefixes: ['/inventory', '/warehouse', '/equipment'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-    items: [
-      { name: 'Estoque de Peças', href: '/inventory', icon: Package, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['inventory:view'] },
-      { name: 'Mesa do Almoxarife', href: '/warehouse', icon: PackageSearch, roles: ['ADMIN', 'MANAGER', 'WAREHOUSE'], permissions: ['material-requests:view'] },
-      { name: 'Equipamentos', href: '/equipment', icon: Zap, roles: ['WAREHOUSE', 'ADMIN', 'MANAGER'], permissions: ['equipment:view'] },
-    ],
-  },
-  {
-    id: 'procurement',
-    name: 'Compras & Suprimentos',
-    badge: 'COMPRAS',
-    prefixes: ['/procurement', '/suppliers'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'],
-    items: [
-      { name: 'Pedidos de Compra (Peças)', href: '/procurement', icon: ShoppingCart, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE'], permissions: ['procurement:view'] },
-      { name: 'Fornecedores', href: '/suppliers', icon: Building, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['suppliers:view'] },
-    ],
-  },
-  {
-    id: 'financial',
-    name: 'Financeiro & Faturamento',
-    badge: 'FINANCEIRO',
-    prefixes: ['/financial', '/invoices', '/approvals'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-    items: [
-      { name: 'Despesas & Caixa', href: '/financial', icon: Wallet, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['expenses:view'] },
-      { name: 'Faturamento Fiscal', href: '/invoices', icon: DollarSign, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['invoices:view'] },
-      { name: 'Aprovações', href: '/approvals', icon: CheckCircle, roles: ['ADMIN', 'MANAGER'], permissions: ['orders:approve', 'expenses:approve'] },
-    ],
-  },
-  {
-    id: 'rh',
-    name: 'Recursos Humanos',
-    badge: 'RH',
-    prefixes: ['/rh'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'],
-    items: [
-      { name: 'Funcionários', href: '/rh/employees', icon: Users, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE'], permissions: ['rh:view'] },
-    ],
-  },
-  {
-    id: 'dashboard',
-    name: 'Dashboard & Análises',
-    badge: 'DASHBOARD',
-    prefixes: ['/dashboard', '/reports'],
-    roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'],
-    items: [
-      { name: 'Painel Geral', href: '/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'MANAGER', 'ADMINISTRATIVE', 'WAREHOUSE', 'TECHNICIAN'], permissions: DASHBOARD_PERMISSIONS },
-      { name: 'Relatórios', href: '/reports', icon: BarChart3, roles: ['ADMIN', 'MANAGER'] },
-    ],
-  },
-  {
-    id: 'settings',
-    name: 'Configurações',
-    badge: 'SISTEMA',
-    prefixes: ['/users', '/roles', '/settings', '/config-permissoes'],
-    roles: ['ADMIN'],
-    items: [
-      { name: 'Usuários & Permissões', href: '/users', icon: UserCog, roles: ['ADMIN'], permissions: ['users:view'] },
-      { name: 'Cargos e Permissões', href: '/roles', icon: Shield, roles: ['ADMIN'], permissions: ['roles:view'] },
-      { name: 'Módulos e Acessos', href: '/settings/modules', icon: Layers, roles: ['ADMIN'], permissions: ['roles:view'] },
-      { name: 'Equipes e Grupos', href: '/settings/client-lookups', icon: Tags, roles: ['ADMIN'] },
-      { name: 'Templates de Checklist', href: '/settings/checklist-templates', icon: ClipboardCheck, roles: ['ADMIN'] },
-    ],
-  },
-];
+  LogOut,
+  ArrowLeft,
+  LayoutGrid,
+} from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { usersApi } from "@/lib/api/users";
+import { isUserAuthorizedForRoute } from "@/lib/permissions";
+import { MACRO_MODULES, MacroModule, ModuleSubItem } from "@/lib/modules-config";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -160,20 +26,23 @@ export default function Sidebar() {
   const [showModuleSwitcher, setShowModuleSwitcher] = useState(false);
 
   useEffect(() => {
-    usersApi.getMe().then((fresh: any) => {
-      updateUser({
-        role: fresh.role as unknown as UserRole,
-        roleId: fresh.roleId,
-        roleName: fresh.roleName || fresh.roleRef?.name,
-        roleRef: fresh.roleRef,
-        permissions: fresh.permissions,
-      });
-    }).catch(() => {});
+    usersApi
+      .getMe()
+      .then((fresh: any) => {
+        updateUser({
+          role: fresh.role as unknown as UserRole,
+          roleId: fresh.roleId,
+          roleName: fresh.roleName || fresh.roleRef?.name,
+          roleRef: fresh.roleRef,
+          permissions: fresh.permissions,
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogout = () => {
     clearAuth();
-    router.push('/auth/login');
+    router.push("/auth/login");
   };
 
   const roleName = user?.roleName || (user as any)?.roleRef?.name;
@@ -183,130 +52,219 @@ export default function Sidebar() {
     !normRoleName.includes("administrativo") &&
     !normRoleName.includes("compras");
 
-  // Filtra apenas módulos aos quais o usuário tem acesso permitido
+  // Filtra apenas módulos e itens aos quais o usuário tem permissão
   const allowedModules = useMemo(() => {
     if (!user?.role && !roleName) return [];
-    if (isAdmin) return SYSTEM_MODULES;
-    return SYSTEM_MODULES.filter((mod) => {
-      if (mod.id === "settings") return false;
-      return isUserAuthorizedForModule(user?.role, mod.id, roleName, user?.permissions);
-    });
+
+    return MACRO_MODULES.map((mod) => {
+      // Bloqueio rigoroso de configurações para não-admins
+      if (mod.id === "settings" && !isAdmin) {
+        return null;
+      }
+
+      // Filtra itens permitidos do módulo
+      const visibleItems = mod.items.filter((item) => {
+        if (isAdmin) return true;
+        if (!isUserAuthorizedForRoute(user?.role, item.href, roleName, user?.permissions)) {
+          return false;
+        }
+        if (item.permissions?.length) {
+          return item.permissions.some((p) => user?.permissions?.includes(p));
+        }
+        return true;
+      });
+
+      if (visibleItems.length === 0) return null;
+
+      return {
+        ...mod,
+        items: visibleItems,
+      };
+    }).filter(Boolean) as (MacroModule & { items: ModuleSubItem[] })[];
   }, [user?.role, roleName, isAdmin, user?.permissions]);
 
-  // Identifica dinamicamente o módulo atual a partir do pathname
-  const currentModule = useMemo(() => {
-    const found = allowedModules.find((mod) =>
-      mod.prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))
-    );
-    return found || allowedModules[0] || null;
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 1. Prioridade: Se houver ?module= no URL e for válido
+    const searchMod = new URLSearchParams(window.location.search).get("module");
+    if (searchMod && allowedModules.some((m) => m.id === searchMod)) {
+      setActiveModuleId(searchMod);
+      try {
+        sessionStorage.setItem("setgen_active_macro_module", searchMod);
+      } catch {}
+      return;
+    }
+
+    // 2. Se a rota atual pertence de forma exclusiva a um módulo
+    const currentPath = pathname.split("?")[0];
+    const matchingMods = allowedModules.filter((mod) => {
+      // Ignora rotas compartilhadas como /operations na detecção estrita de exclusividade
+      const exclusivePrefixes = mod.prefixes.filter((p) => p !== "/operations");
+      return exclusivePrefixes.some((prefix) => currentPath === prefix || currentPath.startsWith(prefix + "/"));
+    });
+
+    if (matchingMods.length === 1) {
+      setActiveModuleId(matchingMods[0].id);
+      try {
+        sessionStorage.setItem("setgen_active_macro_module", matchingMods[0].id);
+      } catch {}
+      return;
+    }
+
+    // 3. Se estiver em /operations sem parâmetro explícito, recupera do sessionStorage ou usa padrão
+    if (currentPath === "/operations") {
+      let saved: string | null = null;
+      try {
+        saved = sessionStorage.getItem("setgen_active_macro_module");
+      } catch {}
+      if (saved && (saved === "commercial" || saved === "operational") && allowedModules.some((m) => m.id === saved)) {
+        setActiveModuleId(saved);
+        return;
+      }
+      // Padrão se não houver histórico anterior: operacional
+      setActiveModuleId("operational");
+      try {
+        sessionStorage.setItem("setgen_active_macro_module", "operational");
+      } catch {}
+    }
   }, [pathname, allowedModules]);
 
-  // Filtra itens apenas pertinentes ao módulo ativo e com permissão
-  const visibleItems = useMemo(() => {
-    if (!currentModule) return [];
-    return currentModule.items.filter((item) => {
-      if (isAdmin) return true;
-      if (!isUserAuthorizedForRoute(user?.role, item.href, roleName, user?.permissions)) return false;
-      if (item.permissions?.length) {
-        return item.permissions.some((p) => user?.permissions?.includes(p));
+  // Identifica o módulo ativo com base no contexto ativo e no pathname
+  const currentModule = useMemo(() => {
+    if (!allowedModules.length) return null;
+
+    if (activeModuleId) {
+      const match = allowedModules.find((m) => m.id === activeModuleId);
+      if (match) return match;
+    }
+
+    const currentPath = pathname.split("?")[0];
+    let bestMatch: (MacroModule & { items: ModuleSubItem[] }) | null = null;
+    let longestPrefix = "";
+
+    for (const mod of allowedModules) {
+      for (const prefix of mod.prefixes) {
+        if (currentPath === prefix || currentPath.startsWith(prefix + "/")) {
+          if (prefix.length > longestPrefix.length) {
+            longestPrefix = prefix;
+            bestMatch = mod;
+          }
+        }
       }
-      return true;
-    });
-  }, [currentModule, isAdmin, user?.role, user?.permissions, roleName]);
+    }
+
+    return bestMatch || allowedModules[0] || null;
+  }, [pathname, allowedModules, activeModuleId]);
+
+  const CurrentModIcon = currentModule?.icon;
 
   return (
     <div
       className={cn(
-        'flex flex-col h-screen sticky top-0 shrink-0 overflow-hidden bg-sidebar text-sidebar-fg transition-[width] duration-200 ease-out z-30',
-        collapsed ? 'w-[76px]' : 'w-64'
+        "flex flex-col h-screen sticky top-0 shrink-0 overflow-hidden bg-sidebar text-sidebar-fg transition-[width] duration-200 ease-out z-30 select-none",
+        collapsed ? "w-[76px]" : "w-64"
       )}
     >
-      {/* Header com Logo Setgen (clica para ir à Home de Módulos) */}
-      <div className="flex items-center justify-between gap-3 px-4.5 py-4 border-b border-sidebar-border whitespace-nowrap">
+      {/* 1. Topo: Logo Setgen + Botão de Recolher/Expandir */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-sidebar-border whitespace-nowrap">
         <button
-          onClick={() => router.push('/modules')}
-          className="flex items-center gap-2.5 min-w-0 text-left group transition-opacity hover:opacity-90"
-          title="Ir para o Hub de Módulos"
+          onClick={() => router.push("/modules")}
+          className="flex items-center gap-2 min-w-0 text-left group transition-opacity hover:opacity-90"
+          title="Ir para Todos os Módulos"
         >
-          <div className="w-8 h-8 rounded-[8px] bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-orange-950/30">
-            <span className="font-black text-white text-xs">S</span>
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <span className="font-extrabold text-[14px] tracking-wide text-white block leading-tight">
-                SETGEN
-              </span>
-              <span className="text-[10px] text-sidebar-fg-dim font-medium tracking-tight group-hover:text-primary transition-colors">
-                Módulos do Sistema
-              </span>
+          {collapsed ? (
+            <div className="w-8 h-8 rounded-[8px] bg-[#E2661D] flex items-center justify-center shrink-0 shadow-sm shadow-orange-950/30">
+              <span className="font-black text-white text-xs">S</span>
             </div>
+          ) : (
+            <Image
+              src="/images/setgen-logo-white.png"
+              alt="SETGEN"
+              width={130}
+              height={36}
+              className="h-7 w-auto object-contain"
+              priority
+              unoptimized
+            />
           )}
         </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="w-[26px] h-[26px] rounded-[7px] bg-sidebar-hover text-sidebar-fg-muted flex items-center justify-center shrink-0 hover:text-white transition-colors"
-          title={collapsed ? 'Expandir Menu' : 'Recolher Menu'}
+          title={collapsed ? "Expandir Menu" : "Recolher Menu"}
         >
           {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
         </button>
       </div>
 
-      {/* Botão de Atalho "Início / Todos os Módulos" */}
+      {/* 2. Botão de Atalho "Todos os Módulos" */}
       <div className="px-3 pt-3">
         <button
-          onClick={() => router.push('/modules')}
+          onClick={() => router.push("/modules")}
           className={cn(
             "w-full flex items-center gap-2.5 px-3 py-2 rounded-[9px] text-[12px] font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors border border-sidebar-border/40",
             collapsed && "justify-center px-0"
           )}
-          title="Ir para a seleção de módulos"
+          title="Voltar para a seleção de módulos"
         >
-          <Home className="w-4 h-4 text-[#E2661D] shrink-0" />
-          {!collapsed && <span>Início / Módulos</span>}
+          <ArrowLeft className="w-4 h-4 text-[#E2661D] shrink-0" />
+          {!collapsed && <span>Todos os Módulos</span>}
         </button>
       </div>
 
-      {/* Identificação Dinâmica do Módulo Atual */}
-      {!collapsed && (
+      {/* 3. Identificação do Módulo Atual com Switcher */}
+      {currentModule && !collapsed && (
         <div className="px-3 pt-2.5 pb-2 border-b border-sidebar-border/60">
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-sidebar-hover/60 border border-sidebar-border/40">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#E2661D]" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2661D]">
-                  {currentModule?.badge || "SETGEN"}
-                </span>
+          <div className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-sidebar-hover/60 border border-sidebar-border/40">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-lg bg-[#E2661D] text-white flex items-center justify-center shrink-0 shadow-xs">
+                {CurrentModIcon && <CurrentModIcon className="w-4 h-4" />}
               </div>
-              <h3 className="text-[12px] font-bold text-white truncate mt-0.5">
-                {currentModule?.name || "Módulos"}
-              </h3>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#E2661D]">
+                  {currentModule.badge}
+                </div>
+                <h3 className="text-[12.5px] font-bold text-white truncate leading-tight">
+                  {currentModule.name}
+                </h3>
+              </div>
             </div>
+
             <button
               onClick={() => setShowModuleSwitcher(!showModuleSwitcher)}
               className="text-sidebar-fg-dim hover:text-white p-1 rounded transition-colors"
               title="Trocar de Módulo"
             >
-              <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showModuleSwitcher && "rotate-180")} />
+              <ChevronDown
+                className={cn("w-3.5 h-3.5 transition-transform duration-200", showModuleSwitcher && "rotate-180")}
+              />
             </button>
           </div>
 
-          {/* Switcher Rápido de Módulo (Dropdown) */}
+          {/* Dropdown de Troca Rápida de Módulo */}
           {showModuleSwitcher && (
-            <div className="mt-2 p-1.5 bg-[#0C111D] border border-sidebar-border rounded-lg shadow-xl space-y-1">
+            <div className="mt-2 p-1.5 bg-[#0C111D] border border-sidebar-border rounded-xl shadow-xl space-y-1">
               <div className="text-[10px] font-semibold text-sidebar-fg-dim px-2 py-1">
-                Trocar de Ambiente:
+                Ambientes do Sistema:
               </div>
               {allowedModules.map((mod) => (
                 <button
                   key={mod.id}
                   onClick={() => {
                     setShowModuleSwitcher(false);
-                    router.push(mod.prefixes[0]);
+                    setActiveModuleId(mod.id);
+                    try {
+                      sessionStorage.setItem("setgen_active_macro_module", mod.id);
+                    } catch {}
+                    router.push(mod.primaryHref);
                   }}
                   className={cn(
-                    "w-full text-left px-2 py-1.5 rounded text-[11px] font-medium transition-colors flex items-center justify-between",
+                    "w-full text-left px-2.5 py-1.5 rounded-lg text-[11.5px] font-medium transition-colors flex items-center justify-between",
                     mod.id === currentModule.id
-                      ? "bg-primary text-white font-bold"
+                      ? "bg-[#E2661D] text-white font-bold"
                       : "text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white"
                   )}
                 >
@@ -318,11 +276,11 @@ export default function Sidebar() {
                 <button
                   onClick={() => {
                     setShowModuleSwitcher(false);
-                    router.push('/modules');
+                    router.push("/modules");
                   }}
-                  className="w-full text-left px-2 py-1.5 rounded text-[11px] font-semibold text-[#E2661D] hover:bg-sidebar-hover flex items-center gap-1.5"
+                  className="w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-[#E2661D] hover:bg-sidebar-hover flex items-center gap-1.5"
                 >
-                  <LayoutGrid className="w-3 h-3" /> Ver Todos os Módulos
+                  <LayoutGrid className="w-3.5 h-3.5" /> Ver Todos os Módulos
                 </button>
               </div>
             </div>
@@ -330,49 +288,69 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Navegação Dinâmica: Apenas itens pertinentes ao módulo ativo */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 whitespace-nowrap scrollbar-thin-sidebar">
-        <div className="space-y-0.5">
-          {visibleItems.length === 0 ? (
-            <div className="p-4 text-center text-sidebar-fg-dim text-xs">
-              Nenhuma ação permitida neste módulo.
-            </div>
-          ) : (
-            visibleItems.map((item) => {
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.href}
-                  onClick={() => router.push(item.href)}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-[9px] text-[13px] font-medium transition-colors mb-0.5',
-                    isActive
-                      ? 'bg-primary text-white font-bold shadow-xs'
-                      : 'text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white'
-                  )}
-                  title={collapsed ? item.name : ''}
-                >
-                  <Icon className="h-[18px] w-[18px] shrink-0" />
-                  {!collapsed && <span className="truncate">{item.name}</span>}
-                </button>
-              );
-            })
-          )}
-        </div>
+      {/* 4. Navegação do Módulo Específico Ativo */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 whitespace-nowrap scrollbar-thin-sidebar space-y-1">
+        {currentModule?.items.map((item) => {
+          const itemPath = item.href.split("?")[0];
+          const currentPath = pathname.split("?")[0];
+          const isActive = currentPath === itemPath || (itemPath !== "/" && currentPath.startsWith(itemPath + "/"));
+          const SubIcon = item.icon;
+
+          if (collapsed) {
+            return (
+              <button
+                key={item.href}
+                onClick={() => router.push(item.href)}
+                className={cn(
+                  "w-full h-10 rounded-[9px] flex items-center justify-center transition-all relative group mb-1",
+                  isActive
+                    ? "bg-[#E2661D] text-white shadow-xs"
+                    : "text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white"
+                )}
+                title={item.name}
+              >
+                <SubIcon className="w-4 h-4 shrink-0" />
+                {isActive && (
+                  <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 rounded-r bg-white" />
+                )}
+              </button>
+            );
+          }
+
+          return (
+            <button
+              key={item.href}
+              onClick={() => router.push(item.href)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[12.5px] font-medium transition-colors text-left",
+                isActive
+                  ? "bg-[#E2661D] text-white font-bold shadow-2xs"
+                  : "text-sidebar-fg-muted hover:bg-sidebar-hover hover:text-white"
+              )}
+              title={item.name}
+            >
+              <SubIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.name}</span>
+            </button>
+          );
+        })}
       </nav>
 
-      {/* Perfil do Usuário e Logout */}
-      <div className="border-t border-sidebar-border p-3 whitespace-nowrap">
+      {/* 5. Perfil do Usuário e Logout */}
+      <div className="border-t border-sidebar-border p-3 whitespace-nowrap bg-[#0C111D]/40">
         {user && (
           <div className="flex items-center gap-2.5 p-1.5 rounded-[9px] mb-1 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-primary text-white font-bold text-[12px] flex items-center justify-center shrink-0">
-              {user.name.charAt(0).toUpperCase()}
+            <div className="w-8 h-8 rounded-full bg-[#E2661D] text-white font-bold text-[12px] flex items-center justify-center shrink-0 shadow-xs">
+              {user.name?.charAt(0).toUpperCase() || "U"}
             </div>
             {!collapsed && (
               <div className="min-w-0 overflow-hidden">
-                <div className="text-white text-[12px] font-bold truncate leading-tight">{user.name}</div>
-                <div className="text-sidebar-fg-dim text-[10.5px] truncate">{roleName || getRoleLabel(user.role)}</div>
+                <div className="text-white text-[12px] font-bold truncate leading-tight">
+                  {user.name}
+                </div>
+                <div className="text-sidebar-fg-dim text-[10.5px] truncate">
+                  {roleName || getRoleLabel(user.role)}
+                </div>
               </div>
             )}
           </div>
@@ -380,13 +358,12 @@ export default function Sidebar() {
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2.5 px-2 py-2 rounded-[9px] text-sidebar-fg-muted text-[12px] font-semibold hover:bg-sidebar-hover hover:text-white transition-colors"
-          title={collapsed ? 'Sair' : ''}
+          title={collapsed ? "Sair" : ""}
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          {!collapsed && <span>Sair</span>}
+          {!collapsed && <span>Sair do Sistema</span>}
         </button>
       </div>
     </div>
   );
 }
-

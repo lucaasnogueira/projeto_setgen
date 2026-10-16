@@ -24,9 +24,15 @@ export class ServicesController {
   async findAll(
     @Query('search') search?: string,
     @Query('active') active?: string,
+    @Query('category') category?: string,
   ) {
     const activeBool = active !== undefined ? active === 'true' : undefined;
-    return this.servicesService.findAll({ search, active: activeBool });
+    return this.servicesService.findAll({ search, active: activeBool, category });
+  }
+
+  @Post('bulk-import')
+  async bulkImport(@Body() body: { services: CreateServiceDto[] }) {
+    return this.servicesService.bulkImport(body.services || []);
   }
 
   @Get(':id')
@@ -42,6 +48,11 @@ export class ServicesController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateServiceDto) {
     return this.servicesService.update(id, dto);
+  }
+
+  @Delete(':id/hard')
+  async hardDelete(@Param('id') id: string) {
+    return this.servicesService.delete(id);
   }
 
   @Delete(':id')

@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { ChecklistFieldsEditor } from "./ChecklistFieldsEditor";
+import { toast } from "sonner";
 
 const ANY_TYPE = "__any__";
 
@@ -57,7 +58,7 @@ export function ChecklistTemplateForm({
 
   const onFormSubmit = (data: TemplateFormValues) => {
     if (fields.length === 0) {
-      alert("Adicione ao menos um campo ao template");
+      toast.error("Adicione ao menos um campo ao template.");
       return;
     }
     onSubmit({
@@ -69,39 +70,61 @@ export function ChecklistTemplateForm({
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <FileText className="h-5 w-5 text-orange-600" />
-            Dados do Template
+      {/* Protocol Header Card */}
+      <div className="bg-white rounded-xl border border-gray-200/80 p-3.5 sm:p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-orange-50 text-[#E2661D] border border-orange-200">
+                {initialData?.id ? `TMPL-${initialData.id.slice(0, 8).toUpperCase()}` : 'TMPL-NOVO'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                Template de Checklist
+              </span>
+            </div>
+            <h3 className="text-sm sm:text-base font-bold text-gray-900">
+              {initialData ? 'Editar Template de Checklist' : 'Novo Template de Checklist Técnico'}
+            </h3>
+            <p className="text-xs text-gray-500">
+              Defina as seções e perguntas padronizadas carregadas automaticamente nas Ordens de Serviço e Laudos de Campo
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+        <CardHeader className="bg-gray-50/50 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+            <FileText className="h-3.5 w-3.5 text-[#E2661D]" />
+            Dados Básicos do Template
           </CardTitle>
-          <CardDescription>Nome, tipo de OS aplicável e status</CardDescription>
+          <CardDescription className="text-xs text-gray-500">Nome identificador, tipo de OS e disponibilidade</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Nome *</Label>
+        <CardContent className="p-4 sm:p-4.5 space-y-3.5">
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Nome do Template <span className="text-red-500">*</span></Label>
               <Input
-                placeholder="Ex: Checklist de Instalação de Rede"
-                className="h-12 rounded-2xl"
+                placeholder="Ex: Checklist Geral de Gerador Diesel"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/30"
                 {...register("name")}
               />
-              {errors.name && <p className="text-xs font-bold text-red-500">{errors.name.message}</p>}
+              {errors.name && <p className="text-xs font-semibold text-red-500">{errors.name.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Aplica-se a</Label>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Aplica-se a</Label>
               <Controller
                 name="serviceOrderType"
                 control={control}
                 render={({ field }) => (
                   <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="h-12 rounded-2xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200 bg-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ANY_TYPE}>Qualquer tipo de OS</SelectItem>
-                      <SelectItem value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita</SelectItem>
-                      <SelectItem value={ServiceOrderType.EXECUTION}>Execução de Serviço</SelectItem>
+                      <SelectItem value={ANY_TYPE} className="text-xs">Qualquer tipo de OS</SelectItem>
+                      <SelectItem value={ServiceOrderType.VISIT_REPORT} className="text-xs">Relatório de Visita</SelectItem>
+                      <SelectItem value={ServiceOrderType.EXECUTION} className="text-xs">Execução de Serviço</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -109,16 +132,16 @@ export function ChecklistTemplateForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Descrição</Label>
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold text-gray-700">Descrição Técnica (Opcional)</Label>
             <Input
-              placeholder="Descrição opcional do template"
-              className="h-12 rounded-2xl"
+              placeholder="Instruções gerais para os técnicos durante o preenchimento em campo..."
+              className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/30"
               {...register("description")}
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm font-semibold">
+          <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none pt-0.5">
             <Controller
               name="active"
               control={control}
@@ -127,40 +150,45 @@ export function ChecklistTemplateForm({
                   type="checkbox"
                   checked={field.value}
                   onChange={(e) => field.onChange(e.target.checked)}
+                  className="rounded border-gray-300 text-[#E2661D] focus:ring-[#E2661D]/30 w-3.5 h-3.5"
                 />
               )}
             />
-            Ativo (disponível para seleção em novas OS)
+            Ativo (disponível para seleção imediata em novas ordens de serviço)
           </label>
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="text-xl">Campos do Checklist</CardTitle>
-          <CardDescription>Ordem, tipo e obrigatoriedade de cada campo</CardDescription>
+      <Card className="border border-gray-200/80 shadow-2xs rounded-xl bg-white">
+        <CardHeader className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 rounded-t-xl">
+          <CardTitle className="text-xs sm:text-sm font-bold text-gray-900">Campos e Seções do Checklist</CardTitle>
+          <CardDescription className="text-xs text-gray-500">Adicione, ordene e configure perguntas técnicas ou importe de planilha Excel</CardDescription>
         </CardHeader>
-        <CardContent className="p-8">
-          <ChecklistFieldsEditor value={fields} onChange={setFields} />
+        <CardContent className="p-4 sm:p-4.5">
+          <ChecklistFieldsEditor
+            value={fields}
+            onChange={setFields}
+            templateName={form.watch("name") || "Template_Checklist"}
+          />
         </CardContent>
       </Card>
 
-      <div className="flex gap-4 pt-2 pb-12">
+      <div className="flex items-center justify-end gap-2.5 pt-2 pb-8">
         <Button
           type="button"
           variant="outline"
           onClick={onCancel}
-          className="flex-1 h-12 rounded-2xl border-2 flex items-center justify-center gap-2 font-bold"
+          className="h-9 px-4 rounded-lg border-gray-200 text-gray-700 hover:bg-gray-50 font-medium text-xs"
         >
-          <X className="h-5 w-5" />
+          <X className="h-3.5 w-3.5 mr-1.5" />
           Cancelar
         </Button>
         <Button
           type="submit"
           disabled={loading}
-          className="flex-1 h-12 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-2xl shadow-lg flex items-center justify-center gap-2 font-bold disabled:opacity-50"
+          className="h-9 px-6 bg-gray-900 hover:bg-black text-white rounded-lg shadow-2xs font-semibold text-xs disabled:opacity-50 flex items-center gap-2"
         >
-          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           {loading ? "Salvando..." : submitLabel}
         </Button>
       </div>

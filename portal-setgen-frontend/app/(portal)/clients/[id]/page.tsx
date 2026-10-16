@@ -1,9 +1,10 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { TablePagination } from '@/components/ui/pagination';
 import { clientsApi } from '@/lib/api/clients';
 import { equipmentApi } from '@/lib/api/equipment';
 import { visitsApi } from '@/lib/api/visits';
@@ -78,7 +79,7 @@ import { toast } from "sonner";
 
 const ClientLocationView = dynamic(
   () => import('../components/ClientLocationView').then((m) => m.ClientLocationView),
-  { ssr: false, loading: () => <div className="h-72 rounded-2xl bg-muted animate-pulse flex items-center justify-center text-xs text-muted-foreground">Carregando mapa...</div> },
+  { ssr: false, loading: () => <div className="h-72 rounded-xl bg-muted animate-pulse flex items-center justify-center text-xs text-muted-foreground">Carregando mapa...</div> },
 );
 
 const ICMS_LABELS: Record<IcmsTaxpayerType, string> = {
@@ -157,10 +158,24 @@ export default function ClientDetailsPage() {
   // Visitas Técnicas
   const [visits, setVisits] = useState<TechnicalVisit[]>([]);
   const [loadingVisits, setLoadingVisits] = useState(true);
+  const [visitsPage, setVisitsPage] = useState(1);
+  const VISITS_PER_PAGE = 8;
+  const totalVisitsPages = Math.ceil(visits.length / VISITS_PER_PAGE) || 1;
+  const paginatedVisits = useMemo(() => {
+    const start = (visitsPage - 1) * VISITS_PER_PAGE;
+    return visits.slice(start, start + VISITS_PER_PAGE);
+  }, [visits, visitsPage]);
 
   // Orçamentos
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(true);
+  const [quotesPage, setQuotesPage] = useState(1);
+  const QUOTES_PER_PAGE = 8;
+  const totalQuotesPages = Math.ceil(quotes.length / QUOTES_PER_PAGE) || 1;
+  const paginatedQuotes = useMemo(() => {
+    const start = (quotesPage - 1) * QUOTES_PER_PAGE;
+    return quotes.slice(start, start + QUOTES_PER_PAGE);
+  }, [quotes, quotesPage]);
 
   const {
     confirmId: confirmDeleteEquipmentId,
@@ -313,14 +328,14 @@ export default function ClientDetailsPage() {
       />
 
       {/* 2. Client Header Padrão Setgen */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs">
-        <div className="flex items-start md:items-center gap-4 min-w-0">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50 shadow-xs">
-            <Building2 className="h-7 w-7" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs">
+        <div className="flex items-start md:items-center gap-3.5 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200/50 shadow-2xs">
+            <Building2 className="h-5 w-5" />
           </div>
           <div className="min-w-0 space-y-1">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl md:text-2xl font-black text-[#1B2834] truncate">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-base sm:text-lg font-bold text-[#1B2834] truncate">
                 {client.companyName}
               </h1>
               <span className={cn('text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider', getStatusColor(client.status))}>
@@ -442,14 +457,14 @@ export default function ClientDetailsPage() {
 
         {/* TAB 1: VISÃO GERAL */}
         <TabsContent value="visao-geral" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {/* Dados Cadastrais e Fiscais */}
-            <Card className="p-6 space-y-4 rounded-2xl border-gray-200/80 shadow-xs">
-              <div className="text-[14px] font-bold text-foreground flex items-center gap-2 pb-2 border-b border-gray-100">
-                <Building2 className="h-4 w-4 text-primary" />
+            <Card className="p-4 sm:p-5 space-y-3.5 rounded-xl border-gray-200/80 shadow-2xs bg-white">
+              <div className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+                <Building2 className="h-4 w-4 text-[#E2661D]" />
                 Dados Cadastrais e Fiscais
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <FieldBlock label="Razão Social / Nome" value={client.companyName} />
                 <FieldBlock label="Nome Fantasia / Apelido" value={client.tradeName || '—'} />
                 <FieldBlock
@@ -475,12 +490,12 @@ export default function ClientDetailsPage() {
             </Card>
 
             {/* Canais de Contato */}
-            <Card className="p-6 space-y-4 rounded-2xl border-gray-200/80 shadow-xs">
-              <div className="text-[14px] font-bold text-foreground flex items-center gap-2 pb-2 border-b border-gray-100">
-                <Users className="h-4 w-4 text-primary" />
+            <Card className="p-4 sm:p-5 space-y-3.5 rounded-xl border-gray-200/80 shadow-2xs bg-white">
+              <div className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+                <Users className="h-4 w-4 text-[#E2661D]" />
                 Canais de Contato
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <FieldBlock label="Contato no Local" value={client.onSiteContact || '—'} />
                 <FieldBlock label="E-mail Principal" value={client.email || '—'} />
                 <FieldBlock label="Telefone Principal" value={client.phone ? formatPhone(client.phone) : '—'} />
@@ -499,12 +514,12 @@ export default function ClientDetailsPage() {
             </Card>
 
             {/* Localização e Endereço */}
-            <Card className="p-6 space-y-4 rounded-2xl border-gray-200/80 shadow-xs md:col-span-2">
-              <div className="text-[14px] font-bold text-foreground flex items-center gap-2 pb-2 border-b border-gray-100">
-                <MapPin className="h-4 w-4 text-primary" />
+            <Card className="p-4 sm:p-5 space-y-3.5 rounded-xl border-gray-200/80 shadow-2xs bg-white md:col-span-2">
+              <div className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+                <MapPin className="h-4 w-4 text-[#E2661D]" />
                 Endereço e Localização
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
                 <FieldBlock
                   label="Logradouro"
                   value={
@@ -531,12 +546,12 @@ export default function ClientDetailsPage() {
             </Card>
 
             {/* Classificação, Equipe e Observações */}
-            <Card className="p-6 space-y-4 rounded-2xl border-gray-200/80 shadow-xs md:col-span-2">
-              <div className="text-[14px] font-bold text-foreground flex items-center gap-2 pb-2 border-b border-gray-100">
-                <Layers className="h-4 w-4 text-primary" />
+            <Card className="p-4 sm:p-5 space-y-3.5 rounded-xl border-gray-200/80 shadow-2xs bg-white md:col-span-2">
+              <div className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+                <Layers className="h-4 w-4 text-[#E2661D]" />
                 Classificação, Equipe e Observações
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
                 <FieldBlock label="Grupo" value={client.group?.name || 'Não categorizado'} />
                 <FieldBlock label="Segmento" value={client.segment?.name || 'Não categorizado'} />
                 <FieldBlock label="Equipe Responsável" value={client.responsibleTeam?.name || 'Não atribuída'} />
@@ -563,10 +578,10 @@ export default function ClientDetailsPage() {
 
         {/* TAB 2: EQUIPAMENTOS */}
         <TabsContent value="equipamentos" className="space-y-4">
-          <Card className="overflow-hidden rounded-2xl border-gray-200/80 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 bg-white">
+          <Card className="overflow-hidden rounded-xl border border-gray-200/80 shadow-2xs bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60">
               <div>
-                <h3 className="text-sm font-bold text-[#1B2834]">
+                <h3 className="text-xs sm:text-sm font-bold text-gray-900">
                   Equipamentos Vinculados ({equipments.length})
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -576,14 +591,14 @@ export default function ClientDetailsPage() {
               <div className="flex items-center gap-2">
                 <Button
                   onClick={() => setShowAddEquipmentModal(true)}
-                  className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs"
+                  className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Novo Equipamento
                 </Button>
                 <Link href={`/equipment/new?clientId=${client.id}`}>
-                  <Button variant="outline" className="rounded-xl font-semibold gap-1.5 text-xs border-gray-200">
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                  <Button variant="outline" className="rounded-lg font-semibold gap-1 text-xs h-8 border-gray-200">
+                    <ExternalLink className="h-3 w-3 text-slate-400" />
                     Formulário Completo
                   </Button>
                 </Link>
@@ -591,23 +606,23 @@ export default function ClientDetailsPage() {
             </div>
 
             {loadingEquipments ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary"></div>
               </div>
             ) : equipments.length === 0 ? (
-              <div className="p-12 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto">
-                  <Zap className="h-6 w-6" />
+              <div className="p-6 text-center space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto">
+                  <Zap className="h-5 w-5" />
                 </div>
-                <h4 className="text-sm font-bold text-slate-800">Nenhum equipamento vinculado</h4>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-800">Nenhum equipamento vinculado</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Este cliente ainda não possui equipamentos cadastrados. Clique no botão abaixo para adicionar o primeiro gerador ou subestação.
                 </p>
                 <Button
                   onClick={() => setShowAddEquipmentModal(true)}
-                  className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs mt-2"
+                  className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs mt-2"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Cadastrar Primeiro Equipamento
                 </Button>
               </div>
@@ -665,10 +680,10 @@ export default function ClientDetailsPage() {
 
         {/* TAB 3: VISITAS TÉCNICAS */}
         <TabsContent value="visitas" className="space-y-4">
-          <Card className="overflow-hidden rounded-2xl border-gray-200/80 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 bg-white">
+          <Card className="overflow-hidden rounded-xl border border-gray-200/80 shadow-2xs bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60">
               <div>
-                <h3 className="text-sm font-bold text-[#1B2834]">
+                <h3 className="text-xs sm:text-sm font-bold text-gray-900">
                   Visitas Técnicas ({visits.length})
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -677,31 +692,31 @@ export default function ClientDetailsPage() {
               </div>
               <Button
                 onClick={() => router.push(`/visits/new?clientId=${client.id}`)}
-                className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs"
+                className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 Nova Visita
               </Button>
             </div>
 
             {loadingVisits ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary"></div>
               </div>
             ) : visits.length === 0 ? (
-              <div className="p-12 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                  <Wrench className="h-6 w-6" />
+              <div className="p-6 text-center space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                  <Wrench className="h-5 w-5" />
                 </div>
-                <h4 className="text-sm font-bold text-slate-800">Nenhuma visita técnica registrada</h4>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-800">Nenhuma visita técnica registrada</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Nenhuma ordem de serviço ou visita preventiva/corretiva foi agendada para este cliente ainda.
                 </p>
                 <Button
                   onClick={() => router.push(`/visits/new?clientId=${client.id}`)}
-                  className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs mt-2"
+                  className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs mt-2"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Agendar Primeira Visita
                 </Button>
               </div>
@@ -719,7 +734,7 @@ export default function ClientDetailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {visits.map((v) => (
+                    {paginatedVisits.map((v) => (
                       <TableRow
                         key={v.id}
                         className="cursor-pointer hover:bg-slate-50/70"
@@ -765,6 +780,15 @@ export default function ClientDetailsPage() {
                     ))}
                   </TableBody>
                 </Table>
+
+                <TablePagination
+                  currentPage={visitsPage}
+                  totalPages={totalVisitsPages}
+                  totalItems={visits.length}
+                  itemsPerPage={VISITS_PER_PAGE}
+                  onPageChange={setVisitsPage}
+                  itemLabel="visitas técnicas"
+                />
               </div>
             )}
           </Card>
@@ -772,10 +796,10 @@ export default function ClientDetailsPage() {
 
         {/* TAB 4: ORÇAMENTOS */}
         <TabsContent value="orcamentos" className="space-y-4">
-          <Card className="overflow-hidden rounded-2xl border-gray-200/80 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 bg-white">
+          <Card className="overflow-hidden rounded-xl border border-gray-200/80 shadow-2xs bg-white">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/60">
               <div>
-                <h3 className="text-sm font-bold text-[#1B2834]">
+                <h3 className="text-xs sm:text-sm font-bold text-gray-900">
                   Orçamentos e Propostas ({quotes.length})
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -784,31 +808,31 @@ export default function ClientDetailsPage() {
               </div>
               <Button
                 onClick={() => router.push(`/quotes/new?clientId=${client.id}`)}
-                className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs"
+                className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 Novo Orçamento
               </Button>
             </div>
 
             {loadingQuotes ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary"></div>
               </div>
             ) : quotes.length === 0 ? (
-              <div className="p-12 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
-                  <FileText className="h-6 w-6" />
+              <div className="p-6 text-center space-y-2">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mx-auto">
+                  <FileText className="h-5 w-5" />
                 </div>
-                <h4 className="text-sm font-bold text-slate-800">Nenhum orçamento cadastrado</h4>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-800">Nenhum orçamento cadastrado</h4>
                 <p className="text-xs text-slate-500 max-w-md mx-auto">
                   Este cliente ainda não tem propostas comerciais cadastradas. Gere uma proposta agora mesmo.
                 </p>
                 <Button
                   onClick={() => router.push(`/quotes/new?clientId=${client.id}`)}
-                  className="rounded-xl font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs mt-2"
+                  className="rounded-lg font-semibold text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs mt-2"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                   Criar Primeiro Orçamento
                 </Button>
               </div>
@@ -826,7 +850,7 @@ export default function ClientDetailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {quotes.map((q) => {
+                    {paginatedQuotes.map((q) => {
                       const total = q.quoteLines?.reduce((sum: number, l: any) => sum + (Number(l.totalValue) || 0), 0) ?? 0;
                       const statusCfg = QUOTE_STATUS_CONFIG[q.status];
                       return (
@@ -871,6 +895,15 @@ export default function ClientDetailsPage() {
                     })}
                   </TableBody>
                 </Table>
+
+                <TablePagination
+                  currentPage={quotesPage}
+                  totalPages={totalQuotesPages}
+                  totalItems={quotes.length}
+                  itemsPerPage={QUOTES_PER_PAGE}
+                  onPageChange={setQuotesPage}
+                  itemLabel="orçamentos"
+                />
               </div>
             )}
           </Card>
@@ -878,13 +911,13 @@ export default function ClientDetailsPage() {
 
         {/* TAB 5: HISTÓRICO & AUDITORIA */}
         <TabsContent value="historico" className="space-y-4">
-          <Card className="p-6 rounded-2xl border-gray-200/80 shadow-xs space-y-4">
-            <div className="text-[14px] font-bold text-foreground flex items-center gap-2 pb-2 border-b border-gray-100">
-              <History className="h-4 w-4 text-primary" />
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs space-y-3.5 bg-white">
+            <div className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
+              <History className="h-4 w-4 text-[#E2661D]" />
               Registro de Auditoria e Metadados
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
               <FieldBlock label="Cadastrado em" value={formatDateTime(client.createdAt)} />
               <FieldBlock label="Última Atualização" value={formatDateTime(client.updatedAt)} />
               <FieldBlock label="ID do Cliente (UUID)" value={<code className="text-[11px] bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono">{client.id}</code>} />
@@ -901,7 +934,7 @@ export default function ClientDetailsPage() {
 
       {/* Modal Dialog Inline para Adicionar Equipamento Rápido */}
       <Dialog open={showAddEquipmentModal} onOpenChange={setShowAddEquipmentModal}>
-        <DialogContent className="sm:max-w-[540px] rounded-2xl p-6">
+        <DialogContent className="sm:max-w-[540px] rounded-xl p-5 border border-gray-200">
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-[#1B2834] flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />

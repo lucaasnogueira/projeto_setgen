@@ -26,8 +26,13 @@ export function normalizeRoleKey(role?: string | null, roleName?: string | null)
   if (normRole === "WAREHOUSE" || normName.includes("almoxarife") || normName.includes("estoque")) {
     return "ALMOXARIFE";
   }
-  if (normName.includes("atendimento")) {
-    return "ATENDIMENTO";
+  if (
+    normName.includes("atendimento") ||
+    normName.includes("operacional") ||
+    normRole === "OPERATIONAL" ||
+    normRole === "OPERACIONAL"
+  ) {
+    return "OPERACIONAL";
   }
   if (normRole === "TECHNICIAN" || normName.includes("tecnico")) {
     return "TECNICO";
@@ -37,8 +42,8 @@ export function normalizeRoleKey(role?: string | null, roleName?: string | null)
 }
 
 /**
- * Apenas ADMIN, Gestor, Financeiro e Administrativo/Compras podem visualizar valores monetários e custos.
- * Técnicos, Almoxarifes, Atendimento e RH NÃO visualizam.
+ * REGRA RIGOROSA: Apenas ADMIN, Gestor, Financeiro e Administrativo/Compras podem visualizar valores monetários, custos e preços.
+ * Técnicos, Operacionais de campo, Almoxarifes, Atendimento e RH NUNCA visualizam valores financeiros.
  */
 export function canViewFinancialValues(role?: string | null, roleName?: string | null): boolean {
   if (!role && !roleName) return false;
@@ -91,33 +96,36 @@ export const ROLE_ALLOWED_MODULES: Record<string, readonly string[]> = {
   ADMIN: [
     "SETTINGS", "CONFIGURADOR", "USERS", "FINANCIAL", "FINANCEIRO", "RH",
     "COMMERCIAL", "COMERCIAL", "QUOTES", "PROCUREMENT", "COMPRAS",
-    "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
-    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD"
+    "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS", "SERVICES",
+    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD",
+    "ADMINISTRATIVE", "ADMINISTRATIVO"
   ],
   MANAGER: [
     "FINANCIAL", "FINANCEIRO", "RH", "COMMERCIAL", "COMERCIAL", "QUOTES",
     "PROCUREMENT", "COMPRAS", "INVENTORY", "ESTOQUE", "WAREHOUSE",
-    "EQUIPMENT", "EQUIPMENTS", "SERVICE_ORDERS", "ORDERS", "VISITS",
-    "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD"
+    "EQUIPMENT", "EQUIPMENTS", "SERVICES", "SERVICE_ORDERS", "ORDERS", "VISITS",
+    "DELIVERIES", "FLEET", "CLIENTS", "DASHBOARD",
+    "ADMINISTRATIVE", "ADMINISTRATIVO"
   ],
   FINANCEIRO: [
-    "FINANCIAL", "FINANCEIRO", "COMMERCIAL", "COMERCIAL", "QUOTES",
+    "FINANCIAL", "FINANCEIRO", "COMMERCIAL", "COMERCIAL", "QUOTES", "SERVICES",
     "CLIENTS", "DASHBOARD"
   ],
   ADMINISTRATIVO_COMPRAS: [
-    "COMMERCIAL", "COMERCIAL", "QUOTES", "CLIENTS",
+    "COMMERCIAL", "COMERCIAL", "QUOTES", "CLIENTS", "SERVICES",
     "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES",
     "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
     "PROCUREMENT", "COMPRAS", "SUPPLIERS",
     "FINANCIAL", "FINANCEIRO",
-    "FLEET", "RH", "DASHBOARD"
+    "FLEET", "RH", "DASHBOARD",
+    "ADMINISTRATIVE", "ADMINISTRATIVO"
   ],
   ALMOXARIFE: [
     "INVENTORY", "ESTOQUE", "WAREHOUSE", "EQUIPMENT", "EQUIPMENTS",
     "PROCUREMENT", "COMPRAS", "FLEET", "DASHBOARD"
   ],
   TECNICO: [
-    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "CLIENTS", "DASHBOARD"
+    "SERVICE_ORDERS", "ORDERS", "VISITS", "DELIVERIES", "CLIENTS", "EQUIPMENT", "EQUIPMENTS", "DASHBOARD"
   ],
   ATENDIMENTO: [
     "CLIENTS", "SERVICE_ORDERS", "ORDERS", "VISITS", "DASHBOARD"
@@ -133,20 +141,21 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
     "/dashboard", "/reports", "/modules", "/profile",
     "/financial", "/invoices", "/approvals",
     "/rh",
-    "/quotes", "/purchase-orders", "/clients",
+    "/quotes", "/purchase-orders", "/clients", "/services",
     "/procurement", "/suppliers",
     "/inventory", "/warehouse", "/equipment",
-    "/orders", "/visits", "/deliveries", "/fleet", "/fuel-requests"
+    "/orders", "/operations", "/visits", "/deliveries", "/documents", "/fleet", "/fuel-requests"
   ],
   FINANCEIRO: [
     "/dashboard", "/modules", "/profile",
     "/financial", "/invoices", "/approvals",
-    "/quotes", "/purchase-orders", "/clients"
+    "/quotes", "/purchase-orders", "/clients", "/services",
+    "/operations"
   ],
   ADMINISTRATIVO_COMPRAS: [
     "/dashboard", "/modules", "/profile",
-    "/quotes", "/clients", "/purchase-orders",
-    "/orders", "/visits", "/deliveries",
+    "/quotes", "/clients", "/purchase-orders", "/services",
+    "/orders", "/operations", "/visits", "/deliveries", "/documents",
     "/inventory", "/warehouse", "/equipment",
     "/procurement", "/suppliers",
     "/financial", "/invoices",
@@ -155,24 +164,27 @@ export const ROLE_ALLOWED_ROUTES: Record<string, readonly string[]> = {
   ALMOXARIFE: [
     "/dashboard", "/modules", "/profile",
     "/inventory", "/warehouse", "/equipment",
-    "/procurement",
+    "/procurement", "/documents",
     "/fleet", "/fuel-requests"
   ],
   TECNICO: [
     "/dashboard", "/modules", "/profile",
-    "/orders", "/visits", "/deliveries",
-    "/clients"
+    "/operations", "/orders", "/visits", "/deliveries", "/documents",
+    "/clients", "/equipment"
   ],
   ATENDIMENTO: [
     "/dashboard", "/modules", "/profile",
-    "/clients", "/visits", "/orders"
+    "/operations", "/clients", "/visits", "/orders", "/documents"
   ],
 };
 
 export const ROUTE_PERMISSION_MAP: Record<string, string[]> = {
+  "/operations": ["orders:view", "visits:view", "quotes:view", "clients:view"],
   "/quotes": ["clients:view", "quotes:view"],
+  "/services": ["clients:view", "quotes:view", "orders:view"],
   "/clients": ["clients:view"],
   "/orders": ["orders:view"],
+  "/documents": ["orders:view"],
   "/visits": ["visits:view"],
   "/deliveries": ["orders:view"],
   "/inventory": ["inventory:view"],
@@ -194,6 +206,7 @@ export const MODULE_CODE_PERMISSION_MAP: Record<string, string[]> = {
   COMMERCIAL: ["clients:view", "quotes:view"],
   COMERCIAL: ["clients:view", "quotes:view"],
   QUOTES: ["clients:view", "quotes:view"],
+  SERVICES: ["quotes:view", "orders:view"],
   SERVICE_ORDERS: ["orders:view", "visits:view", "art:view"],
   ORDERS: ["orders:view", "visits:view", "art:view"],
   VISITS: ["visits:view"],
@@ -211,6 +224,8 @@ export const MODULE_CODE_PERMISSION_MAP: Record<string, string[]> = {
   FINANCEIRO: ["expenses:view", "expenses:create"],
   FLEET: ["fleet:view", "fleet:fuel-request"],
   RH: ["rh:view"],
+  ADMINISTRATIVE: ["rh:view", "orders:view", "procurement:view", "suppliers:view"],
+  ADMINISTRATIVO: ["rh:view", "orders:view", "procurement:view", "suppliers:view"],
   DASHBOARD: [],
 };
 
@@ -220,26 +235,28 @@ export function isUserAuthorizedForRoute(
   roleName?: string | null,
   userPermissions?: string[]
 ): boolean {
+  if (!pathname) return false;
+  const cleanPath = pathname.split("?")[0];
   if (!role && !roleName) return false;
   const key = normalizeRoleKey(role, roleName);
   if (key === "ADMIN") return true;
 
   // Bloqueio rigoroso de telas administrativas para qualquer usuário não-admin
   if (
-    pathname.startsWith("/users") ||
-    pathname.startsWith("/roles") ||
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/config-permissoes")
+    cleanPath.startsWith("/users") ||
+    cleanPath.startsWith("/roles") ||
+    cleanPath.startsWith("/settings") ||
+    cleanPath.startsWith("/config-permissoes")
   ) {
     return false;
   }
 
   // Rotas sempre públicas/gerais para qualquer usuário autenticado
   if (
-    pathname === "/" ||
-    pathname === "/modules" ||
-    pathname === "/dashboard" ||
-    pathname.startsWith("/profile")
+    cleanPath === "/" ||
+    cleanPath === "/modules" ||
+    cleanPath === "/dashboard" ||
+    cleanPath.startsWith("/profile")
   ) {
     return true;
   }
@@ -247,7 +264,7 @@ export function isUserAuthorizedForRoute(
   // Se o usuário possui permissões dinâmicas retornadas pelo backend, valida por elas primeiro
   if (userPermissions && userPermissions.length > 0) {
     for (const [routePrefix, requiredPerms] of Object.entries(ROUTE_PERMISSION_MAP)) {
-      if (pathname === routePrefix || pathname.startsWith(routePrefix + "/")) {
+      if (cleanPath === routePrefix || cleanPath.startsWith(routePrefix + "/")) {
         if (requiredPerms.some((p) => userPermissions.includes(p))) {
           return true;
         }
@@ -259,7 +276,7 @@ export function isUserAuthorizedForRoute(
   if (!allowedRoutes) return false;
 
   return allowedRoutes.some(
-    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
+    (prefix) => cleanPath === prefix || cleanPath.startsWith(prefix + "/")
   );
 }
 

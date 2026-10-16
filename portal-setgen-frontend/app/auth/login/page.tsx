@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuthStore } from "@/store/auth";
 import { authApi } from "@/lib/api/auth";
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,21 +20,11 @@ export default function LoginPage() {
   const { setAuth } = useAuthStore();
   const router = useRouter();
 
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    const toast = document.createElement("div");
-    toast.className = `fixed top-4 right-4 px-5 py-3 rounded-xl shadow-xl text-xs font-semibold text-white ${
-      type === "error" ? "bg-red-600" : "bg-emerald-600"
-    } z-50 animate-in fade-in slide-in-from-top-2 duration-200`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email || !password) {
-      showToast("Preencha o e-mail e a senha", "error");
+      toast.error("Preencha o e-mail e a senha");
       return;
     }
 
@@ -48,16 +40,15 @@ export default function LoginPage() {
       }
 
       setAuth(user, token);
-      showToast(`Bem-vindo, ${user.name}!`);
+      toast.success(`Bem-vindo, ${user.name}!`);
 
       setTimeout(() => {
-        // Redireciona diretamente para o Hub de Módulos
+        // Redireciona para o Hub de Módulos (Etapa 2 do protótipo Setgen)
         router.push("/modules");
       }, 150);
     } catch (error: any) {
-      showToast(
-        error.response?.data?.message || "E-mail ou senha inválidos. Tente novamente.",
-        "error"
+      toast.error(
+        error.response?.data?.message || "E-mail ou senha inválidos. Tente novamente."
       );
       setLoading(false);
     }
@@ -65,6 +56,17 @@ export default function LoginPage() {
 
   return (
     <div className="space-y-6">
+      <div className="lg:hidden flex justify-center mb-6">
+        <Image
+          src="/images/setgen-logo.png"
+          alt="SETGEN - Serviços Técnicos em Geradores de Energia"
+          width={180}
+          height={40}
+          className="h-10 w-auto object-contain"
+          priority
+          unoptimized
+        />
+      </div>
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-gray-900">
           Entrar na sua conta
@@ -105,7 +107,7 @@ export default function LoginPage() {
             <button
               type="button"
               tabIndex={-1}
-              onClick={() => showToast("Solicitação de redefinição enviada ao administrador.", "success")}
+              onClick={() => toast.success("Solicitação de redefinição enviada ao administrador.")}
               className="text-[11px] font-medium text-orange-600 hover:text-orange-700 hover:underline"
             >
               Esqueceu a senha?

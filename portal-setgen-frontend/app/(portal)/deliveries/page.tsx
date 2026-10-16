@@ -31,13 +31,14 @@ export default function DeliveriesPage() {
   );
 
   useEffect(() => {
-    deliveriesApi.getAll()
-      .then(setDeliveries)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+    router.replace('/documents');
+  }, [router]);
 
-  if (loading) return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div></div>;
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+    </div>
+  );
 
   return (
     <div className="space-y-5">

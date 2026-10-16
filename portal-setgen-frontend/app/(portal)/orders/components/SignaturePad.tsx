@@ -62,20 +62,20 @@ export function SignaturePad({ onSave }: SignaturePadProps) {
         width={400}
         height={200}
         style={{ touchAction: "none" }}
-        className="border rounded-2xl bg-card w-full max-w-[400px] h-[200px] cursor-crosshair"
+        className="border border-gray-200 rounded-xl bg-white w-full max-w-[400px] h-[200px] cursor-crosshair shadow-2xs"
         onPointerDown={start}
         onPointerMove={move}
         onPointerUp={end}
         onPointerLeave={end}
       />
       <div className="flex gap-2">
-        <Button type="button" variant="outline" size="sm" className="rounded-xl gap-1" onClick={clear}>
+        <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs h-8 gap-1" onClick={clear}>
           <Eraser className="h-3.5 w-3.5" /> Limpar
         </Button>
         <Button
           type="button"
           size="sm"
-          className="rounded-xl gap-1 bg-orange-600 hover:bg-orange-700"
+          className="rounded-lg text-xs h-8 gap-1 bg-[#E2661D] hover:bg-[#d05a18] text-white"
           onClick={confirm}
           disabled={!hasDrawn}
         >

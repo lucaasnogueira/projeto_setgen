@@ -18,6 +18,7 @@ import {
   QuoteStatus,
   ServiceOrderType,
   AuditAction,
+  ItemBillingType,
 } from '@prisma/client';
 
 // Máquina de estados do orçamento (fase comercial). Ao chegar em ACCEPTED,
@@ -563,6 +564,8 @@ export class QuotesService {
     this.assertLinesEditable(quote.status);
 
     const discount = dto.discount ?? 0;
+    const isIncluded = dto.billingType === ItemBillingType.INCLUDED_IN_SERVICE;
+    const totalValue = isIncluded ? 0 : this.computeLineTotal(dto.quantity, dto.unitValue, discount);
 
     return this.prisma.quoteLine.create({
       data: {
@@ -570,9 +573,10 @@ export class QuotesService {
         type: dto.type,
         description: dto.description,
         quantity: dto.quantity,
-        unitValue: dto.unitValue,
-        discount,
-        totalValue: this.computeLineTotal(dto.quantity, dto.unitValue, discount),
+        unitValue: isIncluded ? 0 : dto.unitValue,
+        discount: isIncluded ? 0 : discount,
+        totalValue,
+        billingType: dto.billingType || ItemBillingType.BILLED_SEPARATELY,
       },
     });
   }
@@ -587,9 +591,13 @@ export class QuotesService {
       throw new NotFoundException('Linha de orçamento não encontrada');
     }
 
+    const billingType = dto.billingType ?? line.billingType ?? ItemBillingType.BILLED_SEPARATELY;
+    const isIncluded = billingType === ItemBillingType.INCLUDED_IN_SERVICE;
+
     const quantity = dto.quantity ?? Number(line.quantity);
-    const unitValue = dto.unitValue ?? Number(line.unitValue);
-    const discount = dto.discount ?? Number(line.discount);
+    const unitValue = isIncluded ? 0 : (dto.unitValue ?? Number(line.unitValue));
+    const discount = isIncluded ? 0 : (dto.discount ?? Number(line.discount));
+    const totalValue = isIncluded ? 0 : this.computeLineTotal(quantity, unitValue, discount);
 
     return this.prisma.quoteLine.update({
       where: { id: lineId },
@@ -599,7 +607,8 @@ export class QuotesService {
         quantity,
         unitValue,
         discount,
-        totalValue: this.computeLineTotal(quantity, unitValue, discount),
+        totalValue,
+        billingType,
       },
     });
   }
@@ -681,10 +690,11 @@ export class QuotesService {
 
     if (!quote) return;
 
-    const subtotalProducts = quote.itemProducts.reduce(
-      (acc, it) => acc + Number(it.totalPrice),
-      0,
-    );
+    // Peças inclusas na mão de obra não somam no subtotal cobrado do cliente
+    const subtotalProducts = quote.itemProducts
+      .filter((it) => it.billingType !== ItemBillingType.INCLUDED_IN_SERVICE)
+      .reduce((acc, it) => acc + Number(it.totalPrice), 0);
+
     const subtotalServices = quote.itemServices.reduce(
       (acc, it) => acc + Number(it.totalPrice),
       0,
@@ -720,20 +730,31 @@ export class QuotesService {
   // --- MultiCRUD: Produtos do Orçamento ---
   async addItemProduct(
     quoteId: string,
-    dto: { productId: string; quantity: number; unitPrice: number; discountAmount?: number },
+    dto: {
+      productId: string;
+      quantity: number;
+      unitPrice: number;
+      discountAmount?: number;
+      billingType?: ItemBillingType;
+    },
   ) {
     await this.findOne(quoteId);
+    const billingType = dto.billingType || ItemBillingType.BILLED_SEPARATELY;
+    const isIncluded = billingType === ItemBillingType.INCLUDED_IN_SERVICE;
+
     const discount = dto.discountAmount || 0;
-    const total = Math.max(0, dto.quantity * dto.unitPrice - discount);
+    // Se a peça está inclusa na mão de obra, o valor cobrado do cliente é R$ 0,00
+    const total = isIncluded ? 0 : Math.max(0, dto.quantity * dto.unitPrice - discount);
 
     const item = await this.prisma.quoteItemProduct.create({
       data: {
         quoteId,
         productId: dto.productId,
         quantity: dto.quantity,
-        unitPrice: dto.unitPrice,
-        discountAmount: discount,
+        unitPrice: isIncluded ? 0 : dto.unitPrice,
+        discountAmount: isIncluded ? 0 : discount,
         totalPrice: total,
+        billingType,
       },
       include: { product: true },
     });
@@ -931,6 +952,7 @@ export class QuotesService {
       quantity: Math.max(1, Math.round(Number(p.quantity))),
       unitPrice: Number(p.unitPrice),
       totalPrice: Number(p.totalPrice || (Number(p.quantity) * Number(p.unitPrice))),
+      billingType: p.billingType || ItemBillingType.BILLED_SEPARATELY,
     }));
 
     if (itemsToCreate.length === 0 && quote.quoteLines?.length > 0) {
@@ -949,6 +971,7 @@ export class QuotesService {
               quantity: Math.max(1, Math.round(Number(line.quantity))),
               unitPrice: Number(line.unitValue),
               totalPrice: Number(line.totalValue),
+              billingType: line.billingType || ItemBillingType.BILLED_SEPARATELY,
             });
           }
         }
@@ -1011,6 +1034,22 @@ export class QuotesService {
           itemServices: {
             create: servicesToCreate,
           },
+          ...(itemsToCreate.length > 0 && {
+            materialRequests: {
+              create: {
+                priority: 1,
+                status: 'PENDING',
+                items: {
+                  create: itemsToCreate.map((item) => ({
+                    productId: item.productId,
+                    quantityNeeded: item.quantity,
+                    quantityReserved: 0,
+                    billingType: item.billingType,
+                  })),
+                },
+              },
+            },
+          }),
         },
         include: {
           client: true,

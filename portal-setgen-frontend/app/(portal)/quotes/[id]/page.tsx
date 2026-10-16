@@ -52,7 +52,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   CHECK: 'Cheque',
 };
 
-const PUBLIC_QUOTE_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const PUBLIC_QUOTE_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 
 // Status a partir dos quais uma OC/OP do cliente pode ser registrada — espelha
 // OC_ELIGIBLE_QUOTE_STATUSES do backend (purchase-orders.service.ts).

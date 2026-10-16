@@ -1,9 +1,9 @@
 "use client"
 
 import { useState } from 'react';
-import { QuoteLine, QuoteLineType } from '@/types';
+import { QuoteLine, QuoteLineType, ItemBillingType } from '@/types';
 import { quotesApi } from '@/lib/api/quotes';
-import { Plus, Trash2, Receipt, Pencil, Check, X } from 'lucide-react';
+import { Plus, Trash2, Receipt, Pencil, Check, X, ShieldCheck, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,7 @@ const emptyForm = {
   quantity: '1',
   unitValue: '0',
   discount: '0',
+  billingType: ItemBillingType.BILLED_SEPARATELY,
 };
 
 export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLineEditorProps) {
@@ -66,6 +67,7 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
       quantity: String(Number(line.quantity)),
       unitValue: String(Number(line.unitValue)),
       discount: String(Number(line.discount)),
+      billingType: line.billingType || ItemBillingType.BILLED_SEPARATELY,
     });
   };
 
@@ -83,12 +85,14 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
 
     setSaving(true);
     try {
+      const isIncluded = form.billingType === ItemBillingType.INCLUDED_IN_SERVICE;
       const updated = await quotesApi.updateQuoteLine(quoteId, editingId!, {
         type: form.type,
         description: form.description,
         quantity: Number(form.quantity),
-        unitValue: Number(form.unitValue),
-        discount: Number(form.discount),
+        unitValue: isIncluded ? 0 : Number(form.unitValue),
+        discount: isIncluded ? 0 : Number(form.discount),
+        billingType: form.billingType,
       });
       onChange(lines.map((l) => (l.id === updated.id ? updated : l)));
       cancelEdit();
@@ -107,12 +111,14 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
     }
     setSaving(true);
     try {
+      const isIncluded = form.billingType === ItemBillingType.INCLUDED_IN_SERVICE;
       const created = await quotesApi.addQuoteLine(quoteId, {
         type: form.type,
         description: form.description,
         quantity: Number(form.quantity),
-        unitValue: Number(form.unitValue),
-        discount: Number(form.discount),
+        unitValue: isIncluded ? 0 : Number(form.unitValue),
+        discount: isIncluded ? 0 : Number(form.discount),
+        billingType: form.billingType,
       });
       onChange([...lines, created]);
       setForm(emptyForm);
@@ -183,6 +189,25 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
                             <option key={t} value={t}>{QUOTE_LINE_TYPE_LABELS[t]}</option>
                           ))}
                         </select>
+                        {form.type === QuoteLineType.MATERIAL && (
+                          <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-1 rounded-md cursor-pointer mt-1.5 select-none hover:bg-emerald-100 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                              onChange={(e) => {
+                                const isInc = e.target.checked;
+                                setForm({
+                                  ...form,
+                                  billingType: isInc ? ItemBillingType.INCLUDED_IN_SERVICE : ItemBillingType.BILLED_SEPARATELY,
+                                  unitValue: isInc ? '0' : form.unitValue,
+                                  discount: isInc ? '0' : form.discount,
+                                });
+                              }}
+                              className="h-3.5 w-3.5 text-emerald-600 rounded"
+                            />
+                            <span>Incluso no Serviço</span>
+                          </label>
+                        )}
                       </td>
                       <td className="py-3 px-6">
                         <Input
@@ -205,22 +230,32 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
                         <Input
                           type="number"
                           step="0.01"
-                          value={form.unitValue}
+                          disabled={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                          value={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? '0' : form.unitValue}
                           onChange={(e) => setForm({ ...form, unitValue: e.target.value })}
-                          className="h-9 text-xs text-right"
+                          className={`h-9 text-xs text-right ${form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? 'bg-muted text-muted-foreground' : ''}`}
                         />
                       </td>
                       <td className="py-3 px-6">
                         <Input
                           type="number"
                           step="0.01"
-                          value={form.discount}
+                          disabled={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                          value={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? '0' : form.discount}
                           onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                          className="h-9 text-xs text-right"
+                          className={`h-9 text-xs text-right ${form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? 'bg-muted text-muted-foreground' : ''}`}
                         />
                       </td>
-                      <td className="py-3 px-6 text-right text-xs font-bold text-blue-700">
-                        {currency(Number(form.quantity || 0) * Number(form.unitValue || 0) - Number(form.discount || 0))}
+                      <td className="py-3 px-6 text-right text-xs font-bold">
+                        {form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            R$ 0,00 (Incluso)
+                          </span>
+                        ) : (
+                          <span className="text-blue-700">
+                            {currency(Number(form.quantity || 0) * Number(form.unitValue || 0) - Number(form.discount || 0))}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-6 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -240,12 +275,38 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
                     </tr>
                   ) : (
                     <tr key={line.id} className="hover:bg-muted/50 transition-colors">
-                      <td className="py-3 px-6 text-sm text-muted-foreground">{QUOTE_LINE_TYPE_LABELS[line.type]}</td>
+                      <td className="py-3 px-6 text-sm text-muted-foreground">
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="font-medium text-foreground">{QUOTE_LINE_TYPE_LABELS[line.type]}</span>
+                          {line.billingType === ItemBillingType.INCLUDED_IN_SERVICE && (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-bold">
+                              <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                              Incluso no Serviço
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-3 px-6 text-sm font-medium text-foreground">{line.description}</td>
                       <td className="py-3 px-6 text-right text-sm text-muted-foreground">{Number(line.quantity)}</td>
-                      <td className="py-3 px-6 text-right text-sm text-muted-foreground">{currency(Number(line.unitValue))}</td>
-                      <td className="py-3 px-6 text-right text-sm text-muted-foreground">{currency(Number(line.discount))}</td>
-                      <td className="py-3 px-6 text-right text-sm font-bold text-blue-700">{currency(Number(line.totalValue))}</td>
+                      <td className="py-3 px-6 text-right text-sm text-muted-foreground">
+                        {line.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? (
+                          <span className="text-emerald-700 font-semibold">Incluso</span>
+                        ) : (
+                          currency(Number(line.unitValue))
+                        )}
+                      </td>
+                      <td className="py-3 px-6 text-right text-sm text-muted-foreground">
+                        {line.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? '—' : currency(Number(line.discount))}
+                      </td>
+                      <td className="py-3 px-6 text-right text-sm font-bold">
+                        {line.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? (
+                          <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
+                            R$ 0,00 (Incluso)
+                          </span>
+                        ) : (
+                          <span className="text-blue-700">{currency(Number(line.totalValue))}</span>
+                        )}
+                      </td>
                       {editable && (
                         <td className="py-3 px-6 text-right">
                           <div className="flex items-center justify-end gap-3">
@@ -282,6 +343,25 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
                         <option key={t} value={t}>{QUOTE_LINE_TYPE_LABELS[t]}</option>
                       ))}
                     </select>
+                    {form.type === QuoteLineType.MATERIAL && (
+                      <label className="flex items-center gap-1.5 text-[10.5px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-1 rounded-md cursor-pointer mt-1.5 select-none hover:bg-emerald-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                          onChange={(e) => {
+                            const isInc = e.target.checked;
+                            setForm({
+                              ...form,
+                              billingType: isInc ? ItemBillingType.INCLUDED_IN_SERVICE : ItemBillingType.BILLED_SEPARATELY,
+                              unitValue: isInc ? '0' : form.unitValue,
+                              discount: isInc ? '0' : form.discount,
+                            });
+                          }}
+                          className="h-3.5 w-3.5 text-emerald-600 rounded"
+                        />
+                        <span>Incluso no Serviço</span>
+                      </label>
+                    )}
                   </td>
                   <td className="py-3 px-6">
                     <Input
@@ -304,22 +384,32 @@ export function QuoteLineEditor({ quoteId, lines, editable, onChange }: QuoteLin
                     <Input
                       type="number"
                       step="0.01"
-                      value={form.unitValue}
+                      disabled={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                      value={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? '0' : form.unitValue}
                       onChange={(e) => setForm({ ...form, unitValue: e.target.value })}
-                      className="h-9 text-xs text-right"
+                      className={`h-9 text-xs text-right ${form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? 'bg-muted text-muted-foreground' : ''}`}
                     />
                   </td>
                   <td className="py-3 px-6">
                     <Input
                       type="number"
                       step="0.01"
-                      value={form.discount}
+                      disabled={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE}
+                      value={form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? '0' : form.discount}
                       onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                      className="h-9 text-xs text-right"
+                      className={`h-9 text-xs text-right ${form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? 'bg-muted text-muted-foreground' : ''}`}
                     />
                   </td>
-                  <td className="py-3 px-6 text-right text-xs font-bold text-blue-700">
-                    {currency(Number(form.quantity || 0) * Number(form.unitValue || 0) - Number(form.discount || 0))}
+                  <td className="py-3 px-6 text-right text-xs font-bold">
+                    {form.billingType === ItemBillingType.INCLUDED_IN_SERVICE ? (
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        R$ 0,00 (Incluso)
+                      </span>
+                    ) : (
+                      <span className="text-blue-700">
+                        {currency(Number(form.quantity || 0) * Number(form.unitValue || 0) - Number(form.discount || 0))}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3 px-6 text-right">
                     <div className="flex items-center justify-end gap-2">

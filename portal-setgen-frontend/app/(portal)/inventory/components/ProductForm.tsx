@@ -114,45 +114,45 @@ export function ProductForm({
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
       {/* Informações Gerais */}
-      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md", activeStep !== "identificacao" && "hidden")}>
-        <CardHeader className="bg-amber-50/50 border-b border-amber-100">
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Tag className="h-5 w-5 text-amber-600" />
+      <Card className={cn("border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white", activeStep !== "identificacao" && "hidden")}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Tag className="h-3.5 w-3.5 text-[#E2661D]" />
             Identificação do Produto
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Código do Produto *</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Código do Produto *</Label>
               <div className="relative">
-                <Hash className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Hash className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
                 <Input
                   {...register("code")}
                   placeholder="Ex: PROD-001"
-                  className="h-12 pl-10 rounded-2xl focus:ring-amber-500/20 border-border"
+                  className="h-9 pl-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 />
               </div>
               {errors.code && <p className="text-xs font-bold text-red-500">{errors.code.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Unidade de Medida *</Label>
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Unidade de Medida *</Label>
               <Controller
                 name="unit"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl border-border focus:ring-amber-500/20">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200 focus:ring-[#E2661D]/20">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="UN">Unidade (UN)</SelectItem>
-                      <SelectItem value="PC">Peça (PC)</SelectItem>
-                      <SelectItem value="CX">Caixa (CX)</SelectItem>
-                      <SelectItem value="KG">Quilograma (KG)</SelectItem>
-                      <SelectItem value="M">Metro (M)</SelectItem>
-                      <SelectItem value="L">Litro (L)</SelectItem>
+                      <SelectItem value="UN" className="text-xs">Unidade (UN)</SelectItem>
+                      <SelectItem value="PC" className="text-xs">Peça (PC)</SelectItem>
+                      <SelectItem value="CX" className="text-xs">Caixa (CX)</SelectItem>
+                      <SelectItem value="KG" className="text-xs">Quilograma (KG)</SelectItem>
+                      <SelectItem value="M" className="text-xs">Metro (M)</SelectItem>
+                      <SelectItem value="L" className="text-xs">Litro (L)</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -160,48 +160,48 @@ export function ProductForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-foreground font-bold text-sm">Nome do Produto *</Label>
+          <div className="space-y-1">
+            <Label className="text-gray-700 font-semibold text-xs">Nome do Produto *</Label>
             <Input
               {...register("name")}
               placeholder="Ex: Cabo de rede CAT6"
-              className="h-12 rounded-2xl focus:ring-amber-500/20 border-border"
+              className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
             />
             {errors.name && <p className="text-xs font-bold text-red-500">{errors.name.message}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-foreground font-bold text-sm">Descrição</Label>
+          <div className="space-y-1">
+            <Label className="text-gray-700 font-semibold text-xs">Descrição</Label>
             <textarea
               {...register("description")}
               rows={3}
               placeholder="Descrição detalhada do produto..."
-              className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/20 outline-none transition-all"
+              className="w-full flex min-h-[85px] rounded-lg border border-gray-200 bg-white p-2.5 text-xs focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none transition-all"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Código de Barras</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Código de Barras</Label>
               <div className="relative">
-                <Barcode className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+                <Barcode className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
                 <Input
                   {...register("barcode")}
                   placeholder="7891234567890"
-                  className="h-12 pl-10 rounded-2xl focus:ring-amber-500/20 border-border"
+                  className="h-9 pl-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Localização</Label>
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Localização</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <MapPin className="absolute left-3 top-3 h-5 w-5 text-muted-foreground z-10 pointer-events-none" />
+                  <MapPin className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 z-10 pointer-events-none" />
                   <select
                     value={locationId}
                     onChange={(e) => setLocationId(e.target.value)}
-                    className="h-12 w-full pl-10 pr-3 rounded-2xl border border-border bg-background text-sm focus:ring-2 focus:ring-amber-500/20 outline-none"
+                    className="h-9 w-full pl-9 pr-3 rounded-lg border border-gray-200 bg-white text-xs focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                   >
                     <option value="">Selecione...</option>
                     {locations.map((loc) => (
@@ -212,11 +212,11 @@ export function ProductForm({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-12 w-12 rounded-2xl shrink-0"
+                  className="h-9 w-9 rounded-lg shrink-0 border-gray-200 text-gray-700 hover:bg-gray-50"
                   onClick={() => setIsLocationDialogOpen(true)}
                   title="Cadastrar nova localização"
                 >
-                  <Plus className="h-5 w-5" />
+                  <Plus className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
@@ -225,21 +225,22 @@ export function ProductForm({
       </Card>
 
       <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-xl p-4 sm:p-5">
           <DialogHeader>
-            <DialogTitle>Nova Localização</DialogTitle>
+            <DialogTitle className="text-sm font-bold">Nova Localização</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label>Código do Local</Label>
+          <div className="space-y-1 pt-1">
+            <Label className="text-xs font-semibold text-gray-700">Código do Local</Label>
             <Input
               value={newLocationCode}
               onChange={(e) => setNewLocationCode(e.target.value.toUpperCase())}
               placeholder="Ex: A-3"
+              className="h-9 text-xs rounded-lg border-gray-200"
               autoFocus
             />
           </div>
-          <DialogFooter>
-            <Button type="button" onClick={handleCreateLocation} disabled={creatingLocation || !newLocationCode.trim()}>
+          <DialogFooter className="pt-2">
+            <Button type="button" className="h-9 text-xs font-semibold rounded-lg bg-gray-900 hover:bg-black text-white" onClick={handleCreateLocation} disabled={creatingLocation || !newLocationCode.trim()}>
               {creatingLocation ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>
@@ -247,35 +248,35 @@ export function ProductForm({
       </Dialog>
 
       {/* Controle de Estoque */}
-      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md", activeStep !== "estoque" && "hidden")}>
-        <CardHeader className="bg-amber-50/50 border-b border-amber-100">
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Layers className="h-5 w-5 text-amber-600" />
+      <Card className={cn("border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white", activeStep !== "estoque" && "hidden")}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Layers className="h-3.5 w-3.5 text-[#E2661D]" />
             Níveis de Estoque
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Estoque Atual *</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Estoque Atual *</Label>
               <Input
                 type="number"
                 {...register("currentStock", { valueAsNumber: true })}
-                className="h-12 rounded-2xl focus:ring-amber-500/20 border-border"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
               />
               {errors.currentStock && <p className="text-xs font-bold text-red-500">{errors.currentStock.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-foreground font-bold text-sm">Estoque Mínimo *</Label>
+            <div className="space-y-1">
+              <Label className="text-gray-700 font-semibold text-xs">Estoque Mínimo *</Label>
               <div className="space-y-1">
                 <Input
                   type="number"
                   {...register("minStock", { valueAsNumber: true })}
-                  className="h-12 rounded-2xl focus:ring-amber-500/20 border-border"
+                  className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 />
-                <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100">
-                  <AlertCircle className="h-3 w-3" />
+                <div className="flex items-center gap-1.5 text-[11px] text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
+                  <AlertCircle className="h-3 w-3 shrink-0" />
                   Alerta quando o estoque atingir este valor
                 </div>
               </div>

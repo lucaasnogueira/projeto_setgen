@@ -63,14 +63,14 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ArrowRight className="h-5 w-5 text-primary" />
+      <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <ArrowRight className="h-3.5 w-3.5 text-[#E2661D]" />
             Ações de Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-3.5 sm:p-4 space-y-2">
           {availableTransitions.map((status) => {
             const config = SERVICE_ORDER_STATUS_CONFIG[status];
             const Icon = config.icon;
@@ -80,11 +80,11 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
               <Button
                 key={status}
                 onClick={() => handleTransition(status)}
-                className="w-full justify-start gap-3 h-12 rounded-xl font-bold transition-all hover:scale-[1.02]"
+                className="w-full justify-start gap-2 h-9 rounded-lg font-semibold text-xs transition-colors"
                 style={{ backgroundColor: hex.fg, color: hex.bg }}
                 variant="outline"
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-3.5 w-3.5" />
                 {config.label}
               </Button>
             );
@@ -93,10 +93,10 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
           {canCancel && (
             <Button
               onClick={() => handleTransition(ServiceOrderStatus.CANCELLED)}
-              className="w-full justify-start gap-3 h-12 rounded-xl font-bold transition-all hover:scale-[1.02] bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+              className="w-full justify-start gap-2 h-9 rounded-lg font-semibold text-xs transition-colors bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
               variant="outline"
             >
-              <Ban className="h-5 w-5" />
+              <Ban className="h-3.5 w-3.5" />
               Cancelar OS
             </Button>
           )}
@@ -105,34 +105,34 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
 
       {showModal && selectedStatus && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-red-600 p-6 text-white">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                  <AlertCircle className="h-6 w-6" />
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 max-w-md w-full overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-600 to-red-600 p-4 text-white">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm">
+                  <AlertCircle className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold">Confirmar Mudança de Status</h3>
-                  <p className="text-orange-100 text-sm mt-1">
+                  <h3 className="text-sm font-bold">Confirmar Mudança de Status</h3>
+                  <p className="text-orange-100 text-xs mt-0.5">
                     {SERVICE_ORDER_STATUS_CONFIG[currentStatus]?.label || currentStatus} → {selectedStatus ? (SERVICE_ORDER_STATUS_CONFIG[selectedStatus]?.label || selectedStatus) : ""}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3.5">
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-2">Observações</label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Observações</label>
                 <textarea
                   value={comments}
                   onChange={(e) => setComments(e.target.value)}
-                  rows={4}
+                  rows={3}
                   placeholder="Adicione observações sobre esta mudança (opcional)..."
-                  className="w-full rounded-xl border border-input p-3 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+                  className="w-full rounded-lg border border-gray-200 p-2.5 text-xs focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 />
               </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-2.5 pt-1">
                 <Button
                   onClick={() => {
                     setShowModal(false);
@@ -140,7 +140,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                     setSelectedStatus(null);
                   }}
                   variant="outline"
-                  className="flex-1 h-11 rounded-xl font-bold"
+                  className="flex-1 h-9 rounded-lg text-xs font-semibold"
                   disabled={loading}
                 >
                   Cancelar
@@ -148,7 +148,7 @@ export function StatusManager({ currentStatus, userRole, onStatusChange }: Statu
                 <Button
                   onClick={confirmTransition}
                   disabled={loading}
-                  className="flex-1 h-11 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-bold shadow-lg"
+                  className="flex-1 h-9 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-semibold shadow-2xs"
                 >
                   {loading ? 'Processando...' : 'Confirmar'}
                 </Button>

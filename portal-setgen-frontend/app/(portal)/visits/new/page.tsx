@@ -7,7 +7,7 @@ export default function NewVisitPage() {
   const router = useRouter();
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
+    <div className="h-full w-full flex flex-col min-h-0 bg-white">
       <VisitMultiCrudEditor
         onClose={() => router.push('/visits')}
         onSuccess={() => router.push('/visits')}

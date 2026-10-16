@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Bell, FileText, AlertTriangle, Fuel, PackageSearch, CheckCircle } from "lucide-react"
+import { Bell, FileText, AlertTriangle, CheckCircle } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,24 +11,20 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { approvalsApi } from "@/lib/api/approvals"
 import { inventoryApi } from "@/lib/api/inventory"
-import { fuelRequestsApi } from "@/lib/api/fuel-requests"
-import { materialRequestsApi } from "@/lib/api/material-requests"
 import { useAuthStore } from "@/store/auth"
-import { FuelRequestStatus, MaterialRequestStatus } from "@/types"
+import { cn } from "@/lib/utils"
 
 interface NotificationItem {
   id: string
   title: string
   description: string
-  type: "approval" | "stock" | "fuel" | "material"
+  type: "approval" | "stock"
   href: string
 }
 
 const TYPE_STYLE: Record<NotificationItem["type"], { icon: React.ComponentType<{ className?: string }>; className: string }> = {
   approval: { icon: FileText, className: "bg-status-blue-bg text-status-blue-fg" },
   stock: { icon: AlertTriangle, className: "bg-status-amber-bg text-status-amber-fg" },
-  fuel: { icon: Fuel, className: "bg-status-amber-bg text-status-amber-fg" },
-  material: { icon: PackageSearch, className: "bg-status-purple-bg text-status-purple-fg" },
 }
 
 export function NotificationCenter() {
@@ -41,6 +37,9 @@ export function NotificationCenter() {
   const wants = (key: keyof NonNullable<typeof prefs>) => prefs?.[key] !== false
 
   const loadNotifications = async () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token || !user) return;
+
     setLoading(true)
     const items: NotificationItem[] = []
 
@@ -50,10 +49,12 @@ export function NotificationCenter() {
     const canSeeMaterialRequests = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'WAREHOUSE';
 
     const results = await Promise.allSettled([
-      wants("approvals") && canSeeApprovals ? approvalsApi.getPending() : Promise.resolve([]),
-      wants("lowStock") && canSeeStock ? inventoryApi.getAll() : Promise.resolve([]),
-      wants("fuelRequests") && canSeeFuel ? fuelRequestsApi.getAll({ status: FuelRequestStatus.PENDING }) : Promise.resolve([]),
-      wants("materialRequests") && canSeeMaterialRequests ? materialRequestsApi.getAll(MaterialRequestStatus.PENDING) : Promise.resolve([]),
+      wants("approvals") && canSeeApprovals
+        ? approvalsApi.getPending().catch(() => [])
+        : Promise.resolve([]),
+      wants("lowStock") && canSeeStock
+        ? inventoryApi.getAll().catch(() => [])
+        : Promise.resolve([]),
     ])
 
     if (results[0].status === "fulfilled" && Array.isArray(results[0].value)) {
@@ -77,38 +78,12 @@ export function NotificationCenter() {
         if (min > 0 && cur <= min) {
           items.push({
             id: `stock-${product.id}`,
-            title: `Estoque baixo: ${product.name || "Item sem nome"}`,
-            description: `${cur} ${product.unit || "un"} disponível (mínimo ${min})`,
+            title: `Estoque Baixo: ${product.name || "Item sem nome"}`,
+            description: `${cur} ${product.unit || "un"} disponível (mínimo ${min}). Clique para repor ou conferir saldo.`,
             type: "stock",
-            href: `/inventory/${product.id}`,
+            href: `/inventory/${product.id}?tab=estoque`,
           })
         }
-      }
-    }
-
-    if (results[2].status === "fulfilled" && Array.isArray(results[2].value)) {
-      for (const fr of results[2].value) {
-        if (!fr) continue;
-        items.push({
-          id: `fuel-${fr.id}`,
-          title: `Abastecimento pendente: ${fr.vehicle?.name || "Veículo"}`,
-          description: `${fr.liters || 0}L — aguardando aprovação`,
-          type: "fuel",
-          href: `/fleet`,
-        })
-      }
-    }
-
-    if (results[3].status === "fulfilled" && Array.isArray(results[3].value)) {
-      for (const mr of results[3].value) {
-        if (!mr) continue;
-        items.push({
-          id: `material-${mr.id}`,
-          title: `Solicitação de material pendente`,
-          description: mr.serviceOrder?.orderNumber ? `OS ${mr.serviceOrder.orderNumber}` : "Mesa do almoxarife",
-          type: "material",
-          href: `/warehouse`,
-        })
       }
     }
 
@@ -117,8 +92,22 @@ export function NotificationCenter() {
   }
 
   React.useEffect(() => {
-    loadNotifications()
-  }, [])
+    loadNotifications();
+
+    // Polling em tempo real a cada 15 segundos
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 15000);
+
+    // Atualização imediata ao focar na janela/aba
+    const handleFocus = () => loadNotifications();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, []);
 
   const handleOpenChange = (open: boolean) => {
     if (open) loadNotifications()
@@ -143,11 +132,11 @@ export function NotificationCenter() {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80 p-0 rounded-2xl shadow-2xl border-none overflow-hidden">
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 text-white">
+      <DropdownMenuContent align="end" className="w-80 p-0 rounded-xl shadow-xl border border-gray-200/80 overflow-hidden bg-white">
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-3 text-white">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold">Notificações</h3>
-            <span className="text-xs text-white/80">{loading ? "Atualizando..." : `${count} pendência${count === 1 ? "" : "s"}`}</span>
+            <h3 className="font-bold text-xs sm:text-sm">Notificações</h3>
+            <span className="text-[11px] text-white/80">{loading ? "Atualizando..." : `${count} pendência${count === 1 ? "" : "s"}`}</span>
           </div>
         </div>
         <div className="max-h-[400px] overflow-y-auto">
@@ -169,8 +158,18 @@ export function NotificationCenter() {
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={cn(
+                        "text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded",
+                        n.type === 'stock'
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                          : "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                      )}>
+                        {n.type === 'stock' ? 'Almoxarifado' : 'Aprovação'}
+                      </span>
+                    </div>
                     <p className="text-sm font-bold text-foreground truncate">{n.title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{n.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.description}</p>
                   </div>
                 </DropdownMenuItem>
               )

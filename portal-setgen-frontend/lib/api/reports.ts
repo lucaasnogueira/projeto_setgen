@@ -17,6 +17,27 @@ export interface ChartData {
   }[];
 }
 
+export interface ReportOverview {
+  kpis: {
+    totalVisits: number;
+    totalOrders: number;
+    completedOrders: number;
+    inProgressOrders: number;
+    awaitingOrders: number;
+    completionRate: number;
+    totalRevenue: number;
+  };
+  recentOrders: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    scope: string;
+    createdAt: string;
+    client?: { companyName: string; tradeName?: string };
+    equipment?: { model?: string; serialNumber?: string };
+  }>;
+}
+
 // Remove campos vazios ('') antes de enviar como query param — o backend
 // valida startDate/endDate com @IsDateString(), que rejeita string vazia
 // (IsOptional só pula validação pra undefined/null, não pra '').
@@ -27,6 +48,15 @@ function cleanFilters(filters?: ReportFilters): ReportFilters | undefined {
 }
 
 export const reportsApi = {
+  async getOverview(filters?: ReportFilters): Promise<ReportOverview | null> {
+    try {
+      const { data } = await api.get('/reports/overview', { params: cleanFilters(filters) });
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar visão geral:', error);
+      return null;
+    }
+  },
   async getVisitsByMonth(filters?: ReportFilters): Promise<ChartData> {
     try {
       const { data } = await api.get('/reports/visits-by-month', { params: cleanFilters(filters) });

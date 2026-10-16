@@ -28,6 +28,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CreateStockMovementDto } from './dto/stock-movement.dto';
 import { BatchMovementDto } from './dto/batch-movement.dto';
+import { BulkImportProductsDto } from './dto/bulk-import-products.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -50,6 +51,12 @@ export class InventoryController {
   @ApiOperation({ summary: 'Criar novo produto' })
   createProduct(@Body() createProductDto: CreateProductDto) {
     return this.inventoryService.createProduct(createProductDto);
+  }
+
+  @Post('products/bulk-import')
+  @ApiOperation({ summary: 'Importação em lote de produtos da planilha' })
+  bulkImportProducts(@Body() dto: BulkImportProductsDto) {
+    return this.inventoryService.bulkImportProducts(dto.items || []);
   }
 
   @Get('products')

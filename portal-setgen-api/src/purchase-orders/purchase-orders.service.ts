@@ -1,336 +1,199 @@
 import {
   Injectable,
   NotFoundException,
-  BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { QuotesService } from '../quotes/quotes.service';
-import { ServiceOrdersService } from '../service-orders/service-orders.service';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
-import {
-  Prisma,
-  PurchaseOrderStatus,
-  QuoteStatus,
-  UserRole,
-} from '@prisma/client';
-
-// Status do orçamento a partir dos quais uma OC/OP do cliente pode ser
-// registrada: já aprovado internamente, e possivelmente já enviado/aguardando
-// resposta do cliente (é exatamente quando a OC/OP costuma chegar).
-const OC_ELIGIBLE_QUOTE_STATUSES: QuoteStatus[] = [
-  QuoteStatus.APPROVED,
-  QuoteStatus.SENT_TO_CLIENT,
-  QuoteStatus.AWAITING_RESPONSE,
-];
+import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 
 @Injectable()
 export class PurchaseOrdersService {
-  constructor(
-    private prisma: PrismaService,
-    private quotesService: QuotesService,
-    private serviceOrdersService: ServiceOrdersService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  /**
-   * O status da OC é função da validade, nunca um campo digitado — é o que
-   * mantém "OC ativa" (usada para barrar uma segunda OC no mesmo orçamento)
-   * consistente com a realidade.
-   */
-  private resolveStatus(expiryDate: Date): PurchaseOrderStatus {
-    return expiryDate < new Date()
-      ? PurchaseOrderStatus.EXPIRED
-      : PurchaseOrderStatus.APPROVED;
+  private async generateOrderNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const count = await this.prisma.purchaseOrder.count();
+    return `OC-${year}-${String(count + 1).padStart(4, '0')}`;
   }
 
   async create(
-    createPurchaseOrderDto: CreatePurchaseOrderDto,
-    fileUrl: string,
-    uploadedById: string,
+    dto: CreatePurchaseOrderDto,
+    fileUrl?: string,
+    uploadedById?: string,
   ) {
-    const issueDate = new Date(createPurchaseOrderDto.issueDate);
-    const expiryDate = new Date(createPurchaseOrderDto.expiryDate);
+    const orderNumber = dto.orderNumber?.trim() || (await this.generateOrderNumber());
 
-    if (expiryDate <= issueDate) {
-      throw new BadRequestException('Data de validade deve ser posterior à data de emissão');
+    // Total Amount calculation
+    let calculatedTotal = 0;
+    const items = Array.isArray(dto.items) ? dto.items : [];
+    if (items.length > 0) {
+      calculatedTotal = items.reduce((acc, it) => {
+        const qty = Number(it.quantity || it.qty || 1);
+        const price = Number(it.unitPrice || it.price || 0);
+        return acc + qty * price;
+      }, 0);
     }
+    const finalAmount = dto.totalAmount !== undefined ? dto.totalAmount : (calculatedTotal || dto.value || 0);
 
-    const status = this.resolveStatus(expiryDate);
+    const issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
+    const pickupDate = dto.pickupDate ? new Date(dto.pickupDate) : null;
 
-    // Toda a validação acontece dentro da transação, com o orçamento travado
-    // (FOR UPDATE): duas OCs simultâneas para o mesmo orçamento se
-    // serializam em vez de as duas passarem pela checagem de "OC ativa".
-    // Nada é persistido antes de sabermos que o aceite do orçamento é
-    // possível — senão a OC ficava gravada e travava o orçamento pra sempre.
-    const { purchaseOrder, shouldCreateServiceOrder } = await this.prisma.$transaction(
-      async (tx) => {
-        await tx.$queryRaw`SELECT id FROM quotes WHERE id = ${createPurchaseOrderDto.quoteId} FOR UPDATE`;
-
-        const quote = await tx.quote.findUnique({
-          where: { id: createPurchaseOrderDto.quoteId },
-          include: { purchaseOrders: true, serviceOrder: { select: { id: true } } },
-        });
-
-        if (!quote) {
-          throw new NotFoundException('Orçamento não encontrado');
-        }
-
-        if (!OC_ELIGIBLE_QUOTE_STATUSES.includes(quote.status)) {
-          throw new BadRequestException(
-            'Apenas orçamentos aprovados (ou já enviados ao cliente) podem receber Ordem de Compra/Pedido',
-          );
-        }
-
-        const activeOC = quote.purchaseOrders.find(
-          (po) => po.status !== PurchaseOrderStatus.EXPIRED,
-        );
-        if (activeOC) {
-          throw new BadRequestException('Este orçamento já possui uma Ordem de Compra ativa');
-        }
-
-        if (quote.clientId !== createPurchaseOrderDto.clientId) {
-          throw new BadRequestException('Cliente da OC não corresponde ao cliente do orçamento');
-        }
-
-        // Falha cedo se a OC fosse confirmar um orçamento que não pode ser
-        // aceito a partir do status atual.
-        const willAccept =
-          status === PurchaseOrderStatus.APPROVED &&
-          quote.status !== QuoteStatus.ACCEPTED;
-        if (willAccept) {
-          this.quotesService.assertTransitionAllowed(quote.status, QuoteStatus.ACCEPTED);
-        }
-
-        const purchaseOrderData: Prisma.PurchaseOrderCreateInput = {
-          quote: { connect: { id: createPurchaseOrderDto.quoteId } },
-          client: { connect: { id: createPurchaseOrderDto.clientId } },
-          orderNumber: createPurchaseOrderDto.orderNumber,
-          value: createPurchaseOrderDto.value,
-          issueDate,
-          expiryDate,
-          status,
-          fileUrl,
-          uploadedBy: { connect: { id: uploadedById } },
-        };
-
-        const created = await tx.purchaseOrder.create({
-          data: purchaseOrderData,
-          include: {
-            quote: { select: { id: true, quoteNumber: true, type: true, status: true } },
-            client: { select: { id: true, companyName: true, tradeName: true, cnpjCpf: true } },
-            uploadedBy: { select: { id: true, name: true, email: true } },
-          },
-        });
-
-        // OC/OP válida confirma o orçamento (equivale ao "verificar OC/OP" do
-        // fluxograma comercial, logo antes de emitir ART e programar o início).
-        if (willAccept) {
-          await this.quotesService.acceptFromPurchaseOrder(
-            quote,
-            uploadedById,
-            'OC/OP confirmada',
-            tx,
-          );
-        }
-
-        return {
-          purchaseOrder: created,
-          shouldCreateServiceOrder:
-            status === PurchaseOrderStatus.APPROVED && !quote.serviceOrder,
-        };
+    return this.prisma.purchaseOrder.create({
+      data: {
+        orderNumber,
+        supplierName: dto.supplierName,
+        supplierCnpj: dto.supplierCnpj || null,
+        supplierPhone: dto.supplierPhone || null,
+        supplierAddress: dto.supplierAddress || null,
+        supplierId: dto.supplierId || null,
+        carrierName: dto.carrierName,
+        carrierDoc: dto.carrierDoc || null,
+        carrierVehicle: dto.carrierVehicle || null,
+        destination: dto.destination || null,
+        serviceOrderId: dto.serviceOrderId || null,
+        paymentMethod: dto.paymentMethod || null,
+        items: items as unknown as Prisma.InputJsonValue,
+        totalAmount: finalAmount,
+        value: finalAmount,
+        issueDate,
+        pickupDate,
+        pickupStatus: dto.pickupStatus || 'PENDING',
+        status: PurchaseOrderStatus.APPROVED,
+        notes: dto.notes || null,
+        fileUrl: fileUrl || null,
+        uploadedById: uploadedById || null,
       },
-    );
-
-    // A materialização da OS envolve almoxarifado e estoque e vive fora desta
-    // transação. Se falhar, a OC e o aceite continuam válidos e a OS pode ser
-    // gerada depois pelo botão "Gerar OS" — nunca deixa a OC órfã.
-    if (shouldCreateServiceOrder) {
-      await this.serviceOrdersService.createFromQuote(
-        { quoteId: createPurchaseOrderDto.quoteId },
-        uploadedById,
-      );
-    }
-
-    return purchaseOrder;
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
   }
 
-  async findAll(filters?: { quoteId?: string; clientId?: string; status?: PurchaseOrderStatus }) {
-    const where: Prisma.PurchaseOrderWhereInput = {
-      ...(filters?.quoteId && { quoteId: filters.quoteId }),
-      ...(filters?.clientId && { clientId: filters.clientId }),
-      ...(filters?.status && { status: filters.status }),
-    };
+  async findAll(query?: { search?: string; status?: string }) {
+    const where: Prisma.PurchaseOrderWhereInput = {};
+
+    if (query?.status && query.status !== 'ALL') {
+      where.pickupStatus = query.status;
+    }
+
+    if (query?.search) {
+      const s = query.search.toLowerCase();
+      where.OR = [
+        { orderNumber: { contains: s, mode: 'insensitive' } },
+        { supplierName: { contains: s, mode: 'insensitive' } },
+        { carrierName: { contains: s, mode: 'insensitive' } },
+        { destination: { contains: s, mode: 'insensitive' } },
+      ];
+    }
 
     return this.prisma.purchaseOrder.findMany({
       where,
       include: {
-        quote: { select: { id: true, quoteNumber: true, type: true, status: true } },
-        client: { select: { id: true, companyName: true, tradeName: true } },
-        uploadedBy: { select: { id: true, name: true } },
+        uploadedBy: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async findOne(id: string) {
-    const purchaseOrder = await this.prisma.purchaseOrder.findUnique({
+    const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
-        quote: {
-          include: {
-            client: {
-              select: {
-                companyName: true,
-                tradeName: true,
-                cnpjCpf: true,
-                phone: true,
-                email: true,
-              },
-            },
-            createdBy: { select: { name: true, email: true } },
-          },
-        },
-        client: {
-          select: {
-            id: true,
-            companyName: true,
-            tradeName: true,
-            cnpjCpf: true,
-            phone: true,
-            email: true,
-          },
-        },
         uploadedBy: { select: { id: true, name: true, email: true, role: true } },
       },
     });
 
-    if (!purchaseOrder) {
-      throw new NotFoundException('Ordem de Compra não encontrada');
+    if (!po) {
+      throw new NotFoundException('Ordem de Compra / Retirada não encontrada');
     }
 
-    return purchaseOrder;
+    return po;
   }
 
-  async update(
-    id: string,
-    updatePurchaseOrderDto: UpdatePurchaseOrderDto,
-    userId: string,
-    userRole: UserRole,
-  ) {
-    const purchaseOrder = await this.findOne(id);
+  async update(id: string, dto: UpdatePurchaseOrderDto) {
+    await this.findOne(id);
 
-    if (
-      userRole !== UserRole.ADMIN &&
-      userRole !== UserRole.ADMINISTRATIVE &&
-      userRole !== UserRole.MANAGER
-    ) {
-      throw new ForbiddenException('Você não tem permissão para editar Ordens de Compra');
+    let calculatedTotal: number | undefined = undefined;
+    if (dto.items && Array.isArray(dto.items)) {
+      calculatedTotal = dto.items.reduce((acc, it) => {
+        const qty = Number(it.quantity || it.qty || 1);
+        const price = Number(it.unitPrice || it.price || 0);
+        return acc + qty * price;
+      }, 0);
     }
 
-    if (purchaseOrder.status === PurchaseOrderStatus.EXPIRED) {
-      throw new BadRequestException('Não é possível editar Ordem de Compra vencida');
+    const data: Prisma.PurchaseOrderUpdateInput = {};
+
+    if (dto.orderNumber) data.orderNumber = dto.orderNumber;
+    if (dto.supplierName !== undefined) data.supplierName = dto.supplierName;
+    if (dto.supplierCnpj !== undefined) data.supplierCnpj = dto.supplierCnpj;
+    if (dto.supplierPhone !== undefined) data.supplierPhone = dto.supplierPhone;
+    if (dto.supplierAddress !== undefined) data.supplierAddress = dto.supplierAddress;
+    if (dto.supplierId !== undefined) data.supplierId = dto.supplierId;
+    if (dto.carrierName !== undefined) data.carrierName = dto.carrierName;
+    if (dto.carrierDoc !== undefined) data.carrierDoc = dto.carrierDoc;
+    if (dto.carrierVehicle !== undefined) data.carrierVehicle = dto.carrierVehicle;
+    if (dto.destination !== undefined) data.destination = dto.destination;
+    if (dto.serviceOrderId !== undefined) data.serviceOrderId = dto.serviceOrderId;
+    if (dto.paymentMethod !== undefined) data.paymentMethod = dto.paymentMethod;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.pickupStatus !== undefined) data.pickupStatus = dto.pickupStatus;
+    if (dto.pickupDate !== undefined) {
+      data.pickupDate = dto.pickupDate ? new Date(dto.pickupDate) : null;
+    }
+    if (dto.issueDate !== undefined) {
+      data.issueDate = dto.issueDate ? new Date(dto.issueDate) : new Date();
+    }
+    if (dto.items !== undefined) {
+      data.items = dto.items as unknown as Prisma.InputJsonValue;
     }
 
-    // Datas efetivas: o que veio no DTO ou o que já estava gravado.
-    const issueDate = updatePurchaseOrderDto.issueDate
-      ? new Date(updatePurchaseOrderDto.issueDate)
-      : purchaseOrder.issueDate;
-    const expiryDate = updatePurchaseOrderDto.expiryDate
-      ? new Date(updatePurchaseOrderDto.expiryDate)
-      : purchaseOrder.expiryDate;
-
-    // Mesma regra do create — que não era aplicada aqui: dava para editar uma
-    // OC deixando a validade antes da emissão.
-    if (expiryDate <= issueDate) {
-      throw new BadRequestException('Data de validade deve ser posterior à data de emissão');
+    const finalAmount = dto.totalAmount !== undefined ? dto.totalAmount : calculatedTotal;
+    if (finalAmount !== undefined) {
+      data.totalAmount = finalAmount;
+      data.value = finalAmount;
     }
-
-    const updateData: Prisma.PurchaseOrderUpdateInput = {
-      ...(updatePurchaseOrderDto.orderNumber && { orderNumber: updatePurchaseOrderDto.orderNumber }),
-      ...(updatePurchaseOrderDto.value !== undefined && { value: updatePurchaseOrderDto.value }),
-      ...(updatePurchaseOrderDto.issueDate && { issueDate }),
-      ...(updatePurchaseOrderDto.expiryDate && { expiryDate }),
-      // Status é derivado da validade, nunca informado: empurrar a validade
-      // para o passado agora vence a OC de fato, em vez de deixar uma OC
-      // "aprovada" com data vencida.
-      status: this.resolveStatus(expiryDate),
-    };
 
     return this.prisma.purchaseOrder.update({
       where: { id },
-      data: updateData,
+      data,
       include: {
-        quote: { select: { id: true, quoteNumber: true } },
-        client: { select: { companyName: true } },
+        uploadedBy: { select: { id: true, name: true, email: true } },
       },
     });
   }
 
-  // Sem isso, só rodava se alguém chamasse POST /purchase-orders/check-expired
-  // na mão — e OC vencida ficava APROVADA para sempre, travando o cadastro de
-  // uma nova OC no mesmo orçamento. Mesma cadência do expireOverdueQuotes.
-  @Cron(CronExpression.EVERY_HOUR)
-  async checkExpiredOrders() {
-    const now = new Date();
-
-    const expired = await this.prisma.purchaseOrder.updateMany({
-      where: { expiryDate: { lt: now }, status: { not: PurchaseOrderStatus.EXPIRED } },
-      data: { status: PurchaseOrderStatus.EXPIRED },
-    });
-
-    return {
-      message: `${expired.count} Ordens de Compra marcadas como vencidas`,
-      count: expired.count,
-    };
-  }
-
-  async getExpiringOrders(daysAhead: number = 7) {
-    const now = new Date();
-    const futureDate = new Date();
-    futureDate.setDate(futureDate.getDate() + daysAhead);
-
-    return this.prisma.purchaseOrder.findMany({
-      where: {
-        expiryDate: { gte: now, lte: futureDate },
-        status: PurchaseOrderStatus.APPROVED,
-      },
-      include: {
-        quote: { select: { quoteNumber: true } },
-        client: { select: { companyName: true, email: true } },
-      },
-      orderBy: { expiryDate: 'asc' },
-    });
-  }
-
-  async remove(id: string, userRole: UserRole) {
+  async remove(id: string) {
     await this.findOne(id);
-
-    if (userRole !== UserRole.ADMIN) {
-      throw new ForbiddenException('Apenas administradores podem deletar Ordens de Compra');
-    }
-
-    return this.prisma.purchaseOrder.delete({ where: { id } });
+    return this.prisma.purchaseOrder.delete({
+      where: { id },
+    });
   }
 
   async getStatistics() {
-    const total = await this.prisma.purchaseOrder.count();
-
-    const byStatus = await this.prisma.purchaseOrder.groupBy({
-      by: ['status'],
-      _count: true,
+    const all = await this.prisma.purchaseOrder.findMany({
+      select: {
+        id: true,
+        pickupStatus: true,
+        totalAmount: true,
+        value: true,
+        createdAt: true,
+      },
     });
 
-    const totalValue = await this.prisma.purchaseOrder.aggregate({
-      _sum: { value: true },
-      where: { status: PurchaseOrderStatus.APPROVED },
-    });
+    const total = all.length;
+    const pending = all.filter((o) => (o.pickupStatus || 'PENDING') === 'PENDING').length;
+    const completed = all.filter((o) => o.pickupStatus === 'COMPLETED').length;
+    const cancelled = all.filter((o) => o.pickupStatus === 'CANCELLED').length;
+    const totalValue = all.reduce((acc, o) => acc + Number(o.totalAmount || o.value || 0), 0);
 
     return {
       total,
-      byStatus: byStatus.map((s) => ({ status: s.status, count: s._count })),
-      totalValue: totalValue._sum.value || 0,
+      pending,
+      completed,
+      cancelled,
+      totalValue,
     };
   }
 }

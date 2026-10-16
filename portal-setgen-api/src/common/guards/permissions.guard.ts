@@ -58,9 +58,9 @@ export class PermissionsGuard implements CanActivate {
     // Sem isso, um cargo com `expenses:create` e sem `expenses:view` tomava 403
     // ao abrir a listagem que ele mesmo alimenta.
     let rolePermissions =
-      userWithPermissions.roleRef?.permissions.map(
-        (rp) => rp.permission.name,
-      ) || [];
+      userWithPermissions.roleRef?.permissions
+        ?.map((rp) => rp.permission?.name)
+        ?.filter((name): name is string => Boolean(name)) || [];
 
     // Fallback de resiliência: se o usuário não tiver roleId vinculado diretamente,
     // mas possuir o enum User.role (ex: ADMINISTRATIVE, WAREHOUSE, etc.),
@@ -83,9 +83,9 @@ export class PermissionsGuard implements CanActivate {
           include: { permissions: { include: { permission: true } } },
         });
         if (fallbackRole && fallbackRole.permissions.length > 0) {
-          rolePermissions = fallbackRole.permissions.map(
-            (p) => p.permission.name,
-          );
+          rolePermissions = fallbackRole.permissions
+            .map((p) => p.permission?.name)
+            .filter((name): name is string => Boolean(name));
           await this.prisma.user
             .update({
               where: { id: user.id },
@@ -98,7 +98,9 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const granted = [
-      ...userWithPermissions.permissions.map((up) => up.permission.name),
+      ...userWithPermissions.permissions
+        .map((up) => up.permission?.name)
+        .filter((name): name is string => Boolean(name)),
       ...rolePermissions,
     ];
 

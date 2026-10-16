@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { equipmentApi } from "@/lib/api/equipment";
 import { Equipment, EquipmentType } from "@/types";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusCard } from "@/components/ui/status-card";
+import { TablePagination } from "@/components/ui/pagination";
 import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
 import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
 import {
@@ -32,6 +33,8 @@ export default function EquipmentPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const router = useRouter();
   const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
     (id) => equipmentApi.delete(id),
@@ -53,15 +56,23 @@ export default function EquipmentPage() {
     }
   };
 
-  const filtered = equipments.filter((eq) => {
+  const filtered = useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return (
-      eq.brand?.toLowerCase().includes(term) ||
-      eq.model?.toLowerCase().includes(term) ||
-      eq.serialNumber?.toLowerCase().includes(term) ||
-      eq.client?.companyName?.toLowerCase().includes(term)
-    );
-  });
+    return equipments.filter((eq) => {
+      return (
+        eq.brand?.toLowerCase().includes(term) ||
+        eq.model?.toLowerCase().includes(term) ||
+        eq.serialNumber?.toLowerCase().includes(term) ||
+        eq.client?.companyName?.toLowerCase().includes(term)
+      );
+    });
+  }, [equipments, searchTerm]);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  const paginatedEquipments = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
 
   const totalGenerators = equipments.filter(e => e.type === EquipmentType.GENERATOR).length;
   const totalSubstations = equipments.filter(e => e.type === EquipmentType.SUBSTATION).length;
@@ -92,23 +103,26 @@ export default function EquipmentPage() {
       />
 
       {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de Equipamentos" value={equipments.length} icon={Zap} variant="orange" />
         <StatusCard label="Grupos Geradores" value={totalGenerators} icon={Zap} variant="amber" />
         <StatusCard label="Subestações / QTA" value={totalSubstations} icon={Building2} variant="blue" />
         <StatusCard label="Outros / Especiais" value={totalOther} icon={Box} variant="slate" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card className="overflow-hidden border border-gray-200/75 shadow-2xs">
+        <div className="flex items-center justify-between gap-2.5 px-4 py-3 border-b border-border">
           <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar por marca, modelo, série, cliente..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full h-9 pl-9 pr-3 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
         </div>
@@ -129,7 +143,7 @@ export default function EquipmentPage() {
             {filtered.length === 0 ? (
               <TableEmpty colSpan={7} message="Nenhum equipamento encontrado" />
             ) : (
-              filtered.map((eq) => (
+              paginatedEquipments.map((eq) => (
                 <TableRow
                   key={eq.id}
                   className="cursor-pointer hover:bg-gray-50/50"
@@ -169,6 +183,15 @@ export default function EquipmentPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="equipamentos"
+        />
       </Card>
     </div>
   );

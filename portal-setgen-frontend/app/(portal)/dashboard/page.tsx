@@ -1,13 +1,14 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/auth';
-import { dashboardApi, DashboardStats, OperationalKpis } from '@/lib/api/dashboard';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuthStore } from "@/store/auth";
+import { dashboardApi, DashboardStats, OperationalKpis } from "@/lib/api/dashboard";
 import {
   Clock,
   FileText,
-  CheckCircle,
+  CheckCircle2,
   DollarSign,
   AlertTriangle,
   Users,
@@ -17,14 +18,26 @@ import {
   Truck,
   RotateCcw,
   Building2,
-} from 'lucide-react';
-import { RevenueChart } from '@/components/dashboard/RevenueChart';
-import { OSStatusChart } from '@/components/dashboard/OSStatusChart';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Card } from '@/components/ui/card';
-import { PageHeader } from '@/components/layout/PageHeader';
-import { canSeeDashboard } from '@/lib/dashboard-access';
-import { canViewFinancialValues } from '@/lib/permissions';
+  LayoutGrid,
+  Wrench,
+  CalendarCheck,
+  TrendingUp,
+  RefreshCw,
+  PlusCircle,
+  Receipt,
+  Sparkles,
+  ArrowUpRight,
+  ShieldAlert,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { RevenueChart } from "@/components/dashboard/RevenueChart";
+import { OSStatusChart } from "@/components/dashboard/OSStatusChart";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { canSeeDashboard } from "@/lib/dashboard-access";
+import { canViewFinancialValues } from "@/lib/permissions";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -32,11 +45,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [kpis, setKpis] = useState<OperationalKpis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // /dashboard é o destino do login para todo mundo, inclusive para quem não
-  // enxerga nenhuma das áreas que os KPIs resumem (um cargo de RH, por
-  // exemplo). Esses caem na tela de boas-vindas em vez de um painel vazio
-  // montado a partir de requisições que a API vai recusar.
   const showKpis = canSeeDashboard(user?.role, user?.permissions);
 
   useEffect(() => {
@@ -47,8 +57,10 @@ export default function DashboardPage() {
     loadStats();
   }, [showKpis]);
 
-  const loadStats = async () => {
-    setLoading(true);
+  const loadStats = async (isManualRefresh = false) => {
+    if (isManualRefresh) setRefreshing(true);
+    else setLoading(true);
+
     try {
       const [statsData, kpisData] = await Promise.all([
         dashboardApi.getStats(),
@@ -56,39 +68,52 @@ export default function DashboardPage() {
       ]);
       setStats(statsData);
       setKpis(kpisData);
+      if (isManualRefresh) toast.success("Painel atualizado");
     } catch (error) {
-      console.error('Erro ao carregar dashboard:', error);
+      console.error("Erro ao carregar dashboard:", error);
+      if (isManualRefresh) toast.error("Falha ao atualizar painel");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const dateStr = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
+  // Saudação de acordo com o horário local
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return "Bom dia";
+    if (hour >= 12 && hour < 18) return "Boa tarde";
+    return "Boa noite";
+  };
+
+  const dateStr = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
   if (!showKpis) {
-    const firstName = user?.name?.split(' ')[0];
+    const firstName = user?.name?.split(" ")[0];
 
     return (
       <div className="flex items-center justify-center min-h-[70vh]">
-        <Card className="max-w-lg w-full p-10 text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
-            <Building2 className="h-7 w-7 text-primary" />
+        <Card className="max-w-lg w-full p-6 text-center space-y-3.5 border-gray-200/80 shadow-2xs rounded-xl bg-white">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto text-[#E2661D]">
+            <Building2 className="h-5 w-5" />
           </div>
           <div className="space-y-1.5">
             <h1 className="text-2xl font-bold text-foreground">
               Bem-vindo(a) ao Portal Setgen
             </h1>
-            <p className="text-[13.5px] text-text-muted">
-              {firstName ? `Olá, ${firstName}. ` : ''}
-              Use o menu ao lado para acessar suas áreas.
+            <p className="text-[13.5px] text-muted-foreground">
+              {firstName ? `Olá, ${firstName}. ` : ""}
+              Use o menu ao lado para acessar os módulos liberados para o seu perfil.
             </p>
           </div>
-          <p className="text-xs text-text-muted capitalize pt-2 border-t">{dateStr}</p>
+          <p className="text-xs text-muted-foreground capitalize pt-2 border-t border-border">
+            {dateStr}
+          </p>
         </Card>
       </div>
     );
@@ -96,14 +121,24 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="space-y-5">
-        <Skeleton className="h-9 w-64 rounded-lg" />
+      <div className="space-y-5 pb-8">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-9 w-64 rounded-lg" />
+          <Skeleton className="h-9 w-36 rounded-lg" />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 rounded-[14px]" />)}
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-[380px] lg:col-span-2 rounded-[14px]" />
-          <Skeleton className="h-[380px] rounded-[14px]" />
+          <Skeleton className="h-[340px] lg:col-span-2 rounded-xl" />
+          <Skeleton className="h-[340px] rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
         </div>
       </div>
     );
@@ -112,97 +147,356 @@ export default function DashboardPage() {
   if (!stats) return null;
 
   const canSeeFinancials = canViewFinancialValues(user?.role);
-  const canSeeBillingAlerts = canSeeFinancials || user?.role === 'ADMINISTRATIVE';
-  const canCreateClient = user?.role === 'ADMIN' || user?.role === 'MANAGER' || user?.role === 'ADMINISTRATIVE';
-  const canCreateVisit = user?.role !== 'WAREHOUSE';
+  const canSeeBillingAlerts = canSeeFinancials || user?.role === "ADMINISTRATIVE";
+  const canCreateClient =
+    user?.role === "ADMIN" || user?.role === "MANAGER" || user?.role === "ADMINISTRATIVE";
+  const canCreateVisit = user?.role !== "WAREHOUSE";
+  const firstName = user?.name?.split(" ")[0] || "Usuário";
 
   return (
-    <div className="space-y-5 pb-8">
-      <PageHeader
-        title="Dashboard"
-        subtitle={<span className="capitalize">{dateStr}</span>}
-      />
+    <div className="space-y-6 pb-10">
+      {/* Top Header com Saudação & Ações Rápidas */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-black text-foreground tracking-tight">
+              {getGreeting()}, {firstName}!
+            </h1>
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-primary/10 text-primary border border-primary/20">
+              {user?.role === "ADMIN" ? "Administrador" : user?.role || "Membro"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground capitalize flex items-center gap-1.5">
+            <span>{dateStr}</span>
+            <span>•</span>
+            <span>Visão operacional consolidada</span>
+          </p>
+        </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Aprovações Pendentes" value={stats.pendingApprovals} icon={Clock} tone="amber" />
-        <StatCard label="OS Ativas" value={stats.activeOrders} icon={FileText} tone="blue" />
-        <StatCard label="Concluídas Este Mês" value={stats.completedThisMonth} icon={CheckCircle} tone="green" />
-        {canSeeFinancials && (
-          <StatCard
-            label="Faturamento Acumulado"
-            value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.totalRevenue)}
-            icon={DollarSign}
-            tone="green"
-          />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadStats(true)}
+            disabled={refreshing}
+            className="h-9 px-3 rounded-lg text-xs font-semibold gap-1.5 shadow-2xs border-border"
+            title="Atualizar dados do painel"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin text-primary" : ""}`} />
+            <span>Atualizar</span>
+          </Button>
+
+          <Button
+            onClick={() => router.push("/modules")}
+            size="sm"
+            className="h-9 rounded-lg font-bold gap-2 bg-primary hover:bg-primary/90 text-white shadow-xs"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            <span>Hub de Módulos</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* ALERTAS CRÍTICOS (Se houver pendências graves) */}
+      {(stats.lowStockItems > 0 || (stats.overdueInvoices > 0 && canSeeBillingAlerts)) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {stats.lowStockItems > 0 && (
+            <div className="p-3.5 rounded-xl border border-amber-300 bg-amber-50/50 flex items-center justify-between text-amber-950 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-amber-200/80 text-amber-900 flex items-center justify-center font-bold text-sm shrink-0">
+                  {stats.lowStockItems}
+                </div>
+                <div>
+                  <p className="text-xs font-bold leading-tight">Itens com Estoque Baixo</p>
+                  <p className="text-[11px] text-amber-800">Produtos no ponto ou abaixo do estoque mínimo</p>
+                </div>
+              </div>
+              <Link
+                href="/inventory"
+                className="px-2.5 py-1 text-xs font-bold rounded-md bg-amber-200/80 hover:bg-amber-300 text-amber-900 transition-colors inline-flex items-center gap-1 shrink-0"
+              >
+                Ver Estoque
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+
+          {stats.overdueInvoices > 0 && canSeeBillingAlerts && (
+            <div className="p-3.5 rounded-xl border border-rose-300 bg-rose-50/50 flex items-center justify-between text-rose-950 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-rose-200/80 text-rose-900 flex items-center justify-center font-bold text-sm shrink-0">
+                  {stats.overdueInvoices}
+                </div>
+                <div>
+                  <p className="text-xs font-bold leading-tight">Notas Fiscais com Pendência</p>
+                  <p className="text-[11px] text-rose-800">Notas rejeitadas que necessitam de correção</p>
+                </div>
+              </div>
+              <Link
+                href="/invoices"
+                className="px-2.5 py-1 text-xs font-bold rounded-md bg-rose-200/80 hover:bg-rose-300 text-rose-900 transition-colors inline-flex items-center gap-1 shrink-0"
+              >
+                Corrigir Notas
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CARDS DE KPIS PRINCIPAIS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-3.5">
+        {/* KPI 1: Aprovações Pendentes */}
+        <Card className="p-3.5 sm:p-4 rounded-xl border border-border border-l-4 border-l-amber-500 shadow-2xs relative overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Aprovações Pendentes
+            </span>
+            <div className="p-1 rounded-md bg-amber-100 text-amber-700">
+              <Clock className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            {stats.pendingApprovals}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+            Orçamentos aguardando validação
+          </p>
+        </Card>
+
+        {/* KPI 2: OS Ativas */}
+        <Card className="p-3.5 sm:p-4 rounded-xl border border-border border-l-4 border-l-blue-500 shadow-2xs relative overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              OS em Andamento
+            </span>
+            <div className="p-1 rounded-md bg-blue-100 text-blue-700">
+              <Wrench className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            {stats.activeOrders}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+            Ordens em execução ou separação
+          </p>
+        </Card>
+
+        {/* KPI 3: Concluídas no Mês */}
+        <Card className="p-3.5 sm:p-4 rounded-xl border border-border border-l-4 border-l-emerald-500 shadow-2xs relative overflow-hidden">
+          <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Concluídas Este Mês
+            </span>
+            <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            {stats.completedThisMonth}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+            Serviços entregues e finalizados
+          </p>
+        </Card>
+
+        {/* KPI 4: Faturamento Acumulado */}
+        {canSeeFinancials ? (
+          <Card className="p-3.5 sm:p-4 rounded-xl border border-border border-l-4 border-l-green-600 shadow-2xs relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Faturamento Total
+              </span>
+              <div className="p-1 rounded-md bg-green-100 text-green-700">
+                <DollarSign className="h-3.5 w-3.5" />
+              </div>
+            </div>
+            <div
+              className="text-lg sm:text-xl font-bold tracking-tight text-foreground truncate"
+              title={new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              }).format(stats.totalRevenue)}
+            >
+              {new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+                maximumFractionDigits: 0,
+              }).format(stats.totalRevenue)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Notas fiscais autorizadas</p>
+          </Card>
+        ) : (
+          <Card className="p-3.5 sm:p-4 rounded-xl border border-border border-l-4 border-l-primary shadow-2xs relative overflow-hidden">
+            <div className="flex items-center justify-between text-muted-foreground mb-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Operação Geral
+              </span>
+              <div className="p-1 rounded-md bg-orange-100 text-primary">
+                <CalendarCheck className="h-3.5 w-3.5" />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              {stats.activeOrders + stats.completedThisMonth}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Volume de ordens no período</p>
+          </Card>
         )}
       </div>
 
-      {/* Charts */}
+      {/* GRÁFICOS PRINCIPAIS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <RevenueChart data={stats.monthlyRevenue} />
         <OSStatusChart data={stats.ordersByStatus} />
       </div>
 
-      {/* KPIs Operacionais */}
-      {kpis && (canSeeFinancials || user?.role === 'ADMINISTRATIVE' || user?.role === 'WAREHOUSE') && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="SLA Separação de Material"
-            value={kpis.materialSeparationSla.sampleSize > 0 ? `${kpis.materialSeparationSla.averageHours}h` : '-'}
-            icon={PackageSearch}
-            tone="purple"
-          />
-          <StatCard
-            label="Taxa de Aprovação de Orçamento"
-            value={`${kpis.quoteApprovalRate.rate}%`}
-            icon={Percent}
-            tone="blue"
-          />
-          <StatCard
-            label="Lead Time de Fornecedor"
-            value={
-              kpis.supplierLeadTime.length > 0
-                ? `${(kpis.supplierLeadTime.reduce((a, s) => a + s.averageDays, 0) / kpis.supplierLeadTime.length).toFixed(1)}d`
-                : '-'
-            }
-            icon={Truck}
-            tone="amber"
-          />
-          <StatCard
-            label="Taxa de Retrabalho"
-            value={`${kpis.reworkRate.rate}%`}
-            icon={RotateCcw}
-            tone={kpis.reworkRate.rate > 10 ? 'red' : 'green'}
-          />
+      {/* KPIS OPERACIONAIS & EFICIÊNCIA BPM */}
+      {kpis && (canSeeFinancials || user?.role === "ADMINISTRATIVE" || user?.role === "WAREHOUSE") && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-0.5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Métricas de Eficiência Operacional & Logística (BPM)
+            </h2>
+            <Link
+              href="/reports"
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
+              Ver Relatórios Detalhados
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-3.5">
+            <Card className="p-3 sm:p-3.5 rounded-xl border border-border shadow-2xs">
+              <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
+                <div className="p-1 rounded-md bg-purple-100 text-purple-700">
+                  <PackageSearch className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[11px] font-bold text-foreground">SLA de Separação</span>
+              </div>
+              <div className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                {kpis.materialSeparationSla.sampleSize > 0
+                  ? `${kpis.materialSeparationSla.averageHours}h`
+                  : "-"}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Tempo médio do almoxarifado
+              </p>
+            </Card>
+
+            <Card className="p-3 sm:p-3.5 rounded-xl border border-border shadow-2xs">
+              <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
+                <div className="p-1 rounded-md bg-blue-100 text-blue-700">
+                  <Percent className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[11px] font-bold text-foreground">Aprovação de Orçamentos</span>
+              </div>
+              <div className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                {kpis.quoteApprovalRate.rate}%
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {kpis.quoteApprovalRate.approved} de {kpis.quoteApprovalRate.sentNotExpired} orçamentos
+              </p>
+            </Card>
+
+            <Card className="p-3 sm:p-3.5 rounded-xl border border-border shadow-2xs">
+              <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
+                <div className="p-1 rounded-md bg-amber-100 text-amber-700">
+                  <Truck className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[11px] font-bold text-foreground">Lead Time Fornecedor</span>
+              </div>
+              <div className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                {kpis.supplierLeadTime.length > 0
+                  ? `${(
+                      kpis.supplierLeadTime.reduce((a, s) => a + s.averageDays, 0) /
+                      kpis.supplierLeadTime.length
+                    ).toFixed(1)}d`
+                  : "-"}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Prazo médio de entrega de peças
+              </p>
+            </Card>
+
+            <Card className="p-3 sm:p-3.5 rounded-xl border border-border shadow-2xs">
+              <div className="flex items-center gap-2 mb-1.5 text-muted-foreground">
+                <div
+                  className={`p-1 rounded-md ${
+                    kpis.reworkRate.rate > 10
+                      ? "bg-rose-100 text-rose-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-[11px] font-bold text-foreground">Taxa de Retrabalho</span>
+              </div>
+              <div
+                className={`text-lg sm:text-xl font-bold tracking-tight ${
+                  kpis.reworkRate.rate > 10 ? "text-rose-600" : "text-foreground"
+                }`}
+              >
+                {kpis.reworkRate.rate}%
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {kpis.reworkRate.rate <= 10 ? "Dentro da meta" : "Acima da meta"}
+              </p>
+            </Card>
+          </div>
         </div>
       )}
 
+      {/* ATIVIDADES RECENTES E AÇÕES RÁPIDAS */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Recent Activities */}
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h3 className="text-[14.5px] font-bold text-foreground">Atividades Recentes</h3>
-            <button className="text-[12.5px] font-bold text-primary hover:underline flex items-center gap-1">
+        {/* Atividades Recentes */}
+        <Card className="overflow-hidden border-border shadow-xs">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/80 bg-muted/20">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">
+              Atividades Recentes
+            </h3>
+            <Link
+              href="/orders"
+              className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            >
               Ver todas <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+            </Link>
           </div>
-          <div className="divide-y divide-border">
+
+          <div className="divide-y divide-border/60">
             {stats.recentActivities.length === 0 ? (
-              <div className="p-10 text-center text-text-muted text-sm">Nenhuma atividade registrada</div>
+              <div className="p-10 text-center text-muted-foreground text-xs">
+                Nenhuma atividade recente registrada
+              </div>
             ) : (
               stats.recentActivities.slice(0, 5).map((activity) => {
-                const isOrder = activity.type === 'ORDER_APPROVED';
+                const isOrder = activity.type === "ORDER_APPROVED";
                 return (
-                  <div key={activity.id} className="flex items-center gap-3.5 px-5 py-4">
-                    <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 ${
-                      isOrder ? 'bg-status-blue-bg text-status-blue-fg' : 'bg-status-purple-bg text-status-purple-fg'
-                    }`}>
+                  <div
+                    key={activity.id}
+                    className="flex items-center gap-3.5 px-5 py-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        isOrder
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-purple-100 text-purple-700"
+                      }`}
+                    >
                       {isOrder ? <FileText className="h-4 w-4" /> : <Users className="h-4 w-4" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-foreground truncate">{activity.description}</p>
-                      <p className="text-[12px] text-text-muted">{new Date(activity.timestamp).toLocaleString('pt-BR')}</p>
+                      <p className="text-xs font-semibold text-foreground truncate">
+                        {activity.description}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(activity.timestamp).toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
                     </div>
                   </div>
                 );
@@ -211,81 +505,101 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {/* Quick Actions */}
-        <Card className="p-5">
-          <h3 className="text-[14.5px] font-bold text-foreground mb-3.5">Ações Rápidas</h3>
-          <div className="grid grid-cols-2 gap-2.5">
-            <QuickActionButton label="Novo Cliente" icon={Users} tone="amber" href="/clients/new" visible={canCreateClient} router={router} />
-            <QuickActionButton label="Nova Visita" icon={FileText} tone="purple" href="/visits/new" visible={canCreateVisit} router={router} />
-            <QuickActionButton label="Novo Orçamento" icon={FileText} tone="blue" href="/quotes/new" visible router={router} />
-            <QuickActionButton label="Nova Fatura" icon={DollarSign} tone="green" href="/invoices/new" visible={canSeeFinancials} router={router} />
+        {/* Ações Rápidas */}
+        <Card className="p-5 border-border shadow-xs flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wide mb-3">
+              Ações Rápidas & Cadastros
+            </h3>
+            <div className="grid grid-cols-2 gap-2.5">
+              {canCreateClient && (
+                <QuickActionButton
+                  label="Novo Cliente"
+                  desc="Cadastrar pessoa física ou jurídica"
+                  icon={Users}
+                  colorClass="bg-amber-100 text-amber-800"
+                  href="/clients/new"
+                  router={router}
+                />
+              )}
+              {canCreateVisit && (
+                <QuickActionButton
+                  label="Nova Visita"
+                  desc="Agendar vistoria técnica"
+                  icon={CalendarCheck}
+                  colorClass="bg-purple-100 text-purple-800"
+                  href="/visits/new"
+                  router={router}
+                />
+              )}
+              <QuickActionButton
+                label="Novo Orçamento"
+                desc="Gerar proposta comercial"
+                icon={FileText}
+                colorClass="bg-blue-100 text-blue-800"
+                href="/quotes/new"
+                router={router}
+              />
+              {canSeeFinancials && (
+                <QuickActionButton
+                  label="Nova Fatura / NF-e"
+                  desc="Emitir cobrança ou nota"
+                  icon={Receipt}
+                  colorClass="bg-emerald-100 text-emerald-800"
+                  href="/invoices/new"
+                  router={router}
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 mt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
+            <span>Precisa de relatórios operacionais completos?</span>
+            <Link
+              href="/reports"
+              className="font-bold text-primary hover:underline inline-flex items-center gap-1"
+            >
+              Acessar Relatórios
+              <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         </Card>
       </div>
-
-      {/* Critical Alerts */}
-      {(stats.lowStockItems > 0 || stats.overdueInvoices > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {stats.lowStockItems > 0 && (
-            <AlertCard label="Itens com Estoque Baixo" count={stats.lowStockItems} desc="Reposição necessária" tone="amber" />
-          )}
-          {stats.overdueInvoices > 0 && canSeeBillingAlerts && (
-            <AlertCard label="Notas Rejeitadas" count={stats.overdueInvoices} desc="Necessita correção" tone="red" />
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-const TONES = {
-  amber: { box: 'bg-status-amber-bg text-status-amber-fg' },
-  blue: { box: 'bg-status-blue-bg text-status-blue-fg' },
-  green: { box: 'bg-status-green-bg text-status-green-fg' },
-  purple: { box: 'bg-status-purple-bg text-status-purple-fg' },
-  red: { box: 'bg-status-red-bg text-status-red-fg' },
-};
-
-function StatCard({ label, value, icon: Icon, tone }: { label: string; value: string | number; icon: any; tone: keyof typeof TONES }) {
-  return (
-    <Card className="p-5">
-      <div className={`w-[38px] h-[38px] rounded-[10px] flex items-center justify-center mb-3.5 ${TONES[tone].box}`}>
-        <Icon className="h-[19px] w-[19px]" />
-      </div>
-      <div className="text-[26px] font-extrabold text-foreground leading-none">{value}</div>
-      <div className="text-[12.5px] font-semibold text-text-muted mt-1.5">{label}</div>
-    </Card>
-  );
-}
-
-function AlertCard({ label, count, desc, tone }: { label: string; count: number; desc: string; tone: keyof typeof TONES }) {
-  return (
-    <Card className={`p-5 flex items-center justify-between ${tone === 'red' ? 'border-status-red-fg/20' : 'border-status-amber-fg/20'}`}>
-      <div className="flex items-center gap-3.5">
-        <div className={`w-11 h-11 rounded-[12px] flex items-center justify-center font-extrabold text-lg ${TONES[tone].box}`}>
-          {count}
-        </div>
-        <div>
-          <p className="font-bold text-foreground text-sm leading-none mb-1">{label}</p>
-          <p className="text-xs text-text-muted font-semibold">{desc}</p>
-        </div>
-      </div>
-      <AlertTriangle className={`h-5 w-5 ${tone === 'red' ? 'text-status-red-fg' : 'text-status-amber-fg'}`} />
-    </Card>
-  );
-}
-
-function QuickActionButton({ label, icon: Icon, tone, href, visible, router }: { label: string; icon: any; tone: keyof typeof TONES; href: string; visible: boolean; router: ReturnType<typeof useRouter> }) {
-  if (!visible) return null;
+function QuickActionButton({
+  label,
+  desc,
+  icon: Icon,
+  colorClass,
+  href,
+  router,
+}: {
+  label: string;
+  desc: string;
+  icon: any;
+  colorClass: string;
+  href: string;
+  router: ReturnType<typeof useRouter>;
+}) {
   return (
     <button
       onClick={() => router.push(href)}
-      className="text-left p-3.5 border border-border rounded-[11px] bg-muted/20 hover:border-primary/40 hover:bg-muted/40 transition-colors"
+      className="text-left p-3 border border-border/80 rounded-xl bg-muted/20 hover:border-primary/40 hover:bg-muted/40 transition-all group flex flex-col justify-between"
     >
-      <div className={`w-[30px] h-[30px] rounded-[8px] flex items-center justify-center mb-2.5 ${TONES[tone].box}`}>
-        <Icon className="h-3.5 w-3.5" />
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${colorClass} group-hover:scale-105 transition-transform`}>
+        <Icon className="h-4 w-4" />
       </div>
-      <div className="text-[12.5px] font-bold text-foreground">{label}</div>
+      <div>
+        <div className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+          {label}
+        </div>
+        <div className="text-[10px] text-muted-foreground line-clamp-1 mt-0.5">
+          {desc}
+        </div>
+      </div>
     </button>
   );
 }

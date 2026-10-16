@@ -33,6 +33,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePagination } from "@/components/ui/pagination";
 import { expensesApi } from "@/lib/api/expenses";
 import { ExpenseCategory, ExpenseCategoryType, ExpenseGroup, ExpenseType } from "@/types/financial";
 import { toast } from "sonner";
@@ -97,6 +98,8 @@ export function ExpenseCategoriesManager({ onCategoryChange }: ExpenseCategories
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -217,6 +220,12 @@ export function ExpenseCategoriesManager({ onCategoryChange }: ExpenseCategories
     return matchesSearch && matchesType;
   });
 
+  const totalPages = Math.ceil(filteredCategories.length / ITEMS_PER_PAGE) || 1;
+  const paginatedCategories = filteredCategories.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   return (
     <div className="space-y-6">
       {/* 1. SEÇÃO DE TIPOS DE DESPESAS (NATUREZA FINANCEIRA) */}
@@ -290,14 +299,23 @@ export function ExpenseCategoriesManager({ onCategoryChange }: ExpenseCategories
               type="text"
               placeholder="Buscar categoria ou código..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full h-8 pl-9 pr-3 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:ring-1 focus:ring-[#E2661D]"
             />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 font-medium">Filtrar por Tipo:</span>
-            <Select value={filterType} onValueChange={setFilterType}>
+            <Select
+              value={filterType}
+              onValueChange={(val) => {
+                setFilterType(val);
+                setCurrentPage(1);
+              }}
+            >
               <SelectTrigger className="w-[180px] h-8 text-xs bg-white">
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
@@ -336,7 +354,7 @@ export function ExpenseCategoriesManager({ onCategoryChange }: ExpenseCategories
             ) : filteredCategories.length === 0 ? (
               <TableEmpty colSpan={7} message="Nenhuma categoria de despesa encontrada." />
             ) : (
-              filteredCategories.map((cat) => (
+              paginatedCategories.map((cat) => (
                 <TableRow key={cat.id} className="hover:bg-gray-50/70">
                   <TableCell>
                     <div
@@ -388,11 +406,20 @@ export function ExpenseCategoriesManager({ onCategoryChange }: ExpenseCategories
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredCategories.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="categorias"
+        />
       </div>
 
       {/* MODAL DE CRIAÇÃO / EDIÇÃO DE CATEGORIA */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md bg-white p-6 rounded-2xl border shadow-xl">
+        <DialogContent className="max-w-md bg-white p-5 rounded-xl border border-gray-200 shadow-xl">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <FolderTree className="h-5 w-5 text-[#E2661D]" />

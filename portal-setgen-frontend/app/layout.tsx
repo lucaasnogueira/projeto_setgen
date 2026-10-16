@@ -1,19 +1,23 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/context/AuthContext";
 import { Toaster } from "sonner";
 
-const manrope = Manrope({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-manrope",
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Portal Setgen - Gestão de Serviços",
-  description: "Sistema completo de gestão de serviços técnicos",
+  title: "Setgen - Serviços Técnicos em Geradores de Energia",
+  description: "Portal Oficial de Gestão e Serviços Técnicos Especializados em Geradores de Energia",
+  icons: {
+    icon: "/images/setgen-logo.png",
+    shortcut: "/images/setgen-logo.png",
+    apple: "/images/setgen-logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -22,18 +26,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${manrope.variable} font-sans`}>
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+      <body className={`${inter.className} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
-          <AuthProvider>
-            {children}
-            <Toaster richColors position="top-right" />
-          </AuthProvider>
+          {children}
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>

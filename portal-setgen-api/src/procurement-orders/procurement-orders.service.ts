@@ -19,17 +19,19 @@ import {
   AuditAction,
 } from '@prisma/client';
 
-// Máquina de estados: transições permitidas a partir de cada status atual.
 const VALID_STATUS_TRANSITIONS: Record<
   ProcurementOrderStatus,
   ProcurementOrderStatus[]
 > = {
   [ProcurementOrderStatus.QUOTING]: [
     ProcurementOrderStatus.ORDER_ISSUED,
+    ProcurementOrderStatus.AWAITING_DELIVERY,
+    ProcurementOrderStatus.RECEIVED,
     ProcurementOrderStatus.CANCELLED,
   ],
   [ProcurementOrderStatus.ORDER_ISSUED]: [
     ProcurementOrderStatus.AWAITING_DELIVERY,
+    ProcurementOrderStatus.RECEIVED,
     ProcurementOrderStatus.CANCELLED,
   ],
   [ProcurementOrderStatus.AWAITING_DELIVERY]: [
@@ -87,9 +89,14 @@ export class ProcurementOrdersService {
       ...(dto.expectedDeliveryDate && {
         expectedDeliveryDate: parseBusinessDate(dto.expectedDeliveryDate),
       }),
+      ...(dto.invoiceNumber !== undefined && { invoiceNumber: dto.invoiceNumber }),
+      ...(dto.invoiceAccessKey !== undefined && { invoiceAccessKey: dto.invoiceAccessKey }),
+      ...(dto.invoiceUrl !== undefined && { invoiceUrl: dto.invoiceUrl }),
+      ...(dto.notes !== undefined && { notes: dto.notes }),
       items: {
         create: dto.items.map((item) => ({
           product: { connect: { id: item.productId } },
+          requestedQuantity: item.requestedQuantity !== undefined ? item.requestedQuantity : item.quantity,
           quantity: item.quantity,
           unitCost: item.unitCost,
         })),
@@ -105,19 +112,71 @@ export class ProcurementOrdersService {
   async findAll(filters?: {
     status?: ProcurementOrderStatus;
     supplierId?: string;
+    search?: string;
   }) {
+    const where: any = {
+      ...(filters?.status && { status: filters.status }),
+      ...(filters?.supplierId && { supplierId: filters.supplierId }),
+    };
+
+    if (filters?.search && filters.search.trim()) {
+      const term = filters.search.trim();
+      const digitsOnly = term.replace(/\D/g, '');
+
+      const orConditions: any[] = [
+        { invoiceAccessKey: { contains: term, mode: 'insensitive' } },
+        { invoiceNumber: { contains: term, mode: 'insensitive' } },
+        { notes: { contains: term, mode: 'insensitive' } },
+        { supplier: { name: { contains: term, mode: 'insensitive' } } },
+        {
+          items: {
+            some: {
+              product: {
+                OR: [
+                  { name: { contains: term, mode: 'insensitive' } },
+                  { code: { contains: term, mode: 'insensitive' } },
+                  { barcode: { contains: term, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        },
+      ];
+
+      // Se for uma chave de acesso DANFE com 44 dígitos (leitor de código de barras):
+      // Extrai número da NF (dígitos 26-34) e CNPJ (dígitos 7-20)
+      if (digitsOnly.length === 44) {
+        const rawNf = digitsOnly.substring(25, 34);
+        const parsedNfNumber = String(parseInt(rawNf, 10)); // ex: "000001234" -> "1234"
+        const cnpjEmitente = digitsOnly.substring(6, 20);
+
+        orConditions.push({ invoiceAccessKey: { equals: digitsOnly } });
+        orConditions.push({ invoiceNumber: { contains: parsedNfNumber, mode: 'insensitive' } });
+        orConditions.push({ invoiceNumber: { contains: rawNf, mode: 'insensitive' } });
+        orConditions.push({ supplier: { cnpj: { contains: cnpjEmitente } } });
+      } else if (digitsOnly.length > 0) {
+        orConditions.push({ invoiceNumber: { contains: digitsOnly, mode: 'insensitive' } });
+        orConditions.push({ supplier: { cnpj: { contains: digitsOnly } } });
+      }
+
+      where.OR = orConditions;
+    }
+
     return this.prisma.procurementOrder.findMany({
-      where: {
-        ...(filters?.status && { status: filters.status }),
-        ...(filters?.supplierId && { supplierId: filters.supplierId }),
-      },
+      where,
       include: {
-        supplier: { select: { id: true, name: true } },
+        supplier: { select: { id: true, name: true, cnpj: true } },
         items: { include: { product: true } },
         materialRequest: {
           select: {
             id: true,
-            serviceOrder: { select: { id: true, orderNumber: true } },
+            serviceOrder: {
+              select: {
+                id: true,
+                orderNumber: true,
+                client: { select: { companyName: true, tradeName: true } },
+              },
+            },
           },
         },
       },
@@ -134,7 +193,13 @@ export class ProcurementOrdersService {
         materialRequest: {
           select: {
             id: true,
-            serviceOrder: { select: { id: true, orderNumber: true } },
+            serviceOrder: {
+              select: {
+                id: true,
+                orderNumber: true,
+                client: { select: { companyName: true, tradeName: true } },
+              },
+            },
           },
         },
       },
@@ -150,9 +215,9 @@ export class ProcurementOrdersService {
   async update(id: string, dto: UpdateProcurementOrderDto) {
     const order = await this.findOne(id);
 
-    if (order.status !== ProcurementOrderStatus.QUOTING) {
+    if (dto.items && order.status === ProcurementOrderStatus.RECEIVED) {
       throw new BadRequestException(
-        'Só é possível editar um pedido enquanto está em cotação',
+        'Não é possível alterar itens de um pedido já recebido no estoque',
       );
     }
 
@@ -179,14 +244,23 @@ export class ProcurementOrdersService {
       return tx.procurementOrder.update({
         where: { id },
         data: {
-          ...(dto.supplierId && { supplier: { connect: { id: dto.supplierId } } }),
+          ...(dto.supplierId !== undefined && {
+            supplier: dto.supplierId
+              ? { connect: { id: dto.supplierId } }
+              : { disconnect: true },
+          }),
           ...(dto.expectedDeliveryDate && {
             expectedDeliveryDate: parseBusinessDate(dto.expectedDeliveryDate),
           }),
+          ...(dto.invoiceNumber !== undefined && { invoiceNumber: dto.invoiceNumber }),
+          ...(dto.invoiceAccessKey !== undefined && { invoiceAccessKey: dto.invoiceAccessKey }),
+          ...(dto.invoiceUrl !== undefined && { invoiceUrl: dto.invoiceUrl }),
+          ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.items && {
             items: {
               create: dto.items.map((item) => ({
                 product: { connect: { id: item.productId } },
+                requestedQuantity: item.requestedQuantity !== undefined ? item.requestedQuantity : item.quantity,
                 quantity: item.quantity,
                 unitCost: item.unitCost,
               })),
@@ -195,6 +269,15 @@ export class ProcurementOrdersService {
         },
         include: { items: { include: { product: true } }, supplier: true },
       });
+    });
+  }
+
+  async attachInvoiceFile(id: string, fileUrl: string) {
+    await this.findOne(id);
+    return this.prisma.procurementOrder.update({
+      where: { id },
+      data: { invoiceUrl: fileUrl },
+      include: { items: { include: { product: true } }, supplier: true },
     });
   }
 
@@ -229,11 +312,12 @@ export class ProcurementOrdersService {
       }
 
       if (
-        dto.status === ProcurementOrderStatus.ORDER_ISSUED &&
+        (dto.status === ProcurementOrderStatus.ORDER_ISSUED ||
+          dto.status === ProcurementOrderStatus.RECEIVED) &&
         !current.supplierId
       ) {
         throw new BadRequestException(
-          'Escolha um fornecedor antes de emitir o pedido',
+          'Escolha um fornecedor antes de emitir ou receber o pedido',
         );
       }
 
@@ -270,14 +354,21 @@ export class ProcurementOrdersService {
     );
 
     // Recebido o material: tenta reservar de novo a solicitação de origem
-    // (agora com estoque reposto). Só reexecuta se ainda estiver aguardando
-    // compra — evita erro em solicitação já separada por outra via.
+    // (agora com estoque reposto). Executa se a solicitação ainda não estiver 100% separada.
     if (dto.status === ProcurementOrderStatus.RECEIVED && order.materialRequest) {
       const materialRequest = await this.prisma.materialRequest.findUnique({
         where: { id: order.materialRequest.id },
       });
-      if (materialRequest?.status === MaterialRequestStatus.AWAITING_PURCHASE) {
-        await this.materialRequestsService.separate(materialRequest.id, userId);
+      if (
+        materialRequest &&
+        materialRequest.status !== MaterialRequestStatus.SEPARATED &&
+        materialRequest.status !== MaterialRequestStatus.RELEASED
+      ) {
+        try {
+          await this.materialRequestsService.separate(materialRequest.id, userId);
+        } catch (err) {
+          console.warn('Auto-separação após recebimento não concluída:', err);
+        }
       }
     }
 

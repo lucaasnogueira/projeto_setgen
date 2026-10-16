@@ -11,7 +11,7 @@ import { artApi } from '@/lib/api/art';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
 import { equipmentApi } from '@/lib/api/equipment';
 import { openAuthedFile } from '@/lib/utils/auth-file';
-import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit, Product, ServiceItem, ChecklistTemplate } from '@/types';
+import { ServiceOrder, UserRole, ServiceOrderStatus, ServiceOrderAuditLogEntry, TechnicalVisit, Product, ServiceItem, ChecklistTemplate, ChecklistFieldType } from '@/types';
 import { useAuthStore } from '@/store/auth';
 import {
   FileText,
@@ -67,7 +67,13 @@ import {
   Square,
   Timer,
   Sliders,
-  CalendarDays
+  CalendarDays,
+  Search,
+  Filter,
+  LayoutList,
+  MinusCircle,
+  ChevronLeft,
+  FolderOpen,
 } from 'lucide-react';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,12 +88,13 @@ import { StatusTimeline } from '../components/StatusTimeline';
 import { StatusManager } from '../components/StatusManager';
 import { ArtCard } from '../components/ArtCard';
 import { SignaturePad } from '../components/SignaturePad';
+import { OrderDocumentsTab } from '../components/documents/OrderDocumentsTab';
 import { SERVICE_ORDER_STATUS_CONFIG, serviceOrderStatusBadgeClass, isServiceOrderEditable } from '@/lib/status-config';
 import { formatDateBR, formatDateTimeBR } from '@/lib/date';
 import { toast } from 'sonner';
 import { useCanViewValues } from '@/lib/permissions';
 
-const PUBLIC_QUOTE_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const PUBLIC_QUOTE_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/+$/, '');
 
 const formatMoney = (val: number | null | undefined) =>
   (val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -115,6 +122,9 @@ export default function OrderDetailsPage() {
   const [internalView, setInternalView] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("externa");
+  const [selectedChecklistSection, setSelectedChecklistSection] = useState<string>("ALL");
+  const [checklistSearch, setChecklistSearch] = useState<string>("");
+  const [checklistViewMode, setChecklistViewMode] = useState<"forms" | "compact">("forms");
 
   useEffect(() => {
     if (!canViewValues && activeTab === "interna") {
@@ -254,6 +264,12 @@ export default function OrderDetailsPage() {
   const [savingProgress, setSavingProgress] = useState(false);
   const [statusComment, setStatusComment] = useState('');
   const [savingStatusTransition, setSavingStatusTransition] = useState(false);
+
+  // === ESTADOS DO CRONOGRAMA DE ATIVIDADES OPERACIONAIS ===
+  const [taskTypeInput, setTaskTypeInput] = useState('Preventiva Mecânica');
+  const [taskDateInput, setTaskDateInput] = useState('');
+  const [taskTechName, setTaskTechName] = useState('');
+  const [savingTask, setSavingTask] = useState(false);
 
   // === ESTADOS DE ART MULTI-CRUD ===
   const [isEditingArt, setIsEditingArt] = useState(false);
@@ -395,6 +411,38 @@ export default function OrderDetailsPage() {
     }
   }, [params.id]);
 
+  // Helper que resolve tipo, seção, opções e unidade de qualquer item do checklist
+  const resolveItemDefinition = (item: any, templates: ChecklistTemplate[] = checklistTemplates) => {
+    if (item.type && item.section && ((item.options && item.options.length > 0) || item.unit)) {
+      return item;
+    }
+    for (const tmpl of templates) {
+      if (!Array.isArray(tmpl.fields)) continue;
+      const match = tmpl.fields.find(
+        (f: any) =>
+          (f.label || '').trim().toLowerCase() === (item.label || item.item || '').trim().toLowerCase()
+      );
+      if (match) {
+        return {
+          ...item,
+          section: item.section || match.section || 'Geral',
+          category: item.category || match.section || 'Geral',
+          type: item.type || match.type || ChecklistFieldType.TEXT,
+          options: item.options && item.options.length > 0 ? item.options : (match.options || []),
+          unit: item.unit || match.unit || '',
+          required: item.required !== undefined ? item.required : !!match.required,
+          appliesTo: item.appliesTo || match.appliesTo || 'Todos',
+        };
+      }
+    }
+    return {
+      ...item,
+      section: item.section || item.category || 'Geral',
+      category: item.category || item.section || 'Geral',
+      type: item.type || ChecklistFieldType.TEXT,
+    };
+  };
+
   const loadCatalogs = async () => {
     try {
       const [prods, svcs, usrs, tmpls] = await Promise.all([
@@ -407,6 +455,13 @@ export default function OrderDetailsPage() {
       setServicesCatalog(svcs);
       setUsersCatalog(usrs);
       setChecklistTemplates(tmpls);
+
+      // Auto-enriquece o checklist da OS com os tipos e seções dos templates cadastrados
+      setOrder((prev) => {
+        if (!prev || !Array.isArray(prev.checklist) || prev.checklist.length === 0) return prev;
+        const enriched = prev.checklist.map((item: any) => resolveItemDefinition(item, tmpls));
+        return { ...prev, checklist: enriched };
+      });
     } catch (e) {
       console.error("Erro ao carregar catálogos para o DRE:", e);
     }
@@ -421,7 +476,15 @@ export default function OrderDetailsPage() {
         ordersApi.getAuditLog(id).catch(() => []),
       ]);
 
-      setOrder(orderData);
+      let enrichedOrder = orderData;
+      if (Array.isArray(orderData.checklist) && orderData.checklist.length > 0) {
+        enrichedOrder = {
+          ...orderData,
+          checklist: orderData.checklist.map((i: any) => resolveItemDefinition(i)),
+        };
+      }
+
+      setOrder(enrichedOrder);
       setInternalView(internalData);
       setAuditLog(history);
       setCustomKm(String(orderData.totalKmTraveled || 0));
@@ -1156,6 +1219,130 @@ export default function OrderDetailsPage() {
     }
   };
 
+  // --- Handlers do Cronograma de Atividades Operacionais ---
+  const handleToggleScheduleTask = async (taskIndex: number) => {
+    if (!order) return;
+    const currentSchedule: any[] = Array.isArray(order.requiredResources?.schedule)
+      ? [...order.requiredResources.schedule]
+      : [];
+    if (!currentSchedule[taskIndex]) return;
+
+    currentSchedule[taskIndex] = {
+      ...currentSchedule[taskIndex],
+      completed: !currentSchedule[taskIndex].completed,
+    };
+
+    const updatedResources = {
+      ...order.requiredResources,
+      schedule: currentSchedule,
+    };
+
+    setOrder({ ...order, requiredResources: updatedResources });
+    try {
+      await ordersApi.update(order.id, { requiredResources: updatedResources });
+      toast.success(
+        currentSchedule[taskIndex].completed
+          ? `Atividade "${currentSchedule[taskIndex].type}" concluída!`
+          : `Atividade "${currentSchedule[taskIndex].type}" reaberta como pendente.`
+      );
+    } catch {
+      toast.error('Erro ao atualizar status da atividade');
+      loadOrderData();
+    }
+  };
+
+  const handleAddScheduleTask = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!order) return;
+    if (!taskTypeInput.trim()) {
+      toast.error('Informe o tipo da atividade técnica');
+      return;
+    }
+
+    setSavingTask(true);
+    try {
+      const currentSchedule: any[] = Array.isArray(order.requiredResources?.schedule)
+        ? [...order.requiredResources.schedule]
+        : [];
+      const nextCode = `TSK-${String(currentSchedule.length + 1).padStart(2, '0')}`;
+      const newTask = {
+        code: nextCode,
+        type: taskTypeInput.trim(),
+        date: taskDateInput || (order.deadline ? order.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+        collaboratorName: taskTechName || order.assignedCollaborator?.name || 'Equipe Técnica Setgen',
+        completed: false,
+      };
+
+      const updatedSchedule = [...currentSchedule, newTask];
+      const updatedResources = {
+        ...order.requiredResources,
+        schedule: updatedSchedule,
+      };
+
+      const updatedOrder = await ordersApi.update(order.id, { requiredResources: updatedResources });
+      setOrder(updatedOrder);
+      toast.success(`Atividade "${newTask.type}" (${nextCode}) adicionada ao cronograma!`);
+      setTaskTypeInput('Preventiva Mecânica');
+      setTaskDateInput('');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao adicionar atividade ao cronograma');
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
+  const handleDeleteScheduleTask = async (taskIndex: number) => {
+    if (!order) return;
+    if (!confirm('Deseja realmente remover esta atividade do cronograma?')) return;
+
+    const currentSchedule: any[] = Array.isArray(order.requiredResources?.schedule)
+      ? [...order.requiredResources.schedule]
+      : [];
+    const updatedSchedule = currentSchedule.filter((_, idx) => idx !== taskIndex);
+    const updatedResources = {
+      ...order.requiredResources,
+      schedule: updatedSchedule,
+    };
+
+    setOrder({ ...order, requiredResources: updatedResources });
+    try {
+      await ordersApi.update(order.id, { requiredResources: updatedResources });
+      toast.success('Atividade removida do cronograma!');
+    } catch {
+      toast.error('Erro ao remover atividade');
+      loadOrderData();
+    }
+  };
+
+  const handleSeedDefaultSchedule = async () => {
+    if (!order) return;
+    setSavingTask(true);
+    try {
+      const defaultDate = order.deadline ? order.deadline.slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const tech = order.assignedCollaborator?.name || 'Equipe Técnica Setgen';
+      const initialSchedule = [
+        { code: 'TSK-01', type: 'Inspeção Diagnóstica & Análise Prévia', date: defaultDate, collaboratorName: tech, completed: false },
+        { code: 'TSK-02', type: 'Execução Mecânica / Troca de Peças e Filtros', date: defaultDate, collaboratorName: tech, completed: false },
+        { code: 'TSK-03', type: 'Revisão Elétrica, Painel & Comandos de Força', date: defaultDate, collaboratorName: tech, completed: false },
+        { code: 'TSK-04', type: 'Testes com Transferência e Carga Real', date: defaultDate, collaboratorName: tech, completed: false },
+        { code: 'TSK-05', type: 'Limpeza Técnica & Entrega Operacional', date: defaultDate, collaboratorName: tech, completed: false },
+      ];
+
+      const updatedResources = {
+        ...order.requiredResources,
+        schedule: initialSchedule,
+      };
+
+      const updatedOrder = await ordersApi.update(order.id, { requiredResources: updatedResources });
+      setOrder(updatedOrder);
+      toast.success('Cronograma operacional padrão gerado com sucesso!');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Erro ao gerar cronograma padrão');
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
   // --- Handlers de Checklist Multi-CRUD ---
   const handleToggleChecklistItem = async (index: number) => {
     if (!order) return;
@@ -1181,19 +1368,43 @@ export default function OrderDetailsPage() {
     if (!order) return;
     const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
     if (!currentList[index]) return;
-    const isOk = answer === 'Conforme' || answer === 'Ajustado' || answer === 'OK';
+    const upper = String(answer || '').trim().toUpperCase();
+    const isNegative = upper === 'NÃO' || upper === 'NAO' || upper === 'NÃO CONFORME' || upper === 'NAO CONFORME';
+    const isCompleted = answer !== '' && answer !== null && answer !== undefined;
     currentList[index] = {
       ...currentList[index],
       answer,
-      completed: isOk ? true : currentList[index].completed,
+      completed: isNegative ? false : isCompleted,
     };
     setOrder({ ...order, checklist: currentList });
     try {
       await ordersApi.update(order.id, { checklist: currentList as any });
-      toast.success(`Item marcado como "${answer}"`);
+      toast.success(`Item atualizado: "${answer}"`);
     } catch (err: any) {
       toast.error('Erro ao salvar avaliação');
       loadOrderData();
+    }
+  };
+
+  const handleUpdateChecklistItemField = (index: number, val: any) => {
+    if (!order) return;
+    const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+    if (!currentList[index]) return;
+    const isCompleted = val !== '' && val !== null && val !== undefined;
+    currentList[index] = {
+      ...currentList[index],
+      answer: val,
+      completed: isCompleted,
+    };
+    setOrder({ ...order, checklist: currentList });
+  };
+
+  const handlePersistChecklist = async () => {
+    if (!order) return;
+    try {
+      await ordersApi.update(order.id, { checklist: order.checklist as any });
+    } catch (err: any) {
+      toast.error('Erro ao salvar dados do checklist');
     }
   };
 
@@ -1206,11 +1417,14 @@ export default function OrderDetailsPage() {
     setSavingChecklist(true);
     try {
       const currentList = Array.isArray(order.checklist) ? [...order.checklist] : [];
+      const cat = newChecklistCat.trim() || 'Geral';
       const newItem = {
         id: `chk-${Date.now()}`,
         item: newChecklistText.trim(),
         label: newChecklistText.trim(),
-        category: newChecklistCat.trim() || 'Geral',
+        section: cat,
+        category: cat,
+        type: ChecklistFieldType.TEXT,
         completed: false,
         answer: '',
       };
@@ -1256,7 +1470,13 @@ export default function OrderDetailsPage() {
         id: `tmpl-${tmpl.id}-${idx}-${Date.now()}`,
         item: f.label || f.item || `Verificação ${idx + 1}`,
         label: f.label || f.item || `Verificação ${idx + 1}`,
-        category: tmpl.name,
+        section: f.section || tmpl.name || 'Geral',
+        category: f.section || tmpl.name || 'Geral',
+        type: f.type || ChecklistFieldType.TEXT,
+        options: Array.isArray(f.options) ? f.options : [],
+        unit: f.unit || '',
+        required: !!f.required,
+        appliesTo: f.appliesTo || 'Todos',
         completed: false,
         answer: '',
       }));
@@ -1264,7 +1484,7 @@ export default function OrderDetailsPage() {
       await ordersApi.update(order.id, { checklist: combined as any, checklistTemplateId: tmpl.id });
       setOrder({ ...order, checklist: combined as any, checklistTemplateId: tmpl.id });
       setSelectedTemplateId('');
-      toast.success(`Modelo "${tmpl.name}" aplicado! (+${templateItems.length} itens)`);
+      toast.success(`Modelo "${tmpl.name}" aplicado! (+${templateItems.length} itens organizados por seções)`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Erro ao carregar modelo de checklist');
     } finally {
@@ -1272,20 +1492,92 @@ export default function OrderDetailsPage() {
     }
   };
 
-  const handleToggleAllChecklist = async (complete: boolean) => {
+  const handleBulkSetConformity = async (mode: 'conform' | 'non-conform' | 'clear', sectionName?: string) => {
     if (!order || !order.checklist || order.checklist.length === 0) return;
-    const currentList = order.checklist.map((i: any) => ({
-      ...i,
-      completed: complete,
-      answer: complete ? (i.answer || 'Conforme') : '',
-    }));
-    setOrder({ ...order, checklist: currentList });
+
+    const actionLabel = mode === 'conform'
+      ? 'CONFORME (OK)'
+      : mode === 'non-conform'
+      ? 'NÃO CONFORME (NÃO)'
+      : 'LIMPAR RESPOSTAS';
+
+    const targetLabel = sectionName ? `na seção "${sectionName}"` : 'em TODO o checklist';
+
+    const confirmed = window.confirm(
+      `Deseja marcar as avaliações como ${actionLabel} ${targetLabel}?\n\n` +
+      (mode === 'conform'
+        ? 'Todos os itens de inspeção e tri-state serão definidos como "OK" (Conforme). Campos numéricos e textos não serão alterados.'
+        : mode === 'non-conform'
+        ? 'Todos os itens de inspeção serão definidos como "NÃO" (Não Conforme).'
+        : 'As respostas de inspeção serão limpas para reavaliação.')
+    );
+    if (!confirmed) return;
+
+    setSavingChecklist(true);
     try {
-      await ordersApi.update(order.id, { checklist: currentList as any });
-      toast.success(complete ? 'Todos os itens foram marcados como concluídos!' : 'Itens desmarcados.');
+      const updatedList = order.checklist.map((item: any) => {
+        const itemSec = item.section || item.category || 'Geral';
+        if (sectionName && itemSec !== sectionName) {
+          return item;
+        }
+
+        const type = (item.type || '').toUpperCase();
+        const hasOptions = Array.isArray(item.options) && item.options.length > 0;
+        const hasUnit = !!item.unit;
+
+        if (mode === 'clear') {
+          return {
+            ...item,
+            completed: false,
+            answer: '',
+          };
+        }
+
+        if (mode === 'conform') {
+          if (type === 'CHECKLIST_TRI_STATE') {
+            return { ...item, completed: true, answer: 'OK' };
+          }
+          if (type === 'BOOLEAN') {
+            return { ...item, completed: true, answer: 'Sim' };
+          }
+          if (!type && !hasOptions && !hasUnit) {
+            return { ...item, completed: true, answer: 'Conforme' };
+          }
+          return item;
+        }
+
+        if (mode === 'non-conform') {
+          if (type === 'CHECKLIST_TRI_STATE') {
+            return { ...item, completed: true, answer: 'NÃO' };
+          }
+          if (type === 'BOOLEAN') {
+            return { ...item, completed: true, answer: 'Não' };
+          }
+          if (!type && !hasOptions && !hasUnit) {
+            return { ...item, completed: true, answer: 'Não Conforme' };
+          }
+          return item;
+        }
+
+        return item;
+      });
+
+      setOrder({ ...order, checklist: updatedList });
+      await ordersApi.update(order.id, { checklist: updatedList as any });
+
+      const countDone = updatedList.filter((i: any) => i.completed || (i.answer !== '' && i.answer !== null)).length;
+      toast.success(
+        mode === 'conform'
+          ? `Itens marcados como Conforme (OK)! (${countDone} de ${updatedList.length} itens respondidos)`
+          : mode === 'non-conform'
+          ? `Itens marcados como Não Conforme (NÃO)!`
+          : `Respostas limpas com sucesso.`
+      );
     } catch (err: any) {
-      toast.error('Erro ao atualizar itens');
+      toast.error('Erro ao atualizar respostas do checklist em massa');
       loadOrderData();
+    } finally {
+      setSavingChecklist(false);
     }
   };
 
@@ -1306,6 +1598,53 @@ export default function OrderDetailsPage() {
       toast.error('Erro ao sincronizar progresso');
     }
   };
+
+  // Seções únicas do checklist
+  const checklistSections = useMemo(() => {
+    if (!order?.checklist || !Array.isArray(order.checklist)) return [];
+    const list: string[] = [];
+    order.checklist.forEach((item: any) => {
+      const sec = item.section || item.category || 'Geral';
+      if (!list.includes(sec)) {
+        list.push(sec);
+      }
+    });
+    return list;
+  }, [order?.checklist]);
+
+  // Itens filtrados por busca e por seção selecionada
+  const filteredChecklistItems = useMemo(() => {
+    if (!order?.checklist || !Array.isArray(order.checklist)) return [];
+    return order.checklist
+      .map((item: any, originalIndex: number) => ({
+        ...item,
+        originalIndex,
+      }))
+      .filter((item: any) => {
+        const sec = item.section || item.category || 'Geral';
+        const matchesSection = selectedChecklistSection === 'ALL' || sec === selectedChecklistSection;
+        const textToSearch = `${item.label || item.item || ''} ${sec} ${item.unit || ''} ${item.answer || ''}`.toLowerCase();
+        const matchesSearch = !checklistSearch.trim() || textToSearch.includes(checklistSearch.toLowerCase().trim());
+        return matchesSection && matchesSearch;
+      });
+  }, [order?.checklist, selectedChecklistSection, checklistSearch]);
+
+  // Grupos por seção
+  const groupedChecklistSections = useMemo(() => {
+    const secMap = new Map<string, any[]>();
+    filteredChecklistItems.forEach((item) => {
+      const sec = item.section || item.category || 'Geral';
+      if (!secMap.has(sec)) {
+        secMap.set(sec, []);
+      }
+      secMap.get(sec)!.push(item);
+    });
+    const groups: { section: string; items: any[] }[] = [];
+    secMap.forEach((items, section) => {
+      groups.push({ section, items });
+    });
+    return groups;
+  }, [filteredChecklistItems]);
 
   // --- Handlers de ART Multi-CRUD ---
   const handleSaveArt = async (e: React.FormEvent) => {
@@ -1603,18 +1942,46 @@ export default function OrderDetailsPage() {
             className: serviceOrderStatusBadgeClass(order.status),
           }}
           meta={
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Building2 className="h-4 w-4 text-[#E2661D]" />
-              <span className="font-bold text-gray-900">{order.client?.companyName}</span>
-              {order.client?.tradeName && (
-                <span className="text-gray-400 font-normal">({order.client.tradeName})</span>
-              )}
+            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-[#E2661D]" />
+                <span className="font-bold text-gray-900">{order.client?.companyName}</span>
+                {order.client?.tradeName && (
+                  <span className="text-gray-400 font-normal">({order.client.tradeName})</span>
+                )}
+              </div>
+              <span className="text-gray-300">•</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-gray-500">Mudar Status:</span>
+                <select
+                  value={order.status}
+                  disabled={savingStatusTransition}
+                  onChange={(e) => handleDirectStatusTransition(e.target.value as ServiceOrderStatus)}
+                  className="h-7 px-2.5 rounded-lg border border-gray-300 text-xs font-bold bg-white text-gray-800 shadow-2xs hover:border-[#E2661D] focus:ring-1 focus:ring-[#E2661D] cursor-pointer"
+                >
+                  <option value={ServiceOrderStatus.AWAITING_MATERIALS}>Aguardando Materiais</option>
+                  <option value={ServiceOrderStatus.IN_PROGRESS}>Em Andamento</option>
+                  <option value={ServiceOrderStatus.COMPLETED}>Concluída</option>
+                  <option value={ServiceOrderStatus.CANCELLED}>Cancelada</option>
+                </select>
+              </div>
             </div>
           }
           backLabel="Voltar para Ordens de Serviço"
           onBack={() => router.push('/orders')}
           actions={
             <>
+              {order.status === ServiceOrderStatus.AWAITING_MATERIALS && (
+                <Button
+                  size="sm"
+                  disabled={savingStatusTransition}
+                  onClick={() => handleDirectStatusTransition(ServiceOrderStatus.IN_PROGRESS)}
+                  className="rounded-xl font-bold gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Iniciar Execução (Liberar OS)
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -1665,50 +2032,84 @@ export default function OrderDetailsPage() {
           }
         />
 
-        {order.quote && (
-          <Link href={`/quotes/${order.quote.id}`}>
-            <div className="p-3.5 rounded-2xl bg-orange-50/60 border border-orange-200/70 flex items-center justify-between hover:bg-orange-50 transition-all cursor-pointer shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#E2661D]/15 rounded-xl text-[#E2661D]">
-                  <History className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Origem Comercial</p>
-                  <p className="text-sm font-bold text-gray-900">
-                    Orçamento #{order.quote.quoteNumber}{' '}
-                    <span className="font-normal text-gray-500">
-                      · Contratado em {formatDateBR(order.createdAt)}{canViewValues && ` · Valor Total: ${formatMoney(externalTotals.grandTotal)}`}
-                    </span>
-                  </p>
-                </div>
+        {/* COCKPIT DE CAMPO & CONTROLE EM TEMPO REAL (Nível Profissional) */}
+        {order.status !== ServiceOrderStatus.COMPLETED && order.status !== ServiceOrderStatus.CANCELLED && (
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-2xs border border-slate-700/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-3.5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-500/20 text-[#E2661D] flex items-center justify-center shrink-0 border border-orange-500/30">
+                <Navigation className="h-4 w-4 animate-pulse" />
               </div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-[#E2661D]">
-                Abrir Orçamento <ArrowRight className="h-3.5 w-3.5" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold tracking-tight text-white flex items-center gap-2">
+                    Controle de Campo & Equipe
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                    Tempo Real
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Registre o deslocamento, chegada no local do cliente e conclusão com baixa automática de materiais.
+                </p>
               </div>
             </div>
-          </Link>
+
+            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={executingAction}
+                onClick={() => handleAction('displacement')}
+                className="bg-slate-800 hover:bg-slate-700 text-white border-slate-600 text-xs font-semibold h-8 rounded-lg gap-1.5 shadow-2xs flex-1 md:flex-none"
+              >
+                <Car className="h-3.5 w-3.5 text-blue-400" />
+                1. A Caminho (Deslocamento)
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={executingAction}
+                onClick={() => handleAction('checkin')}
+                className="bg-slate-800 hover:bg-slate-700 text-white border-slate-600 text-xs font-semibold h-8 rounded-lg gap-1.5 shadow-2xs flex-1 md:flex-none"
+              >
+                <MapPin className="h-3.5 w-3.5 text-amber-400" />
+                2. No Local (Check-in)
+              </Button>
+
+              <Button
+                size="sm"
+                disabled={executingAction}
+                onClick={() => handleAction('checkout')}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold h-8 rounded-lg gap-1.5 shadow-2xs flex-1 md:flex-none"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                3. Finalizar OS (Check-out)
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
       {/* Tabs Principais */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`no-print grid p-1.5 bg-gray-100/90 rounded-2xl border border-gray-200/80 h-auto gap-1 ${canViewValues ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4"}`}>
+        <TabsList className={`no-print grid p-1 bg-gray-100/90 rounded-xl border border-gray-200/80 h-auto gap-1 ${canViewValues ? "grid-cols-2 md:grid-cols-6" : "grid-cols-2 md:grid-cols-5"}`}>
           <TabsTrigger
             value="externa"
-            className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-xs transition-all"
+            className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-2xs transition-all"
           >
-            <FileText className="h-4 w-4" />
+            <FileText className="h-3.5 w-3.5" />
             OS Externa (Cliente)
           </TabsTrigger>
 
           {canViewValues && (
             <TabsTrigger
               value="interna"
-              className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-[#1e293b] data-[state=active]:text-white data-[state=active]:shadow-xs transition-all relative"
+              className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-[#1e293b] data-[state=active]:text-white data-[state=active]:shadow-2xs transition-all relative"
             >
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
               OS Interna
-              <span className="ml-1 px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 data-[state=active]:text-emerald-300 text-[10px] rounded-full font-black">
+              <span className="ml-1 px-1.5 py-0.2 bg-emerald-500/20 text-emerald-600 data-[state=active]:text-emerald-300 text-[10px] rounded-full font-bold">
                 DRE Real
               </span>
             </TabsTrigger>
@@ -1716,25 +2117,33 @@ export default function OrderDetailsPage() {
 
           <TabsTrigger
             value="execucao"
-            className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-xs transition-all"
+            className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-2xs transition-all"
           >
-            <ClipboardList className="h-4 w-4" />
+            <ClipboardList className="h-3.5 w-3.5" />
             Checklist & Execução
           </TabsTrigger>
 
           <TabsTrigger
             value="status"
-            className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-xs transition-all"
+            className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-2xs transition-all"
           >
-            <Clock className="h-4 w-4" />
-            Status & Prazo
+            <CalendarDays className="h-3.5 w-3.5" />
+            Status & Prazos
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="documentos"
+            className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-2xs transition-all"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Documentação Técnica
           </TabsTrigger>
 
           <TabsTrigger
             value="art"
-            className="rounded-xl py-2.5 font-bold text-xs gap-2 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-xs transition-all"
+            className="rounded-lg py-2 font-semibold text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-[#E2661D] data-[state=active]:shadow-2xs transition-all"
           >
-            <ShieldCheck className="h-4 w-4" />
+            <ShieldCheck className="h-3.5 w-3.5" />
             ART & Visitas
           </TabsTrigger>
         </TabsList>
@@ -1742,15 +2151,15 @@ export default function OrderDetailsPage() {
         {/* ======================================================== */}
         {/* ABA 1: OS EXTERNA (CLIENTE) - VISÃO PÚBLICA & FORMAL      */}
         {/* ======================================================== */}
-        <TabsContent value="externa" className="mt-4 space-y-5 print-sheet">
-          <Card className="rounded-2xl border border-gray-200 overflow-hidden shadow-xs bg-white">
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 via-white to-gray-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#E2661D] text-white flex items-center justify-center font-black text-xl shadow-xs">
+        <TabsContent value="externa" className="mt-4 space-y-4 print-sheet">
+          <Card className="rounded-xl border border-gray-200/80 overflow-hidden shadow-2xs bg-white">
+            <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 via-white to-gray-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-[#E2661D] text-white flex items-center justify-center font-black text-lg shadow-2xs">
                   S
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-gray-900 tracking-tight">SETGEN - SOLUÇÕES EM ENERGIA</h2>
+                  <h2 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">SETGEN - SOLUÇÕES EM ENERGIA</h2>
                   <p className="text-xs text-gray-500 font-medium">Ordem de Serviço Técnica de Campo · Atendimento Autorizado</p>
                 </div>
               </div>
@@ -2064,6 +2473,56 @@ export default function OrderDetailsPage() {
               </div>
             )}
 
+            {/* Resumo do Checklist Técnico & Inspeção de Campo (Se preenchido na OS) */}
+            {order.checklist && order.checklist.length > 0 && (
+              <div className="p-6 border-b border-gray-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4 text-[#E2661D]" /> Checklist Técnico & Inspeção de Campo
+                  </h3>
+                  <span className="text-xs text-gray-500 font-bold">
+                    {order.checklist.filter((i: any) => i.completed || (i.answer !== '' && i.answer !== null && i.answer !== undefined)).length} de {order.checklist.length} itens respondidos
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {checklistSections.map((sec) => {
+                    const secItems = order.checklist.filter(
+                      (i: any) => (i.section || i.category || 'Geral') === sec
+                    );
+                    return (
+                      <div key={sec} className="border border-gray-200 rounded-xl overflow-hidden bg-white text-xs">
+                        <div className="bg-gray-50 px-3 py-2 font-bold text-gray-800 border-b border-gray-200 flex items-center justify-between">
+                          <span className="truncate pr-2">{sec}</span>
+                          <span className="text-[10px] font-medium text-gray-500 shrink-0">{secItems.length} itens</span>
+                        </div>
+                        <div className="p-3 divide-y divide-gray-100 space-y-1.5 max-h-64 overflow-y-auto">
+                          {secItems.map((it: any, idx: number) => {
+                            const ans = it.answer !== null && it.answer !== undefined && it.answer !== ''
+                              ? String(it.answer)
+                              : (it.completed ? 'Conforme' : '—');
+                            const isNeg = ans.toUpperCase() === 'NÃO' || ans.toUpperCase() === 'NÃO CONFORME';
+                            return (
+                              <div key={it.id || idx} className="pt-1.5 flex items-start justify-between gap-2">
+                                <span className="text-gray-700 font-medium flex-1">
+                                  {it.label || it.item}
+                                </span>
+                                <span className={`font-bold shrink-0 text-right ${
+                                  isNeg ? 'text-red-600' : 'text-gray-900'
+                                }`}>
+                                  {ans} {it.unit && ans !== '—' && !ans.includes(it.unit) ? ` ${it.unit}` : ''}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Termo de Aceite & Assinatura Digital do Cliente */}
             <div className="p-6 space-y-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -2074,7 +2533,7 @@ export default function OrderDetailsPage() {
               </p>
 
               {order.signature ? (
-                <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex flex-col md:flex-row items-center justify-between gap-5">
+                <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="space-y-1 text-xs text-emerald-950">
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-bold text-[11px]">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Assinado Digitalmente
@@ -2090,7 +2549,7 @@ export default function OrderDetailsPage() {
                     </p>
                   </div>
                   {order.signature.signatureImageUrl && (
-                    <div className="bg-white p-2 rounded-xl border border-emerald-200 shadow-xs">
+                    <div className="bg-white p-2 rounded-lg border border-emerald-200 shadow-2xs">
                       <img
                         src={order.signature.signatureImageUrl}
                         alt="Assinatura do Cliente"
@@ -2100,34 +2559,34 @@ export default function OrderDetailsPage() {
                   )}
                 </div>
               ) : (
-                <div className="no-print p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+                <div className="no-print p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3.5">
                   <p className="text-xs font-bold text-gray-800 flex items-center gap-2">
-                    <PenTool className="h-4 w-4 text-[#E2661D]" /> Coleta Presencial de Assinatura do Cliente
+                    <PenTool className="h-3.5 w-3.5 text-[#E2661D]" /> Coleta Presencial de Assinatura do Cliente
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs font-bold text-gray-600">Nome do Responsável no Local *</Label>
+                      <Label className="text-xs font-semibold text-gray-700">Nome do Responsável no Local *</Label>
                       <Input
                         value={signerName}
                         onChange={(e) => setSignerName(e.target.value)}
                         placeholder="Ex: Carlos Eduardo de Souza"
-                        className="h-9 text-xs rounded-xl bg-white mt-1"
+                        className="h-9 text-xs rounded-lg border-gray-200 bg-white mt-1"
                       />
                     </div>
                     <div>
-                      <Label className="text-xs font-bold text-gray-600">CPF ou Documento *</Label>
+                      <Label className="text-xs font-semibold text-gray-700">CPF ou Documento *</Label>
                       <Input
                         value={signerDoc}
                         onChange={(e) => setSignerDoc(e.target.value)}
                         placeholder="Ex: 123.456.789-00 / RG / Matrícula"
-                        className="h-9 text-xs rounded-xl bg-white mt-1"
+                        className="h-9 text-xs rounded-lg border-gray-200 bg-white mt-1"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <Label className="text-xs font-bold text-gray-600 block mb-1">Assine no quadro abaixo:</Label>
-                    <div className="bg-white rounded-xl border border-gray-300 p-2 shadow-inner inline-block w-full max-w-md">
+                    <Label className="text-xs font-semibold text-gray-700 block mb-1">Assine no quadro abaixo:</Label>
+                    <div className="bg-white rounded-lg border border-gray-300 p-2 shadow-inner inline-block w-full max-w-md">
                       <SignaturePad onSave={handleSaveSignature} />
                     </div>
                   </div>
@@ -2141,15 +2600,15 @@ export default function OrderDetailsPage() {
         {/* ABA 2: OS INTERNA (CUSTOS & LUCRO / DRE COM LANÇAMENTOS DRE)  */}
         {/* ======================================================== */}
         {canViewValues && (
-        <TabsContent value="interna" className="mt-4 space-y-5">
+        <TabsContent value="interna" className="mt-4 space-y-4">
           {/* Header do DRE Executivo */}
-          <div className="p-5 rounded-2xl bg-slate-900 text-white shadow-md space-y-5 border border-slate-800">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+          <div className="p-4 sm:p-5 rounded-xl bg-slate-900 text-white shadow-2xs space-y-4 border border-slate-800">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div>
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs mb-1.5">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-xs mb-1">
                   <TrendingUp className="h-3.5 w-3.5" /> Gestão Financeira & Apuração de Lucro Real
                 </div>
-                <h2 className="text-lg font-black tracking-tight text-white">
+                <h2 className="text-base sm:text-lg font-bold tracking-tight text-white">
                   DRE Operacional da Ordem de Serviço #{order.orderNumber}
                 </h2>
                 <p className="text-xs text-slate-400">
@@ -2226,7 +2685,7 @@ export default function OrderDetailsPage() {
           </div>
 
           {/* DRE Detalhado Passo a Passo */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
               <Receipt className="h-4 w-4 text-[#E2661D]" /> Demonstrativo Consolidado de Resultado do Exercício (DRE)
             </h3>
@@ -2321,7 +2780,7 @@ export default function OrderDetailsPage() {
           {/* ======================================================== */}
           {/* LANÇAMENTOS DRE 1: PEÇAS & MATERIAIS (CMV)                     */}
           {/* ======================================================== */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -2476,7 +2935,7 @@ export default function OrderDetailsPage() {
           {/* ======================================================== */}
           {/* LANÇAMENTOS DRE 2: MÃO DE OBRA TÉCNICA (TÉCNICOS & HORAS)      */}
           {/* ======================================================== */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -2711,7 +3170,7 @@ export default function OrderDetailsPage() {
           {/* ======================================================== */}
           {/* LANÇAMENTOS DRE 3: FROTA & DESLOCAMENTO (TRECHOS & KM)         */}
           {/* ======================================================== */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -2915,7 +3374,7 @@ export default function OrderDetailsPage() {
           {/* ======================================================== */}
           {/* LANÇAMENTOS DRE 4: DESPESAS DE CAMPO (ALIMENTAÇÃO, PEDÁGIO)   */}
           {/* ======================================================== */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -3034,7 +3493,7 @@ export default function OrderDetailsPage() {
           {/* ======================================================== */}
           {/* LANÇAMENTOS DRE 5: SERVIÇOS TÉCNICOS FATURADOS                */}
           {/* ======================================================== */}
-          <Card className="p-6 rounded-2xl border border-gray-200 space-y-4 shadow-xs bg-white">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 space-y-3.5 shadow-2xs bg-white">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -3195,17 +3654,17 @@ export default function OrderDetailsPage() {
         {/* ======================================================== */}
         {/* ABA 3: CHECKLIST & EXECUÇÃO TÉCNICA - MULTI-CRUD NA TELA */}
         {/* ======================================================== */}
-        <TabsContent value="execucao" className="mt-4 space-y-5">
+        <TabsContent value="execucao" className="mt-4 space-y-4">
           {/* Header Card do Checklist */}
-          <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5">
+          <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
-                    <ClipboardList className="h-5 w-5" />
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-lg">
+                    <ClipboardList className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-gray-900 tracking-tight">
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">
                       Checklist Técnico & Procedimentos de Inspeção
                     </h3>
                     <p className="text-xs text-gray-500">
@@ -3230,27 +3689,43 @@ export default function OrderDetailsPage() {
                 </Button>
 
                 {order.checklist && order.checklist.length > 0 && (
-                  <>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
-                      variant="outline"
                       size="sm"
-                      onClick={() => handleToggleAllChecklist(true)}
-                      className="rounded-xl text-xs font-bold gap-1.5 h-9"
+                      disabled={savingChecklist}
+                      onClick={() => handleBulkSetConformity('conform')}
+                      className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                      title="Preenche todos os campos de inspeção (OK / NÃO / N/A) com 'OK'"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Concluir Todos
+                      <CheckCircle2 className="h-4 w-4" />
+                      Tudo Conforme (OK)
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => handleToggleAllChecklist(false)}
-                      className="rounded-xl text-xs font-bold gap-1.5 h-9"
+                      disabled={savingChecklist}
+                      onClick={() => handleBulkSetConformity('non-conform')}
+                      className="rounded-xl text-xs font-bold gap-1.5 h-9 border-red-300 text-red-600 hover:bg-red-50"
+                      title="Marca todos os campos de inspeção como 'NÃO'"
                     >
-                      Desmarcar
+                      <AlertCircle className="h-4 w-4" />
+                      Tudo Não Conforme (NÃO)
                     </Button>
-                  </>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={savingChecklist}
+                      onClick={() => handleBulkSetConformity('clear')}
+                      className="rounded-xl text-xs font-medium gap-1.5 h-9 text-gray-500 hover:text-gray-800"
+                      title="Limpa as respostas de conformidade"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Limpar Respostas
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -3351,103 +3826,680 @@ export default function OrderDetailsPage() {
             </form>
           </Card>
 
-          {/* Lista de Itens do Checklist */}
-          {order.checklist && order.checklist.length > 0 ? (
-            <div className="space-y-2.5">
-              {order.checklist.map((item: any, index: number) => {
-                const isCompleted = !!item.completed;
-                const currentAnswer = item.answer || '';
+          {/* Barra de Filtro de Seções e Busca Rápida */}
+          {order.checklist && order.checklist.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    value={checklistSearch}
+                    onChange={(e) => setChecklistSearch(e.target.value)}
+                    placeholder="Filtrar campos do checklist..."
+                    className="pl-9 h-9 text-xs rounded-xl bg-white border-gray-200"
+                  />
+                  {checklistSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setChecklistSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                return (
-                  <div
-                    key={item.id ?? index}
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border transition-all ${
-                      isCompleted
-                        ? 'bg-emerald-50/40 border-emerald-200/80'
-                        : 'bg-white border-gray-200 shadow-xs hover:border-gray-300'
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-xs text-gray-500 font-medium flex items-center gap-2">
+                    <span>Exibindo: <strong className="text-gray-800">{filteredChecklistItems.length}</strong> de {order.checklist.length} campos</span>
+                  </div>
+
+                  {/* Alternador de Modo: Formulário (Forms) vs Compacto */}
+                  <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                    <button
+                      type="button"
+                      onClick={() => setChecklistViewMode('forms')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        checklistViewMode === 'forms'
+                          ? 'bg-white text-gray-900 shadow-2xs'
+                          : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      <ClipboardList className="w-3.5 h-3.5 text-[#E2661D]" />
+                      <span>Formulário (Forms)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChecklistViewMode('compact')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        checklistViewMode === 'compact'
+                          ? 'bg-white text-gray-900 shadow-2xs'
+                          : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      <LayoutList className="w-3.5 h-3.5 text-gray-600" />
+                      <span>Lista Compacta</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {checklistSections.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedChecklistSection("ALL")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      selectedChecklistSection === "ALL"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
-                    {/* Checkbox e Título */}
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                    Todas as Seções ({order.checklist.length})
+                  </button>
+                  {checklistSections.map((sec) => {
+                    const secItems = order.checklist.filter(
+                      (i: any) => (i.section || i.category || "Geral") === sec
+                    );
+                    const doneCount = secItems.filter(
+                      (i: any) => i.completed || (i.answer !== "" && i.answer !== null && i.answer !== undefined)
+                    ).length;
+                    const isSel = selectedChecklistSection === sec;
+                    return (
                       <button
+                        key={sec}
                         type="button"
-                        onClick={() => handleToggleChecklistItem(index)}
-                        className={`mt-0.5 p-1 rounded-lg transition-colors ${
-                          isCompleted
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-gray-100 text-gray-400 hover:text-gray-600 border border-gray-300'
+                        onClick={() => setSelectedChecklistSection(sec)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                          isSel
+                            ? "bg-[#E2661D] text-white shadow-xs"
+                            : "bg-white border border-gray-200 text-gray-700 hover:border-[#E2661D]/40"
                         }`}
-                        title={isCompleted ? 'Desmarcar' : 'Concluir'}
                       >
-                        {isCompleted ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                      </button>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 text-gray-600 uppercase tracking-wider">
-                            #{index + 1}
-                          </span>
-                          {item.category && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-100/70 text-[#E2661D]">
-                              {item.category}
-                            </span>
-                          )}
-                        </div>
-                        <p
-                          className={`text-xs font-semibold mt-1 ${
-                            isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'
+                        <span>{sec}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                            isSel ? "bg-black/20 text-white" : "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {item.label ?? item.item}
-                        </p>
+                          {doneCount}/{secItems.length}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Renderização do Checklist: Modo Forms vs Modo Compacto */}
+          {order.checklist && order.checklist.length > 0 ? (
+            <div className="space-y-6">
+              {groupedChecklistSections.map((group) => {
+                const totalInSec = group.items.length;
+                const completedInSec = group.items.filter(
+                  (i) => i.completed || (i.answer !== "" && i.answer !== null && i.answer !== undefined)
+                ).length;
+                const secPct = totalInSec > 0 ? Math.round((completedInSec / totalInSec) * 100) : 0;
+
+                const currentSecIdx = checklistSections.indexOf(group.section);
+                const prevSec = currentSecIdx > 0 ? checklistSections[currentSecIdx - 1] : null;
+                const nextSec = currentSecIdx >= 0 && currentSecIdx < checklistSections.length - 1 ? checklistSections[currentSecIdx + 1] : null;
+
+                return (
+                  <Card key={group.section} className="rounded-xl border border-gray-200/80 overflow-hidden shadow-2xs bg-white">
+                    {/* Cabeçalho de Seção (Estilo Forms Section Header) */}
+                    <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-gray-900 to-slate-900 text-white border-b border-gray-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 bg-[#E2661D] text-white rounded-lg shadow-2xs">
+                            <Layers className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-orange-300">
+                              Seção do Formulário
+                            </span>
+                            <h4 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                              {group.section}
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-gray-300 font-medium">
+                            {completedInSec} de {totalInSec} respondidas
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            secPct === 100 ? 'bg-emerald-500 text-white' : 'bg-[#E2661D] text-white'
+                          }`}>
+                            {secPct}%
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={savingChecklist}
+                            onClick={() => handleBulkSetConformity('conform', group.section)}
+                            className="h-7 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-200 hover:text-white border border-emerald-500/40 text-[11px] font-bold gap-1 transition-all"
+                            title={`Marcar todos os itens de inspeção da seção "${group.section}" como Conforme (OK)`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Seção OK
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Barra de Progresso da Seção */}
+                      <div className="mt-3 w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            secPct === 100 ? 'bg-emerald-400' : 'bg-[#E2661D]'
+                          }`}
+                          style={{ width: `${secPct}%` }}
+                        />
                       </div>
                     </div>
 
-                    {/* Avaliação Rápida (Pills de 1 Clique) & Exclusão */}
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                      <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl border border-gray-200">
-                        {['Conforme', 'Não Conforme', 'Ajustado', 'N/A'].map((pill) => {
-                          const isSelected = currentAnswer.toLowerCase() === pill.toLowerCase();
-                          let pillStyle = 'text-gray-600 hover:bg-gray-200';
-                          if (isSelected) {
-                            if (pill === 'Conforme') pillStyle = 'bg-emerald-600 text-white font-bold shadow-xs';
-                            else if (pill === 'Não Conforme') pillStyle = 'bg-red-600 text-white font-bold shadow-xs';
-                            else if (pill === 'Ajustado') pillStyle = 'bg-amber-600 text-white font-bold shadow-xs';
-                            else pillStyle = 'bg-gray-600 text-white font-bold shadow-xs';
-                          }
+                    {/* CONTEÚDO: MODO FORMULÁRIO (FORMS) */}
+                    {checklistViewMode === 'forms' ? (
+                      <div className="p-4 sm:p-5 space-y-3.5 bg-slate-50/50">
+                        {group.items.map((item: any) => {
+                          const index = item.originalIndex;
+                          const isCompleted = !!item.completed || (item.answer !== '' && item.answer !== null && item.answer !== undefined);
+                          const currentAnswer = item.answer !== null && item.answer !== undefined ? String(item.answer) : '';
+                          const fieldType = (item.type || '').toUpperCase();
+                          const options: string[] = Array.isArray(item.options) ? item.options : [];
 
                           return (
-                            <button
-                              key={pill}
-                              type="button"
-                              onClick={() => handleSetChecklistItemAnswer(index, pill)}
-                              className={`px-2.5 py-1 text-[11px] rounded-lg transition-all ${pillStyle}`}
+                            <div
+                              key={item.id ?? index}
+                              className={`p-3.5 sm:p-4 rounded-xl border transition-all ${
+                                isCompleted
+                                  ? 'bg-white border-emerald-200/90 shadow-2xs ring-1 ring-emerald-500/10'
+                                  : 'bg-white border-gray-200 shadow-2xs hover:border-gray-300'
+                              }`}
                             >
-                              {pill}
-                            </button>
+                              {/* Header da Pergunta do Form */}
+                              <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                  <span className={`px-2 py-0.5 rounded-md text-xs font-bold shrink-0 ${
+                                    isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                                  }`}>
+                                    #{index + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <h5 className="text-sm sm:text-base font-bold text-gray-900 leading-snug">
+                                      {item.label ?? item.item}
+                                      {item.required && (
+                                        <span className="text-red-500 ml-1.5 font-black" title="Obrigatório">*</span>
+                                      )}
+                                    </h5>
+                                    {item.appliesTo && item.appliesTo !== 'Todos' && (
+                                      <span className="inline-block mt-1 text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md">
+                                        Aplica-se a: {item.appliesTo}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Status e Ações */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {isCompleted ? (
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      Respondido
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] font-medium text-gray-400 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200">
+                                      Pendente
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteChecklistItem(index)}
+                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remover pergunta"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Entrada da Pergunta (Estilo Forms) */}
+                              <div className="mt-4 pt-3 border-t border-gray-100">
+                                {/* 1. SELEÇÃO ÚNICA (SINGLE_CHOICE / OPTIONS) */}
+                                {(fieldType === 'SINGLE_CHOICE' || options.length > 0) && (
+                                  options.length <= 6 ? (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                      {options.map((opt: string) => {
+                                        const isSel = currentAnswer.trim().toLowerCase() === opt.trim().toLowerCase();
+                                        return (
+                                          <div
+                                            key={opt}
+                                            onClick={() => handleSetChecklistItemAnswer(index, opt)}
+                                            className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                                              isSel
+                                                ? 'bg-orange-50/80 border-[#E2661D] text-gray-900 shadow-2xs font-bold ring-1 ring-[#E2661D]/20'
+                                                : 'bg-gray-50/50 hover:bg-gray-100/70 border-gray-200 text-gray-700'
+                                            }`}
+                                          >
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                              isSel ? 'border-[#E2661D] bg-[#E2661D]' : 'border-gray-300 bg-white'
+                                            }`}>
+                                              {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                            </div>
+                                            <span className="text-xs sm:text-sm">{opt}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <select
+                                      value={currentAnswer}
+                                      onChange={(e) => handleSetChecklistItemAnswer(index, e.target.value)}
+                                      className="w-full h-11 px-3.5 rounded-xl border border-gray-300 text-sm bg-white font-medium focus:ring-2 focus:ring-[#E2661D]"
+                                    >
+                                      <option value="">Selecione uma opção...</option>
+                                      {options.map((opt: string) => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                      ))}
+                                    </select>
+                                  )
+                                )}
+
+                                {/* 2. NÚMERO (NUMBER / COM UNIDADE) */}
+                                {fieldType === 'NUMBER' && options.length === 0 && (
+                                  <div className="max-w-md">
+                                    <div className="relative flex items-center">
+                                      <Input
+                                        type="text"
+                                        value={currentAnswer}
+                                        placeholder="Informe o valor numérico..."
+                                        onChange={(e) => handleUpdateChecklistItemField(index, e.target.value)}
+                                        onBlur={handlePersistChecklist}
+                                        className="h-11 text-base font-bold text-gray-900 bg-gray-50/50 rounded-xl border-gray-300 pr-16 focus:bg-white focus:border-[#E2661D]"
+                                      />
+                                      {item.unit && (
+                                        <span className="absolute right-3 px-2.5 py-1 rounded-lg bg-gray-200 text-gray-800 text-xs font-black">
+                                          {item.unit}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 3. CHECKLIST TRI-STATE (OK / NÃO / N/A) */}
+                                {fieldType === 'CHECKLIST_TRI_STATE' && options.length === 0 && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    {[
+                                      { label: 'OK', desc: 'Conforme', icon: CheckCircle2, activeClass: 'bg-emerald-600 text-white border-emerald-600 shadow-xs' },
+                                      { label: 'NÃO', desc: 'Não Conforme', icon: AlertCircle, activeClass: 'bg-red-600 text-white border-red-600 shadow-xs' },
+                                      { label: 'N/A', desc: 'Não se Aplica', icon: MinusCircle, activeClass: 'bg-slate-700 text-white border-slate-700 shadow-xs' },
+                                    ].map((tri) => {
+                                      const isSel = currentAnswer.toUpperCase() === tri.label;
+                                      const Icon = tri.icon;
+                                      return (
+                                        <button
+                                          key={tri.label}
+                                          type="button"
+                                          onClick={() => handleSetChecklistItemAnswer(index, tri.label)}
+                                          className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border font-bold text-xs sm:text-sm transition-all ${
+                                            isSel
+                                              ? tri.activeClass
+                                              : 'bg-gray-50/70 hover:bg-gray-100 border-gray-200 text-gray-700'
+                                          }`}
+                                        >
+                                          <Icon className={`w-4 h-4 shrink-0 ${isSel ? 'text-white' : 'text-gray-400'}`} />
+                                          <span>{tri.label}</span>
+                                          <span className={`text-[11px] font-normal ${isSel ? 'text-white/80' : 'text-gray-500'}`}>
+                                            ({tri.desc})
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* 4. BOOLEAN (SIM / NÃO) */}
+                                {fieldType === 'BOOLEAN' && options.length === 0 && (
+                                  <div className="grid grid-cols-2 gap-3 max-w-sm">
+                                    {[
+                                      { label: 'Sim', activeClass: 'bg-emerald-600 text-white border-emerald-600 shadow-xs' },
+                                      { label: 'Não', activeClass: 'bg-red-600 text-white border-red-600 shadow-xs' },
+                                    ].map((b) => {
+                                      const isSel = currentAnswer.toLowerCase() === b.label.toLowerCase();
+                                      return (
+                                        <button
+                                          key={b.label}
+                                          type="button"
+                                          onClick={() => handleSetChecklistItemAnswer(index, b.label)}
+                                          className={`py-3 px-4 rounded-xl border font-bold text-sm transition-all flex items-center justify-center gap-2 ${
+                                            isSel ? b.activeClass : 'bg-gray-50/70 hover:bg-gray-100 border-gray-200 text-gray-700'
+                                          }`}
+                                        >
+                                          <span>{b.label}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* 5. DATA (DATE) */}
+                                {fieldType === 'DATE' && options.length === 0 && (
+                                  <div className="max-w-xs">
+                                    <Input
+                                      type="date"
+                                      value={currentAnswer}
+                                      onChange={(e) => {
+                                        handleUpdateChecklistItemField(index, e.target.value);
+                                        handleSetChecklistItemAnswer(index, e.target.value);
+                                      }}
+                                      className="h-11 text-sm bg-white rounded-xl border-gray-300"
+                                    />
+                                  </div>
+                                )}
+
+                                {/* 6. TEXTO (TEXT / ABERTO) */}
+                                {(fieldType === 'TEXT' || (!fieldType && !item.unit && options.length === 0)) && (
+                                  <div>
+                                    <Input
+                                      type="text"
+                                      value={currentAnswer}
+                                      placeholder="Sua resposta ou observação técnica..."
+                                      onChange={(e) => handleUpdateChecklistItemField(index, e.target.value)}
+                                      onBlur={handlePersistChecklist}
+                                      className="h-11 text-sm bg-gray-50/50 rounded-xl border-gray-300 focus:bg-white focus:border-[#E2661D]"
+                                    />
+                                  </div>
+                                )}
+
+                                {/* 7. FALLBACK PADRÃO */}
+                                {!fieldType && options.length === 0 && !item.unit && (
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {['Conforme', 'Não Conforme', 'Ajustado', 'N/A'].map((pill) => {
+                                      const isSelected = currentAnswer.toLowerCase() === pill.toLowerCase();
+                                      let pillStyle = 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700';
+                                      if (isSelected) {
+                                        if (pill === 'Conforme') pillStyle = 'bg-emerald-600 text-white font-bold border-emerald-600 shadow-xs';
+                                        else if (pill === 'Não Conforme') pillStyle = 'bg-red-600 text-white font-bold border-red-600 shadow-xs';
+                                        else if (pill === 'Ajustado') pillStyle = 'bg-amber-600 text-white font-bold border-amber-600 shadow-xs';
+                                        else pillStyle = 'bg-gray-600 text-white font-bold border-gray-600 shadow-xs';
+                                      }
+                                      return (
+                                        <button
+                                          key={pill}
+                                          type="button"
+                                          onClick={() => handleSetChecklistItemAnswer(index, pill)}
+                                          className={`py-2.5 px-3 rounded-xl border text-xs transition-all ${pillStyle}`}
+                                        >
+                                          {pill}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
+                    ) : (
+                      /* CONTEÚDO: MODO COMPACTO (TABELA/LINHAS) */
+                      <div className="divide-y divide-gray-100">
+                        {group.items.map((item: any) => {
+                          const index = item.originalIndex;
+                          const isCompleted = !!item.completed || (item.answer !== '' && item.answer !== null && item.answer !== undefined);
+                          const currentAnswer = item.answer !== null && item.answer !== undefined ? String(item.answer) : '';
+                          const fieldType = (item.type || '').toUpperCase();
+                          const options: string[] = Array.isArray(item.options) ? item.options : [];
 
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteChecklistItem(index)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                        title="Remover item do checklist"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
+                          return (
+                            <div
+                              key={item.id ?? index}
+                              className={`p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-colors ${
+                                isCompleted ? 'bg-emerald-50/20' : 'hover:bg-gray-50/40'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleChecklistItem(index)}
+                                  className={`mt-0.5 p-1 rounded-lg transition-colors shrink-0 ${
+                                    isCompleted
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'bg-gray-100 text-gray-400 hover:text-gray-600 border border-gray-300'
+                                  }`}
+                                  title={isCompleted ? 'Marcar como não concluído' : 'Marcar como concluído'}
+                                >
+                                  {isCompleted ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                                </button>
+
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 uppercase tracking-wider">
+                                      #{index + 1}
+                                    </span>
+                                    {item.required && (
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
+                                        Obrigatório
+                                      </span>
+                                    )}
+                                    {item.appliesTo && item.appliesTo !== 'Todos' && (
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                        {item.appliesTo}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs font-bold text-gray-900 leading-snug">
+                                    {item.label ?? item.item}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 shrink-0 self-stretch lg:self-center justify-end">
+                                {(fieldType === 'SINGLE_CHOICE' || options.length > 0) && (
+                                  options.length <= 4 ? (
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      {options.map((opt: string) => {
+                                        const isSel = currentAnswer.trim().toLowerCase() === opt.trim().toLowerCase();
+                                        return (
+                                          <button
+                                            key={opt}
+                                            type="button"
+                                            onClick={() => handleSetChecklistItemAnswer(index, opt)}
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                                              isSel
+                                                ? 'bg-[#E2661D] text-white shadow-xs'
+                                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                                            }`}
+                                          >
+                                            {opt}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <select
+                                      value={currentAnswer}
+                                      onChange={(e) => handleSetChecklistItemAnswer(index, e.target.value)}
+                                      className="h-9 px-3 rounded-xl border border-gray-300 text-xs bg-white font-medium focus:ring-2 focus:ring-[#E2661D] max-w-[280px]"
+                                    >
+                                      <option value="">Selecione uma opção...</option>
+                                      {options.map((opt: string) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )
+                                )}
+
+                                {fieldType === 'NUMBER' && options.length === 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <Input
+                                      type="text"
+                                      value={currentAnswer}
+                                      placeholder="0"
+                                      onChange={(e) => handleUpdateChecklistItemField(index, e.target.value)}
+                                      onBlur={handlePersistChecklist}
+                                      className="h-9 w-28 text-xs font-bold bg-white text-right rounded-xl border-gray-300 focus:border-[#E2661D]"
+                                    />
+                                    {item.unit && (
+                                      <span className="text-xs font-black text-gray-700 bg-gray-100 px-2.5 py-1.5 rounded-xl border border-gray-200">
+                                        {item.unit}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {fieldType === 'CHECKLIST_TRI_STATE' && options.length === 0 && (
+                                  <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                    {[
+                                      { label: 'OK', style: 'bg-emerald-600 text-white font-black shadow-xs' },
+                                      { label: 'NÃO', style: 'bg-red-600 text-white font-black shadow-xs' },
+                                      { label: 'N/A', style: 'bg-slate-600 text-white font-black shadow-xs' },
+                                    ].map((tri) => {
+                                      const isSel = currentAnswer.toUpperCase() === tri.label;
+                                      return (
+                                        <button
+                                          key={tri.label}
+                                          type="button"
+                                          onClick={() => handleSetChecklistItemAnswer(index, tri.label)}
+                                          className={`px-3 py-1 text-xs rounded-lg transition-all font-bold ${
+                                            isSel ? tri.style : 'text-gray-600 hover:bg-gray-200'
+                                          }`}
+                                        >
+                                          {tri.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {fieldType === 'BOOLEAN' && options.length === 0 && (
+                                  <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                    {[
+                                      { label: 'Sim', style: 'bg-emerald-600 text-white font-black shadow-xs' },
+                                      { label: 'Não', style: 'bg-red-600 text-white font-black shadow-xs' },
+                                    ].map((b) => {
+                                      const isSel = currentAnswer.toLowerCase() === b.label.toLowerCase();
+                                      return (
+                                        <button
+                                          key={b.label}
+                                          type="button"
+                                          onClick={() => handleSetChecklistItemAnswer(index, b.label)}
+                                          className={`px-3 py-1 text-xs rounded-lg transition-all font-bold ${
+                                            isSel ? b.style : 'text-gray-600 hover:bg-gray-200'
+                                          }`}
+                                        >
+                                          {b.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {fieldType === 'DATE' && options.length === 0 && (
+                                  <Input
+                                    type="date"
+                                    value={currentAnswer}
+                                    onChange={(e) => {
+                                      handleUpdateChecklistItemField(index, e.target.value);
+                                      handleSetChecklistItemAnswer(index, e.target.value);
+                                    }}
+                                    className="h-9 text-xs bg-white rounded-xl border-gray-300 w-36"
+                                  />
+                                )}
+
+                                {(fieldType === 'TEXT' || (!fieldType && !item.unit && options.length === 0)) && (
+                                  <div className="flex items-center gap-1.5 flex-1 lg:flex-none">
+                                    <Input
+                                      type="text"
+                                      value={currentAnswer}
+                                      placeholder="Digite a resposta ou observação..."
+                                      onChange={(e) => handleUpdateChecklistItemField(index, e.target.value)}
+                                      onBlur={handlePersistChecklist}
+                                      className="h-9 text-xs bg-white rounded-xl border-gray-300 min-w-[200px] max-w-sm"
+                                    />
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteChecklistItem(index)}
+                                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors shrink-0"
+                                  title="Remover item do checklist"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Rodapé de Navegação de Seção (Estilo Forms Wizard) */}
+                    {selectedChecklistSection !== 'ALL' && checklistSections.length > 1 && (
+                      <div className="p-4 bg-gray-50 border-t border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                        {prevSec ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedChecklistSection(prevSec)}
+                            className="rounded-xl border-gray-300 text-xs font-bold gap-1.5"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            Seção Anterior: {prevSec}
+                          </Button>
+                        ) : (
+                          <div />
+                        )}
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={savingChecklist}
+                          onClick={() => handleBulkSetConformity('conform', group.section)}
+                          className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold gap-1.5 shadow-xs"
+                          title={`Preencher todos os itens de inspeção da seção "${group.section}" com OK`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Concluir Seção como OK
+                        </Button>
+
+                        {nextSec ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setSelectedChecklistSection(nextSec)}
+                            className="rounded-xl bg-[#E2661D] hover:bg-[#d05a18] text-white text-xs font-bold gap-1.5 shadow-xs"
+                          >
+                            Próxima Seção: {nextSec}
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setSelectedChecklistSection('ALL')}
+                            className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold gap-1.5 shadow-xs"
+                          >
+                            Ver Todas as Seções
+                            <Check className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </Card>
                 );
               })}
             </div>
           ) : (
-            <Card className="p-10 text-center rounded-2xl border border-dashed border-gray-300 bg-white space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#E2661D] mx-auto flex items-center justify-center">
-                <ClipboardList className="h-6 w-6" />
+            <Card className="p-6 text-center rounded-xl border border-dashed border-gray-300 bg-white space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-orange-50 text-[#E2661D] mx-auto flex items-center justify-center">
+                <ClipboardList className="h-5 w-5" />
               </div>
-              <h4 className="text-sm font-bold text-gray-800">Nenhum item no checklist ainda</h4>
+              <h4 className="text-xs sm:text-sm font-bold text-gray-800">Nenhum item no checklist ainda</h4>
               <p className="text-xs text-gray-500 max-w-md mx-auto">
                 Adicione itens técnicos acima ou carregue um modelo pré-cadastrado para iniciar a execução da ordem de serviço.
               </p>
@@ -3456,19 +4508,254 @@ export default function OrderDetailsPage() {
         </TabsContent>
 
         {/* ======================================================== */}
-        {/* ABA 4: STATUS & PRAZO - PAINEL DIRETO E PRODUTIVO        */}
+        {/* ABA 4: CRONOGRAMA & PRAZOS - PAINEL OPERACIONAL COMPLETO */}
         {/* ======================================================== */}
-        <TabsContent value="status" className="mt-4 space-y-5">
+        <TabsContent value="status" className="mt-4 space-y-4">
+          {/* CARD 0: CRONOGRAMA DE ATIVIDADES OPERACIONAIS */}
+          {(() => {
+            const scheduleTasks: any[] = Array.isArray(order.requiredResources?.schedule)
+              ? order.requiredResources.schedule
+              : [];
+            const completedCount = scheduleTasks.filter((t: any) => t.completed).length;
+            const progressPct = scheduleTasks.length > 0
+              ? Math.round((completedCount / scheduleTasks.length) * 100)
+              : 0;
+
+            return (
+              <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-lg">
+                      <CalendarDays className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                        Cronograma de Atividades Operacionais
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                          {scheduleTasks.length} {scheduleTasks.length === 1 ? 'tarefa' : 'tarefas'}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Etapas e atividades de campo executadas pelos técnicos na Ordem de Serviço
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {scheduleTasks.length === 0 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={savingTask}
+                        onClick={handleSeedDefaultSchedule}
+                        className="text-xs h-8 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#E2661D]" />
+                        Gerar Cronograma Padrão
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-600">
+                          {completedCount} de {scheduleTasks.length} concluídas ({progressPct}%)
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                            progressPct === 100
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : progressPct > 0
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          {progressPct === 100 ? "Concluído" : progressPct > 0 ? "Em Execução" : "Pendente"}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Barra de Progresso do Cronograma */}
+                {scheduleTasks.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className={`h-2.5 transition-all duration-300 rounded-full ${
+                          progressPct === 100 ? "bg-emerald-500" : "bg-[#E2661D]"
+                        }`}
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Formulário de Adição Rápida de Atividade */}
+                <form
+                  onSubmit={handleAddScheduleTask}
+                  className="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex flex-wrap items-center gap-2.5"
+                >
+                  <div className="flex-1 min-w-[200px]">
+                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">
+                      Tipo de Atividade Técnica
+                    </span>
+                    <select
+                      value={taskTypeInput}
+                      onChange={(e) => setTaskTypeInput(e.target.value)}
+                      className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-full font-medium"
+                    >
+                      <option value="Preventiva Mecânica">Preventiva Mecânica</option>
+                      <option value="Corretiva Elétrica">Corretiva Elétrica</option>
+                      <option value="Inspeção Termográfica">Inspeção Termográfica</option>
+                      <option value="Comissionamento / Start-up">Comissionamento / Start-up</option>
+                      <option value="Instalação / Cabeamento de Força">Instalação / Cabeamento de Força</option>
+                      <option value="Análise de Óleo / Coleta Laboratorial">Análise de Óleo / Coleta Laboratorial</option>
+                      <option value="Testes com Transferência e Carga Real">Testes com Transferência e Carga Real</option>
+                      <option value="Limpeza Técnica & Entrega Operacional">Limpeza Técnica & Entrega Operacional</option>
+                      <option value="Treinamento Operacional">Treinamento Operacional</option>
+                      <option value="Visita Técnica Diagnóstica">Visita Técnica Diagnóstica</option>
+                    </select>
+                  </div>
+
+                  <div className="w-36">
+                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Data Prevista</span>
+                    <Input
+                      type="date"
+                      value={taskDateInput}
+                      onChange={(e) => setTaskDateInput(e.target.value)}
+                      className="h-9 text-xs bg-white rounded-lg border-gray-200"
+                    />
+                  </div>
+
+                  <div className="w-48">
+                    <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Técnico Responsável</span>
+                    {usersCatalog.length > 0 ? (
+                      <select
+                        value={taskTechName}
+                        onChange={(e) => setTaskTechName(e.target.value)}
+                        className="h-9 px-2.5 text-xs rounded-lg border border-gray-200 bg-white outline-none w-full font-medium"
+                      >
+                        <option value="">Equipe Geral...</option>
+                        {usersCatalog.map((u) => (
+                          <option key={u.id} value={u.name}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        value={taskTechName}
+                        onChange={(e) => setTaskTechName(e.target.value)}
+                        placeholder="Nome do técnico"
+                        className="h-9 text-xs bg-white rounded-lg border-gray-200"
+                      />
+                    )}
+                  </div>
+
+                  <div className="self-end pt-3">
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={savingTask}
+                      className="h-9 px-3.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Incluir Atividade
+                    </Button>
+                  </div>
+                </form>
+
+                {/* Lista / Tabela de Atividades */}
+                {scheduleTasks.length === 0 ? (
+                  <div className="py-10 text-center border border-dashed border-gray-200 rounded-xl bg-slate-50/50">
+                    <CalendarDays className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="font-semibold text-gray-700 text-sm">Nenhuma atividade programada nesta OS</p>
+                    <p className="text-gray-400 text-xs mt-0.5">
+                      Adicione etapas no formulário acima ou clique em "Gerar Cronograma Padrão".
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-left text-xs bg-white">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-slate-50 text-slate-500">
+                          <th className="py-2.5 px-3 w-12 text-center font-semibold">Status</th>
+                          <th className="py-2.5 px-3 w-24 font-semibold">Código</th>
+                          <th className="py-2.5 px-3 font-semibold">Atividade / Etapa Técnica</th>
+                          <th className="py-2.5 px-3 w-36 font-semibold">Data Prevista</th>
+                          <th className="py-2.5 px-3 w-48 font-semibold">Técnico Responsável</th>
+                          <th className="py-2.5 px-2 w-16 text-center">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {scheduleTasks.map((t: any, i: number) => (
+                          <tr
+                            key={i}
+                            className={`transition-colors ${
+                              t.completed ? "bg-emerald-50/40 text-slate-600" : "hover:bg-slate-50/60"
+                            }`}
+                          >
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleScheduleTask(i)}
+                                title={t.completed ? "Marcar como pendente" : "Marcar como concluída"}
+                                className="p-1 rounded hover:bg-slate-100 transition-colors"
+                              >
+                                {t.completed ? (
+                                  <CheckSquare className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-slate-400 hover:text-[#E2661D]" />
+                                )}
+                              </button>
+                            </td>
+                            <td className="py-2 px-3 font-mono font-bold text-[#E2661D]">
+                              {t.code || `TSK-${String(i + 1).padStart(2, "0")}`}
+                            </td>
+                            <td className="py-2 px-3 font-medium text-slate-900">
+                              <span className={t.completed ? "line-through text-slate-400" : ""}>
+                                {t.type}
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-slate-600">
+                              {t.date ? formatDateBR(t.date) : "—"}
+                            </td>
+                            <td className="py-2 px-3 text-slate-700">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 text-[11px] font-medium">
+                                <User className="w-3 h-3 text-slate-400" />
+                                {t.collaboratorName || "Não atribuído"}
+                              </span>
+                            </td>
+                            <td className="py-2 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteScheduleTask(i)}
+                                title="Excluir atividade"
+                                className="text-gray-400 hover:text-red-500 p-1 rounded"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            );
+          })()}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* CARD 1: CONTROLE DE PRAZOS, SLA & ALOCAÇÃO */}
-            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5">
+            <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
-                    <Clock className="h-5 w-5" />
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-lg">
+                    <Clock className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-gray-900 tracking-tight">Prazos de Entrega & SLA</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Prazos de Entrega & SLA</h3>
                     <p className="text-xs text-gray-500">Defina o prazo de atendimento em 1 clique ou escolha a data</p>
                   </div>
                 </div>
@@ -3628,14 +4915,14 @@ export default function OrderDetailsPage() {
             </Card>
 
             {/* CARD 2: FLUXO DE STATUS DA OS & AÇÕES IMEDIATAS */}
-            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+            <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4 h-fit">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                    <CheckCircle className="h-5 w-5" />
+                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg">
+                    <CheckCircle className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-gray-900 tracking-tight">Fluxo de Status da OS</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Fluxo de Status da OS</h3>
                     <p className="text-xs text-gray-500">Transição direta entre etapas da ordem de serviço</p>
                   </div>
                 </div>
@@ -3748,14 +5035,14 @@ export default function OrderDetailsPage() {
         <TabsContent value="art" className="mt-4 space-y-5">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* SEÇÃO 1: MULTI-CRUD DE ART */}
-            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+            <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4 h-fit">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-xl">
-                    <ShieldCheck className="h-5 w-5" />
+                  <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg">
+                    <ShieldCheck className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-gray-900 tracking-tight">ART - Responsabilidade Técnica</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">ART - Responsabilidade Técnica</h3>
                     <p className="text-xs text-gray-500">Anotação e registro formal da equipe técnica com CREA</p>
                   </div>
                 </div>
@@ -3911,14 +5198,14 @@ export default function OrderDetailsPage() {
             </Card>
 
             {/* SEÇÃO 2: MULTI-CRUD DE VISITAS TÉCNICAS */}
-            <Card className="p-6 rounded-2xl border border-gray-200 shadow-xs bg-white space-y-5 h-fit">
+            <Card className="p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-2xs bg-white space-y-4 h-fit">
               <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-xl">
-                    <Link2 className="h-5 w-5" />
+                  <div className="p-2 bg-orange-500/10 text-[#E2661D] rounded-lg">
+                    <Link2 className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-gray-900 tracking-tight">Visitas Técnicas de Campo</h3>
+                    <h3 className="text-sm sm:text-base font-bold text-gray-900 tracking-tight">Visitas Técnicas de Campo</h3>
                     <p className="text-xs text-gray-500">Agende, vincule e gerencie vistorias presenciais</p>
                   </div>
                 </div>
@@ -3927,7 +5214,7 @@ export default function OrderDetailsPage() {
                   type="button"
                   size="sm"
                   onClick={() => setShowAddVisitModal(!showAddVisitModal)}
-                  className="rounded-xl font-bold text-xs h-9 bg-[#E2661D] hover:bg-[#d05a18] text-white gap-1.5"
+                  className="rounded-lg font-semibold text-xs h-8 bg-[#E2661D] hover:bg-[#d05a18] text-white gap-1.5"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Nova Visita
@@ -4132,13 +5419,20 @@ export default function OrderDetailsPage() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* ======================================================== */}
+        {/* ABA 6: DOCUMENTAÇÃO TÉCNICA (APR, PT, CONTRATO, LAUDOS)   */}
+        {/* ======================================================== */}
+        <TabsContent value="documentos" className="mt-4 space-y-5">
+          <OrderDocumentsTab order={order} onOrderUpdate={loadOrderData} />
+        </TabsContent>
       </Tabs>
 
       {/* ======================================================== */}
       {/* MODAL 1: CADASTRO RÁPIDO DE PEÇA NO ESTOQUE (+)          */}
       {/* ======================================================== */}
       <Dialog open={showQuickProductModal} onOpenChange={setShowQuickProductModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -4250,7 +5544,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 2: CADASTRO RÁPIDO DE SERVIÇO (+)                  */}
       {/* ======================================================== */}
       <Dialog open={showQuickServiceModal} onOpenChange={setShowQuickServiceModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -4335,7 +5629,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 3: CADASTRO RÁPIDO DE TÉCNICO / COLABORADOR (+)    */}
       {/* ======================================================== */}
       <Dialog open={showQuickUserModal} onOpenChange={setShowQuickUserModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -4422,7 +5716,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 4: EDIÇÃO DE REGISTRO DE MÃO DE OBRA               */}
       {/* ======================================================== */}
       <Dialog open={!!editingLaborLog} onOpenChange={(open) => !open && setEditingLaborLog(null)}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -4513,7 +5807,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 5: EDIÇÃO DE REGISTRO DE DESLOCAMENTO / FROTA      */}
       {/* ======================================================== */}
       <Dialog open={!!editingDispLog} onOpenChange={(open) => !open && setEditingDispLog(null)}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
@@ -4599,7 +5893,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 6: VINCULAR EQUIPAMENTO NA OS                      */}
       {/* ======================================================== */}
       <Dialog open={showLinkEquipmentModal} onOpenChange={setShowLinkEquipmentModal}>
-        <DialogContent className="max-w-lg bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-lg bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -4719,7 +6013,7 @@ export default function OrderDetailsPage() {
       {/* MODAL 7: CADASTRO RÁPIDO DE EQUIPAMENTO (+)              */}
       {/* ======================================================== */}
       <Dialog open={showQuickEquipModal} onOpenChange={setShowQuickEquipModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-xl shadow-xl p-5">
           <DialogHeader className="pb-3 border-b border-gray-100">
             <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">

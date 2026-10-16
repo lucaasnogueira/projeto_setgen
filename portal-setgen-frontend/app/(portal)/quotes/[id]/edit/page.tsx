@@ -9,7 +9,7 @@ export default function EditQuotePage() {
   const quoteId = params.id as string;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden -m-4 sm:-m-6 lg:-m-8">
+    <div className="h-full w-full flex flex-col min-h-0 bg-white">
       <QuoteMultiCrudEditor
         quoteId={quoteId}
         onClose={() => router.push('/quotes')}

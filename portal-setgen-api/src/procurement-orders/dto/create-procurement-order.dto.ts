@@ -15,6 +15,13 @@ class ProcurementOrderItemDto {
   @IsUUID()
   productId: string;
 
+  @ApiProperty({ example: 10, required: false })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  requestedQuantity?: number;
+
   @ApiProperty({ example: 10 })
   @Type(() => Number)
   @IsNumber()
@@ -43,6 +50,22 @@ export class CreateProcurementOrderDto {
   @IsDateString()
   @IsOptional()
   expectedDeliveryDate?: string;
+
+  @ApiProperty({ example: 'NF-10492', required: false })
+  @IsOptional()
+  invoiceNumber?: string;
+
+  @ApiProperty({ example: '35260810744400000165550010000104921000104920', required: false })
+  @IsOptional()
+  invoiceAccessKey?: string;
+
+  @ApiProperty({ example: 'https://...', required: false })
+  @IsOptional()
+  invoiceUrl?: string;
+
+  @ApiProperty({ example: 'Peças para atendimento de urgência', required: false })
+  @IsOptional()
+  notes?: string;
 
   @ApiProperty({ type: [ProcurementOrderItemDto] })
   @IsArray()

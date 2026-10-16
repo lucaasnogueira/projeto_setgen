@@ -1,40 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { inventoryApi } from "@/lib/api/inventory";
-import { Product, MovementType } from "@/types";
+import { Product, StockMovement, MovementType } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { useCanViewValues } from "@/lib/permissions";
 import {
   Package,
   Plus,
   AlertTriangle,
   Search,
-  ScanLine,
   CheckCircle,
-  AlertCircle,
   XCircle,
-  ArrowDownToLine,
-  PlusCircle,
-  Loader2,
+  ArrowDownRight,
+  ArrowUpRight,
+  FileSpreadsheet,
+  Download,
+  Upload,
+  RefreshCw,
+  Edit,
+  Trash2,
+  History,
+  Zap,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusCard } from "@/components/ui/status-card";
-import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
-import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { StatusCard } from "@/components/ui/status-card";
+import { Pagination, TablePagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import {
   Table,
@@ -45,407 +38,793 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { ProductFormModal } from "@/components/inventory/ProductFormModal";
+import { StockMovementModal } from "@/components/inventory/StockMovementModal";
+import {
+  exportProductsToExcel,
+  parseExcelToProducts,
+} from "@/lib/inventory-sheet";
+import { SETGEN_INITIAL_SHEET_DATA } from "@/lib/seed-inventory-data";
+import { groupSheetRowsToProducts } from "@/lib/inventory-sheet";
+import { useCanViewValues } from "@/lib/permissions";
 
 export default function InventoryPage() {
   const canViewValues = useCanViewValues();
   const [items, setItems] = useState<Product[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"estoque" | "movimentacoes">("estoque");
   const [searchTerm, setSearchTerm] = useState("");
-  const router = useRouter();
+  const [categoryFilter, setCategoryFilter] = useState("TODAS");
+  const [stockStatusFilter, setStockStatusFilter] = useState<"ALL" | "LOW" | "ZERO" | "OK">("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
 
-  // Estado do Modal de Reposição Rápida
-  const [replenishOpen, setReplenishOpen] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [replenishQty, setReplenishQty] = useState("1");
-  const [replenishCost, setReplenishCost] = useState("");
-  const [replenishReason, setReplenishReason] = useState("Reposição de Estoque / Compra Fornecedor");
-  const [submittingReplenish, setSubmittingReplenish] = useState(false);
+  const [movementsPage, setMovementsPage] = useState(1);
+  const MOVEMENTS_PER_PAGE = 15;
+  const totalMovementsPages = Math.ceil(movements.length / MOVEMENTS_PER_PAGE) || 1;
+  const paginatedMovements = useMemo(() => {
+    const start = (movementsPage - 1) * MOVEMENTS_PER_PAGE;
+    return movements.slice(start, start + MOVEMENTS_PER_PAGE);
+  }, [movements, movementsPage]);
 
-  const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
-    (id) => inventoryApi.delete(id),
-    (id) => setItems((prev) => prev.filter((i) => i.id !== id))
-  );
+  // Modais
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+
+  const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
+  const [movementDefaultProduct, setMovementDefaultProduct] = useState<Product | null>(null);
+  const [movementDefaultType, setMovementDefaultType] = useState<"ENTRY" | "EXIT">("ENTRY");
+
+  const [uploadingSheet, setUploadingSheet] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadInventory();
   }, []);
 
-  const loadInventory = () => {
-    inventoryApi
-      .getAll()
-      .then(setItems)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
-
-  const openReplenishModal = (product?: Product) => {
-    if (product) {
-      setSelectedProductId(product.id);
-      setReplenishCost(product.unitCost ? String(product.unitCost) : product.unitPrice ? String(product.unitPrice) : "");
-    } else {
-      setSelectedProductId(items[0]?.id || "");
-      setReplenishCost(items[0]?.unitCost ? String(items[0]?.unitCost) : "");
-    }
-    setReplenishQty("1");
-    setReplenishReason("Reposição de Estoque / Compra Fornecedor");
-    setReplenishOpen(true);
-  };
-
-  const handleConfirmReplenish = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProductId) {
-      toast.error("Selecione um produto para reposição.");
-      return;
-    }
-
-    const qty = Number(replenishQty.replace(",", "."));
-    if (isNaN(qty) || qty <= 0) {
-      toast.error("Informe uma quantidade válida maior que zero.");
-      return;
-    }
-
-    const cost = replenishCost ? Number(replenishCost.replace(",", ".")) : undefined;
-
-    setSubmittingReplenish(true);
+  const loadInventory = async () => {
+    setLoading(true);
     try {
-      await inventoryApi.createMovement({
-        productId: selectedProductId,
-        type: MovementType.ENTRY,
-        quantity: Math.round(qty),
-        unitCost: cost && !isNaN(cost) ? cost : undefined,
-        reason: replenishReason.trim() || "Reposição de Estoque",
-      });
-
-      // Atualiza o estoque localmente imediatamente
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === selectedProductId
-            ? { ...item, currentStock: item.currentStock + Math.round(qty) }
-            : item
-        )
-      );
-
-      const targetProduct = items.find((p) => p.id === selectedProductId);
-      toast.success(
-        `Reposição de +${Math.round(qty)} ${targetProduct?.unit || "un"} de "${targetProduct?.name}" registrada com sucesso!`
-      );
-      setReplenishOpen(false);
-    } catch (error: any) {
-      console.error("Erro ao registrar reposição:", error);
-      toast.error(error.response?.data?.message || "Erro ao registrar reposição de estoque.");
+      const [prods, movs] = await Promise.all([
+        inventoryApi.getAll(),
+        inventoryApi.getMovements().catch(() => []),
+      ]);
+      setItems(prods);
+      setMovements(movs);
+    } catch (err) {
+      console.error("Erro ao carregar dados do almoxarifado:", err);
+      toast.error("Erro ao carregar dados do almoxarifado.");
     } finally {
-      setSubmittingReplenish(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  // Categorias únicas
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach((item) => {
+      if (item.category) set.add(item.category);
+    });
+    return Array.from(set).sort();
+  }, [items]);
 
-  const itemsList = Array.isArray(items) ? items : [];
+  // Alertas e Métricas de Almoxarifado
+  const metrics = useMemo(() => {
+    let lowStockCount = 0;
+    let zeroStockCount = 0;
+    let totalStockValue = 0;
+    let totalUnits = 0;
 
-  const lowStockItems = itemsList.filter((item) => {
-    const cur = Number(item?.currentStock) || 0;
-    const min = Number(item?.minStock) || 0;
-    return min > 0 && cur <= min && cur > min / 2;
-  });
-  const criticalItems = itemsList.filter((item) => {
-    const cur = Number(item?.currentStock) || 0;
-    const min = Number(item?.minStock) || 0;
-    return (min > 0 && cur <= min / 2) || (min === 0 && cur === 0);
-  });
-  const regularItems = itemsList.filter((item) => {
-    const cur = Number(item?.currentStock) || 0;
-    const min = Number(item?.minStock) || 0;
-    return cur > min;
-  });
+    items.forEach((p) => {
+      const stock = Number(p.currentStock) || 0;
+      const min = Number(p.minStock) || 0;
+      const cost = Number(p.unitCost) || 0;
 
-  const filtered = itemsList.filter((item) => {
-    if (!item) return false;
-    const term = (searchTerm || '').toLowerCase();
-    const name = (item.name || '').toLowerCase();
-    const code = (item.code || '').toLowerCase();
-    const barcode = (item.barcode || '').toLowerCase();
-    return name.includes(term) || code.includes(term) || barcode.includes(term);
-  });
+      totalUnits += stock;
 
-  const selectedProduct = itemsList.find((i) => i?.id === selectedProductId);
+      if (stock === 0) {
+        zeroStockCount++;
+      } else if (stock <= min) {
+        lowStockCount++;
+      }
 
-  const statusOf = (item: Product) => {
-    const cur = Number(item?.currentStock) || 0;
-    const min = Number(item?.minStock) || 0;
-    if (min > 0 && cur <= min / 2) return { label: 'Crítico', cls: 'bg-red-100 text-red-700' };
-    if (min > 0 && cur <= min) return { label: 'Baixo', cls: 'bg-amber-100 text-amber-700' };
-    if (min === 0 && cur === 0) return { label: 'Sem Estoque', cls: 'bg-red-100 text-red-700' };
-    return { label: 'Normal', cls: 'bg-emerald-100 text-emerald-700' };
+      totalStockValue += stock * cost;
+    });
+
+    return {
+      totalItems: items.length,
+      totalUnits,
+      lowStockCount,
+      zeroStockCount,
+      totalStockValue,
+    };
+  }, [items]);
+
+  // Produtos Filtrados
+  const filteredProducts = useMemo(() => {
+    return items.filter((p) => {
+      // Busca
+      const search = searchTerm.toLowerCase();
+      const matchesSearch =
+        !search ||
+        p.name.toLowerCase().includes(search) ||
+        (p.code && p.code.toLowerCase().includes(search)) ||
+        (p.category && p.category.toLowerCase().includes(search));
+
+      // Categoria
+      const matchesCategory =
+        categoryFilter === "TODAS" || p.category === categoryFilter;
+
+      // Alerta de Estoque
+      const stock = Number(p.currentStock) || 0;
+      const min = Number(p.minStock) || 0;
+
+      let matchesStock = true;
+      if (stockStatusFilter === "LOW") {
+        matchesStock = stock > 0 && stock <= min;
+      } else if (stockStatusFilter === "ZERO") {
+        matchesStock = stock === 0;
+      } else if (stockStatusFilter === "OK") {
+        matchesStock = stock > min;
+      }
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [items, searchTerm, categoryFilter, stockStatusFilter]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, stockStatusFilter]);
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
+  // Ações de Modal
+  const handleOpenNewProduct = () => {
+    setProductToEdit(null);
+    setIsProductModalOpen(true);
+  };
+
+  const handleOpenEditProduct = (prod: Product) => {
+    setProductToEdit(prod);
+    setIsProductModalOpen(true);
+  };
+
+  const handleOpenMovement = (prod?: Product, type: "ENTRY" | "EXIT" = "ENTRY") => {
+    setMovementDefaultProduct(prod || null);
+    setMovementDefaultType(type);
+    setIsMovementModalOpen(true);
+  };
+
+  const handleDeleteProduct = async (id: string, name: string) => {
+    if (!confirm(`Deseja realmente excluir o produto "${name}"?`)) return;
+    try {
+      await inventoryApi.delete(id);
+      toast.success("Produto excluído com sucesso.");
+      loadInventory();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Erro ao excluir produto.");
+    }
+  };
+
+  // Exportar Excel
+  const handleExportExcel = () => {
+    if (items.length === 0) {
+      toast.error("Nenhum produto cadastrado para exportar.");
+      return;
+    }
+    exportProductsToExcel(items, `almoxarifado_setgen_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success("Planilha de estoque exportada com sucesso!");
+  };
+
+  // Subir Planilha Excel
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingSheet(true);
+    toast.info("Processando planilha de almoxarifado...");
+
+    try {
+      const groupedProducts = await parseExcelToProducts(file);
+      if (groupedProducts.length === 0) {
+        toast.error("Nenhum produto válido encontrado na planilha.");
+        return;
+      }
+
+      const res = await inventoryApi.bulkImport(groupedProducts);
+      toast.success(
+        `Importação concluída! ${res.created} criados, ${res.updated} atualizados.`
+      );
+      loadInventory();
+    } catch (err: any) {
+      console.error("Erro na importação:", err);
+      toast.error("Erro ao importar planilha. Verifique a formatação.");
+    } finally {
+      setUploadingSheet(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Carregar dados iniciais da Setgen (as centenas de itens da mensagem)
+  const handleImportInitialData = async () => {
+    if (!confirm("Deseja importar a planilha completa de materiais elétricos da Setgen?")) return;
+
+    setUploadingSheet(true);
+    toast.info("Importando catálogo completo da Setgen...");
+
+    try {
+      const grouped = groupSheetRowsToProducts(SETGEN_INITIAL_SHEET_DATA);
+      const res = await inventoryApi.bulkImport(grouped);
+      toast.success(
+        `Catálogo importado com sucesso! ${res.created} novos itens adicionados ao almoxarifado.`
+      );
+      loadInventory();
+    } catch (err: any) {
+      toast.error("Erro ao importar catálogo inicial.");
+    } finally {
+      setUploadingSheet(false);
+    }
   };
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Estoque de Peças & Geradores"
-        subtitle={`${items.length} itens cadastrados no almoxarifado`}
-        actions={
-          <div className="flex items-center gap-2.5">
-            <Button
-              type="button"
-              onClick={() => openReplenishModal()}
-              className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white shadow-xs"
-            >
-              <ArrowDownToLine className="h-4 w-4" />
-              Reposição / Entrada Rápida
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/inventory/movements/new')}
-              className="rounded-[9px] font-bold gap-2 border-gray-200"
-            >
-              <ScanLine className="h-4 w-4" />
-              Bipagem / Lote
-            </Button>
-            <Button
-              onClick={() => router.push('/inventory/new')}
-              variant="outline"
-              className="rounded-[9px] font-bold gap-2 border-gray-200"
-            >
-              <Plus className="h-4 w-4" />
-              Nova Peça
-            </Button>
-          </div>
-        }
-      />
-
-      {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatusCard label="Total de Itens" value={items.length} icon={Package} variant="orange" />
-        <StatusCard label="Saldo Regular" value={regularItems.length} icon={CheckCircle} variant="emerald" />
-        <StatusCard label="Estoque Baixo" value={lowStockItems.length} icon={AlertCircle} variant="amber" />
-        <StatusCard label="Nível Crítico" value={criticalItems.length} icon={XCircle} variant="red" />
-      </div>
-
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar por nome, código ou EAN..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-input rounded-[8px] text-[12.5px] outline-none focus:ring-1 focus:ring-primary bg-background"
-            />
+    <div className="space-y-5 max-w-[1400px] mx-auto pb-12">
+      {/* Header com Título e Ações Rápidas */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-2xs">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+              <Package className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">
+                Almoxarifado & Catálogo de Materiais
+              </h1>
+              <p className="text-xs text-gray-500">
+                Gestão fidedigna de peças, cotações de fornecedores, entradas, saídas e reposição.
+              </p>
+            </div>
           </div>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-t-0 hover:bg-transparent">
-              <TableHead>Peça / Item</TableHead>
-              <TableHead>Código</TableHead>
-              <TableHead>Local</TableHead>
-              <TableHead className="text-center">Qtd.</TableHead>
-              <TableHead className="text-center">Mínimo</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Valor Un.</TableHead>
-              <TableHead className="w-[120px] text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableEmpty colSpan={canViewValues ? 8 : 7} icon={Package} message="Nenhum produto cadastrado" />
-            ) : (
-              filtered.map((item) => {
-                const status = statusOf(item);
-                return (
-                  <TableRow key={item.id} className="cursor-pointer" onClick={() => router.push(`/inventory/${item.id}`)}>
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-[34px] h-[34px] rounded-[9px] bg-muted/60 flex items-center justify-center shrink-0">
-                          <Package className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <div className="text-[13px] font-bold text-foreground">{item.name}</div>
-                          {item.description && <div className="text-[11.5px] text-muted-foreground truncate max-w-xs">{item.description}</div>}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-[12.5px] font-mono text-muted-foreground">{item.code}</TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground">
-                      {item.location?.code || <span className="italic text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell className="text-center text-[12.5px] font-bold text-foreground">
-                      {item.currentStock} {item.unit}
-                    </TableCell>
-                    <TableCell className="text-center text-[12.5px] text-muted-foreground">
-                      {item.minStock} {item.unit}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${status.cls}`}>
-                        {status.label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right text-[12.5px] font-bold text-foreground">
-                      {item.unitPrice ? formatCurrency(Number(item.unitPrice)) : item.salePrice ? formatCurrency(Number(item.salePrice)) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openReplenishModal(item)}
-                          className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors"
-                          title="Dar Entrada / Repor Estoque em 1 Clique"
-                        >
-                          <PlusCircle className="h-4 w-4" />
-                        </button>
-                        <InlineDeleteAction
-                          confirming={confirmId === item.id}
-                          deleting={deleting}
-                          onRequestDelete={() => requestDelete(item.id)}
-                          onCancelDelete={cancelDelete}
-                          onConfirmDelete={() => confirmDelete(item.id)}
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
 
-      {/* MODAL DE REPOSIÇÃO RÁPIDA / ENTRADA DE ESTOQUE */}
-      <Dialog open={replenishOpen} onOpenChange={setReplenishOpen}>
-        <DialogContent className="sm:max-w-[480px] p-6 rounded-2xl">
-          <DialogHeader>
-            <div className="flex items-center gap-2.5 mb-1">
-              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-                <ArrowDownToLine className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-base font-black text-gray-900">
-                  Reposição / Entrada de Estoque
-                </DialogTitle>
-                <DialogDescription className="text-xs text-gray-500">
-                  Lance reposição ou chegada de peças direto no estoque sem sair da tela.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
+        {/* Botões de Ação */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Importar arquivo */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx, .xls, .csv, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleUploadClick}
+            disabled={uploadingSheet}
+            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
+            title="Importar planilha de produtos (.xlsx, .csv)"
+          >
+            <Upload className="w-3.5 h-3.5 text-blue-600" />
+            {uploadingSheet ? "Importando..." : "Importar arquivo"}
+          </Button>
 
-          <form onSubmit={handleConfirmReplenish} className="space-y-4 pt-2">
-            <div>
-              <Label className="text-xs font-bold text-gray-700 mb-1 block">Peça / Produto *</Label>
-              <select
-                value={selectedProductId}
-                onChange={(e) => {
-                  setSelectedProductId(e.target.value);
-                  const p = items.find((i) => i.id === e.target.value);
-                  if (p) {
-                    setReplenishCost(p.unitCost ? String(p.unitCost) : p.unitPrice ? String(p.unitPrice) : "");
-                  }
-                }}
-                className="w-full h-10 px-3 text-xs rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]"
-              >
-                {items.map((prod) => (
-                  <option key={prod.id} value={prod.id}>
-                    {prod.name} ({prod.code}) — Atual: {prod.currentStock} {prod.unit}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Exportar arquivo */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportExcel}
+            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
+            title="Exportar planilha do estoque atual (.xlsx)"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-600" />
+            Exportar arquivo
+          </Button>
 
-            {selectedProduct && (
-              <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-200/80 flex items-center justify-between text-xs">
-                <div>
-                  <span className="font-bold text-gray-800">Saldo Atual:</span>{" "}
-                  <span className="font-black text-[#E2661D]">{selectedProduct.currentStock} {selectedProduct.unit}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-gray-800">Mínimo:</span>{" "}
-                  <span className="text-gray-600">{selectedProduct.minStock} {selectedProduct.unit}</span>
-                </div>
-                <div>
-                  <span className="font-bold text-gray-800">Local:</span>{" "}
-                  <span className="text-gray-600">{selectedProduct.location?.code || "Galpão Principal"}</span>
-                </div>
-              </div>
-            )}
+          {/* Entrada de Material */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenMovement(undefined, "ENTRY")}
+            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            <ArrowDownRight className="w-3.5 h-3.5 text-emerald-600" />
+            + Entrada
+          </Button>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-bold text-gray-700 mb-1 block">
-                  Qtd. Reposta * ({selectedProduct?.unit || "un"})
-                </Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  required
-                  value={replenishQty}
-                  onChange={(e) => setReplenishQty(e.target.value)}
-                  placeholder="Ex: 10"
-                  className="h-10 text-xs rounded-xl"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-gray-700 mb-1 block">
-                  Custo Un. (R$) - Opcional
-                </Label>
-                <Input
-                  type="text"
-                  value={replenishCost}
-                  onChange={(e) => setReplenishCost(e.target.value)}
-                  placeholder="Ex: 85.00"
-                  className="h-10 text-xs rounded-xl"
-                />
-              </div>
-            </div>
+          {/* Saída de Material */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleOpenMovement(undefined, "EXIT")}
+            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-red-300 text-red-700 hover:bg-red-50"
+          >
+            <ArrowUpRight className="w-3.5 h-3.5 text-red-600" />
+            - Saída
+          </Button>
 
-            <div>
-              <Label className="text-xs font-bold text-gray-700 mb-1 block">
-                Motivo / Nota Fiscal / Observação
-              </Label>
+          {/* Novo Produto */}
+          <Button
+            size="sm"
+            onClick={handleOpenNewProduct}
+            className="text-xs font-semibold gap-1.5 h-9 rounded-lg bg-[#0A58CA] hover:bg-[#084298] text-white shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            Novo produto
+          </Button>
+
+          {items.length === 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleImportInitialData}
+              disabled={uploadingSheet}
+              className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-orange-300 text-orange-700 hover:bg-orange-50"
+            >
+              <Zap className="w-3.5 h-3.5 text-orange-600" />
+              Carregar Dados da Planilha Setgen
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Cards de Resumo & Alertas com StatusCard Padrão Setgen */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-3.5">
+        <StatusCard
+          label="Total de Itens"
+          value={metrics.totalItems}
+          description="Cadastrados no catálogo"
+          icon={Package}
+          variant="blue"
+          onClick={() => setStockStatusFilter("ALL")}
+          className={`cursor-pointer transition-all ${
+            stockStatusFilter === "ALL"
+              ? "ring-2 ring-blue-500 border-blue-500/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label="Estoque Baixo"
+          value={metrics.lowStockCount}
+          description="Abaixo do estoque mínimo"
+          icon={AlertTriangle}
+          variant="amber"
+          onClick={() => setStockStatusFilter("LOW")}
+          className={`cursor-pointer transition-all ${
+            stockStatusFilter === "LOW"
+              ? "ring-2 ring-amber-500 border-amber-500/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label="Estoque Zerado"
+          value={metrics.zeroStockCount}
+          description="Sem saldo em depósito"
+          icon={XCircle}
+          variant="red"
+          onClick={() => setStockStatusFilter("ZERO")}
+          className={`cursor-pointer transition-all ${
+            stockStatusFilter === "ZERO"
+              ? "ring-2 ring-red-500 border-red-500/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label={canViewValues ? "Valor em Estoque" : "Saldo de Unidades"}
+          value={canViewValues ? formatCurrency(metrics.totalStockValue) : `${metrics.totalUnits} un`}
+          description={canViewValues ? "Custo total armazenado" : "Volume físico total em almoxarifado"}
+          icon={CheckCircle}
+          variant="emerald"
+        />
+      </div>
+
+      {/* Abas: Catálogo / Movimentações */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setActiveTab("estoque")}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "estoque"
+              ? "bg-gray-900 text-white shadow-2xs"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <Package className="w-3.5 h-3.5" />
+          Catálogo & Estoque Atual ({filteredProducts.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab("movimentacoes")}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "movimentacoes"
+              ? "bg-gray-900 text-white shadow-2xs"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <History className="w-3.5 h-3.5" />
+          Histórico de Entradas e Saídas ({movements.length})
+        </button>
+      </div>
+
+      {/* ABA 1: CATÁLOGO & ESTOQUE */}
+      {activeTab === "estoque" && (
+        <Card className="p-4 bg-white border border-gray-200 shadow-2xs space-y-4">
+          {/* Barra de Filtros */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                type="text"
-                value={replenishReason}
-                onChange={(e) => setReplenishReason(e.target.value)}
-                placeholder="Ex: NF 1234 - Fornecedor Cummins"
-                className="h-10 text-xs rounded-xl"
+                placeholder="Buscar por nome, código, categoria..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 text-xs border-gray-200"
               />
             </div>
 
-            <DialogFooter className="pt-2 flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setReplenishOpen(false)}
-                className="rounded-xl h-10 text-xs font-bold"
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Filtro de Categoria */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="h-9 px-3 text-xs bg-white border border-gray-200 rounded-lg text-gray-700 focus:outline-hidden"
               >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={submittingReplenish}
-                className="rounded-xl h-10 text-xs font-bold bg-[#E2661D] hover:bg-[#c95716] text-white gap-2"
-              >
-                {submittingReplenish ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Registrando...
-                  </>
+                <option value="TODAS">Todas as Categorias</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              {/* Botão Reset Filtros */}
+              {(searchTerm || categoryFilter !== "TODAS" || stockStatusFilter !== "ALL") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCategoryFilter("TODAS");
+                    setStockStatusFilter("ALL");
+                  }}
+                  className="text-xs h-9 text-gray-500 hover:text-gray-900"
+                >
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Tabela de Produtos */}
+          <div className="border border-gray-200 rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                  <TableHead className="w-16 text-[10px] uppercase font-bold text-gray-500">
+                    ID / Cód
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                    Produto / Descrição
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                    Categoria
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                    Unidade
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500 text-center">
+                    Estoque Atual
+                  </TableHead>
+                  {canViewValues && (
+                    <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                      Fornecedor / Custo (R$)
+                    </TableHead>
+                  )}
+                  {canViewValues && (
+                    <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                      Preço Venda (R$)
+                    </TableHead>
+                  )}
+                  <TableHead className="w-28 text-[10px] uppercase font-bold text-gray-500 text-right">
+                    Ações
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={canViewValues ? 8 : 6} className="text-center py-8 text-gray-400 text-xs">
+                      Carregando produtos do almoxarifado...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredProducts.length === 0 ? (
+                  <TableEmpty
+                    colSpan={canViewValues ? 8 : 6}
+                    message="Nenhum material encontrado com os filtros aplicados."
+                  />
                 ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4" /> Confirmar Entrada
-                  </>
+                  paginatedProducts.map((p) => {
+                    const stock = Number(p.currentStock) || 0;
+                    const min = Number(p.minStock) || 0;
+                    const cost = Number(p.unitCost) || 0;
+                    const sale = Number(p.salePrice) || 0;
+
+                    // Status Badge
+                    let stockBadge = (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {stock} {p.unit}
+                      </span>
+                    );
+
+                    if (stock === 0) {
+                      stockBadge = (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          Zerado (0 {p.unit})
+                        </span>
+                      );
+                    } else if (stock <= min) {
+                      stockBadge = (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Baixo ({stock}/{min} {p.unit})
+                        </span>
+                      );
+                    }
+
+                    // Fornecedor Ativo
+                    const usedQuote = Array.isArray(p.supplierQuotations)
+                      ? p.supplierQuotations.find((q) => q.isUsed) || p.supplierQuotations[0]
+                      : null;
+
+                    return (
+                      <TableRow key={p.id} className="hover:bg-gray-50/50 text-xs">
+                        <TableCell className="font-mono font-bold text-gray-900 text-xs">
+                          {p.code || (p.sheetId ? `#${p.sheetId}` : "—")}
+                        </TableCell>
+                        <TableCell className="font-semibold text-gray-900 max-w-xs">
+                          <div className="truncate" title={p.name}>
+                            {p.name}
+                          </div>
+                          {p.notes && (
+                            <span className="text-[10px] text-gray-400 block truncate italic">
+                              {p.notes}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-gray-600">
+                          {p.category || "—"}
+                        </TableCell>
+                        <TableCell className="text-gray-600 uppercase font-mono">
+                          {p.unit}
+                        </TableCell>
+                        <TableCell className="text-center">{stockBadge}</TableCell>
+                        {canViewValues && (
+                          <TableCell className="text-gray-700">
+                            <span className="font-semibold">{formatCurrency(cost)}</span>
+                            {usedQuote && (
+                              <span className="text-[10px] text-gray-400 block truncate">
+                                {usedQuote.supplier}
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                        {canViewValues && (
+                          <TableCell className="text-emerald-700 font-bold">
+                            {formatCurrency(sale)}
+                            {p.fixedSalePrice ? (
+                              <span className="text-[9px] text-gray-400 block font-normal">
+                                fixa
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-gray-400 block font-normal">
+                                +{p.marginPercent ?? 30}%
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Entrada Rápida */}
+                            <button
+                              onClick={() => handleOpenMovement(p, "ENTRY")}
+                              title="Registrar Entrada de Estoque"
+                              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                            >
+                              <ArrowDownRight className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Saída Rápida */}
+                            <button
+                              onClick={() => handleOpenMovement(p, "EXIT")}
+                              title="Registrar Saída de Estoque"
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Editar */}
+                            <button
+                              onClick={() => handleOpenEditProduct(p)}
+                              title="Editar Produto"
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Excluir */}
+                            <button
+                              onClick={() => handleDeleteProduct(p.id, p.name)}
+                              title="Excluir Produto"
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
+              </TableBody>
+            </Table>
+
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredProducts.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+              itemLabel="materiais"
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* ABA 2: HISTÓRICO DE MOVIMENTAÇÕES */}
+      {activeTab === "movimentacoes" && (
+        <Card className="p-4 bg-white border border-gray-200 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-gray-900">
+              Histórico de Entradas e Saídas
+            </h3>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenMovement(undefined, "ENTRY")}
+                className="text-xs h-8 gap-1 text-emerald-700 border-emerald-300"
+              >
+                <ArrowDownRight className="w-3.5 h-3.5" /> + Entrada
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenMovement(undefined, "EXIT")}
+                className="text-xs h-8 gap-1 text-red-700 border-red-300"
+              >
+                <ArrowUpRight className="w-3.5 h-3.5" /> - Saída
+              </Button>
+            </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                  <TableHead className="w-28 text-[10px] uppercase font-bold text-gray-500">
+                    Data/Hora
+                  </TableHead>
+                  <TableHead className="w-24 text-[10px] uppercase font-bold text-gray-500">
+                    Tipo
+                  </TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                    Produto
+                  </TableHead>
+                  <TableHead className="w-20 text-[10px] uppercase font-bold text-gray-500 text-center">
+                    Qtd
+                  </TableHead>
+                  {canViewValues && (
+                    <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                      Custo Unit.
+                    </TableHead>
+                  )}
+                  <TableHead className="text-[10px] uppercase font-bold text-gray-500">
+                    Motivo / Observações
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {movements.length === 0 ? (
+                  <TableEmpty
+                    colSpan={canViewValues ? 6 : 5}
+                    message="Nenhuma movimentação registrada até o momento."
+                  />
+                ) : (
+                  paginatedMovements.map((m) => {
+                    const isEntry =
+                      m.type === MovementType.ENTRY ||
+                      m.type === MovementType.ADJUSTMENT_IN;
+
+                    return (
+                      <TableRow key={m.id} className="hover:bg-gray-50/50 text-xs">
+                        <TableCell className="text-gray-500 font-mono text-[11px]">
+                          {new Date(m.createdAt).toLocaleDateString("pt-BR")}{" "}
+                          {new Date(m.createdAt).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isEntry
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-red-50 text-red-700 border border-red-200"
+                            }`}
+                          >
+                            {isEntry ? "+ Entrada" : "- Saída"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-semibold text-gray-900">
+                          {m.product?.name || "Produto"}
+                        </TableCell>
+                        <TableCell className="text-center font-bold font-mono">
+                          {m.quantity} {m.product?.unit}
+                        </TableCell>
+                        {canViewValues && (
+                          <TableCell className="text-gray-700">
+                            {m.unitCost ? formatCurrency(Number(m.unitCost)) : "—"}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-gray-600 italic">
+                          {m.reason || "Sem observações"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+
+            <TablePagination
+              currentPage={movementsPage}
+              totalPages={totalMovementsPages}
+              totalItems={movements.length}
+              itemsPerPage={MOVEMENTS_PER_PAGE}
+              onPageChange={setMovementsPage}
+              itemLabel="movimentações"
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* Modal Fidedigno de Cadastro e Edição de Produto */}
+      <ProductFormModal
+        isOpen={isProductModalOpen}
+        onClose={() => setIsProductModalOpen(false)}
+        onSuccess={loadInventory}
+        productToEdit={productToEdit}
+      />
+
+      {/* Modal de Entrada e Saída de Material */}
+      <StockMovementModal
+        isOpen={isMovementModalOpen}
+        onClose={() => setIsMovementModalOpen(false)}
+        onSuccess={loadInventory}
+        products={items}
+        defaultProduct={movementDefaultProduct}
+        defaultType={movementDefaultType}
+      />
     </div>
   );
 }

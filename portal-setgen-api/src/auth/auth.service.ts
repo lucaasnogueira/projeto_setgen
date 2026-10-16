@@ -40,8 +40,12 @@ export class AuthService {
 
     const fullUser = await this.usersService.findOne(user.id);
     const rawPerms = [
-      ...(fullUser.roleRef?.permissions?.map((p: any) => p.permission.name) || []),
-      ...(fullUser.permissions?.map((p: any) => p.permission.name) || []),
+      ...(fullUser.roleRef?.permissions
+        ?.map((p: any) => p.permission?.name)
+        ?.filter(Boolean) || []),
+      ...(fullUser.permissions
+        ?.map((p: any) => p.permission?.name)
+        ?.filter(Boolean) || []),
     ];
     const permissions = expandImpliedPermissions(rawPerms);
 

@@ -9,7 +9,7 @@ export default function EditClientPage() {
   const clientId = params.id as string;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden -mx-8 -mt-7 -mb-12">
+    <div className="h-full w-full flex flex-col min-h-0 bg-white">
       <ClientMultiCrudEditor
         clientId={clientId}
         onClose={() => router.push('/clients')}

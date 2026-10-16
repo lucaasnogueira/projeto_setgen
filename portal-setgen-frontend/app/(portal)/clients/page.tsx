@@ -1,16 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { clientsApi } from "@/lib/api/clients";
 import { Client, ClientStatus, UserRole } from "@/types";
 import { useAuthStore } from "@/store/auth";
-import { getInitials, getAvatarColor, formatDate, formatCNPJ, formatCPF } from "@/lib/utils";
-import { Plus, Search, Users, UserCheck, UserX, Building2 } from "lucide-react";
+import { normalizeRoleKey } from "@/lib/permissions";
+import {
+  getInitials,
+  getAvatarColor,
+  formatDate,
+  formatCNPJ,
+  formatCPF,
+  formatPhone,
+} from "@/lib/utils";
+import {
+  Plus,
+  Search,
+  Users,
+  UserCheck,
+  UserX,
+  Building2,
+  X,
+  RefreshCw,
+  Mail,
+  Phone,
+} from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusCard } from "@/components/ui/status-card";
+import { TablePagination } from "@/components/ui/pagination";
 import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
 import {
   Table,
@@ -22,18 +42,31 @@ import {
   TableEmpty,
 } from "@/components/ui/table";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const router = useRouter();
   const { user } = useAuthStore();
-  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER || user?.role === UserRole.ADMINISTRATIVE;
-  const canDelete = user?.role === UserRole.ADMIN;
 
-  useEffect(() => { loadClients(); }, []);
+  const roleKey = normalizeRoleKey(user?.role, user?.roleName || user?.roleRef?.name);
+  const canEdit = !user || roleKey === "ADMIN" || roleKey === "MANAGER" || roleKey === "ADMINISTRATIVO_COMPRAS";
+  const canDelete = !user || roleKey === "ADMIN";
+
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   const loadClients = async () => {
     try {
@@ -46,24 +79,39 @@ export default function ClientsPage() {
     }
   };
 
-  const filteredClients = clients.filter((client) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      client.companyName?.toLowerCase().includes(term) ||
-      client.tradeName?.toLowerCase().includes(term) ||
-      client.cnpjCpf?.toLowerCase().includes(term)
-    );
-  });
+  const filteredClients = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    return clients.filter((client) => {
+      const matchesSearch =
+        !term ||
+        client.companyName?.toLowerCase().includes(term) ||
+        client.tradeName?.toLowerCase().includes(term) ||
+        client.cnpjCpf?.toLowerCase().includes(term) ||
+        client.email?.toLowerCase().includes(term) ||
+        client.phone?.includes(term);
 
-  const totalAtivos = clients.filter(c => c.status === ClientStatus.ACTIVE).length;
-  const totalInativos = clients.filter(c => c.status === ClientStatus.INACTIVE).length;
-  const totalInadimplentes = clients.filter(c => c.status === ClientStatus.DEFAULTER).length;
+      const matchesStatus =
+        statusFilter === "ALL" || client.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [clients, searchTerm, statusFilter]);
+
+  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || 1;
+  const paginatedClients = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredClients.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredClients, currentPage]);
+
+  const totalAtivos = clients.filter((c) => c.status === ClientStatus.ACTIVE).length;
+  const totalInativos = clients.filter((c) => c.status === ClientStatus.INACTIVE).length;
+  const totalInadimplentes = clients.filter((c) => c.status === ClientStatus.DEFAULTER).length;
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
       await clientsApi.delete(id);
-      setClients(prev => prev.filter(c => c.id !== id));
+      setClients((prev) => prev.filter((c) => c.id !== id));
     } catch (error) {
       console.error("Erro ao excluir cliente:", error);
     } finally {
@@ -81,123 +129,294 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Clientes"
-        subtitle={`${filteredClients.length} clientes cadastrados`}
+        subtitle={`${filteredClients.length} ${filteredClients.length === 1 ? 'cliente encontrado' : 'clientes cadastrados'}`}
         actions={
-          <Button
-            onClick={() => router.push("/clients/new")}
-            className="rounded-[9px] font-bold gap-2 bg-primary hover:bg-primary/90 text-white"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Cliente
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadClients}
+              disabled={loading}
+              className="h-9 px-3 text-xs gap-1.5 rounded-[9px] border-border text-slate-600 hover:text-slate-900 bg-white"
+              title="Atualizar lista de clientes"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Atualizar</span>
+            </Button>
+            <Button
+              onClick={() => router.push("/clients/new")}
+              className="h-9 rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white shadow-xs text-xs px-3.5"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Cliente
+            </Button>
+          </div>
         }
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatusCard label="Total de Clientes" value={clients.length} icon={Building2} variant="orange" />
-        <StatusCard label="Ativos" value={totalAtivos} icon={UserCheck} variant="emerald" />
-        <StatusCard label="Inativos" value={totalInativos} icon={Users} variant="slate" />
-        <StatusCard label="Inadimplentes" value={totalInadimplentes} icon={UserX} variant="red" />
+      {/* KPI Cards interativos */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <StatusCard
+          label="Total de Clientes"
+          value={clients.length}
+          icon={Building2}
+          variant="orange"
+          onClick={() => setStatusFilter("ALL")}
+          className={`cursor-pointer transition-all ${
+            statusFilter === "ALL"
+              ? "ring-2 ring-[#E2661D] border-[#E2661D]/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label="Ativos"
+          value={totalAtivos}
+          icon={UserCheck}
+          variant="emerald"
+          onClick={() =>
+            setStatusFilter(statusFilter === ClientStatus.ACTIVE ? "ALL" : ClientStatus.ACTIVE)
+          }
+          className={`cursor-pointer transition-all ${
+            statusFilter === ClientStatus.ACTIVE
+              ? "ring-2 ring-emerald-500 border-emerald-500/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label="Inativos"
+          value={totalInativos}
+          icon={Users}
+          variant="slate"
+          onClick={() =>
+            setStatusFilter(statusFilter === ClientStatus.INACTIVE ? "ALL" : ClientStatus.INACTIVE)
+          }
+          className={`cursor-pointer transition-all ${
+            statusFilter === ClientStatus.INACTIVE
+              ? "ring-2 ring-slate-400 border-slate-400/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
+        <StatusCard
+          label="Inadimplentes"
+          value={totalInadimplentes}
+          icon={UserX}
+          variant="red"
+          onClick={() =>
+            setStatusFilter(
+              statusFilter === ClientStatus.DEFAULTER ? "ALL" : ClientStatus.DEFAULTER
+            )
+          }
+          className={`cursor-pointer transition-all ${
+            statusFilter === ClientStatus.DEFAULTER
+              ? "ring-2 ring-rose-500 border-rose-500/50 shadow-xs"
+              : "hover:border-gray-300"
+          }`}
+        />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar por nome, fantasia ou CNPJ..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
-            />
+      <Card className="overflow-hidden border border-border/80 shadow-xs">
+        {/* Barra de Filtros e Busca */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 py-3 border-b border-border bg-slate-50/40">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por nome, fantasia, CNPJ..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-1.5 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] bg-white transition-all"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                  title="Limpar busca"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filtro rápido por Status com Contadores */}
+            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200/60">
+              {[
+                { id: "ALL", label: "Todos", count: clients.length },
+                { id: ClientStatus.ACTIVE, label: "Ativos", count: totalAtivos },
+                { id: ClientStatus.INACTIVE, label: "Inativos", count: totalInativos },
+                { id: ClientStatus.DEFAULTER, label: "Inadimplentes", count: totalInadimplentes },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={`px-2.5 py-1 text-[11.5px] font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                    statusFilter === tab.id
+                      ? "bg-white text-gray-900 shadow-xs"
+                      : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      statusFilter === tab.id
+                        ? "bg-gray-100 text-gray-700"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
+
+          {(searchTerm || statusFilter !== "ALL") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("ALL");
+              }}
+              className="h-7 text-xs text-muted-foreground hover:text-foreground self-start sm:self-auto"
+            >
+              Limpar filtros
+            </Button>
+          )}
         </div>
 
-        <Table>
+        {/* Tabela Otimizada - 5 Colunas Essenciais */}
+        <Table containerClassName="overflow-x-auto lg:overflow-x-visible">
           <TableHeader>
-            <TableRow className="border-t-0 hover:bg-transparent">
-              <TableHead>Cliente</TableHead>
-              <TableHead>CNPJ / CPF</TableHead>
-              <TableHead>Contato</TableHead>
-              <TableHead>Cidade / UF</TableHead>
-              <TableHead>Grupo / Segmento</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Cadastro</TableHead>
-              <TableHead className="w-[96px] text-right">Ações</TableHead>
+            <TableRow className="border-t-0 hover:bg-transparent bg-slate-50/70">
+              <TableHead className="min-w-[240px]">Cliente</TableHead>
+              <TableHead className="w-[180px] whitespace-nowrap">CNPJ / CPF</TableHead>
+              <TableHead className="min-w-[260px] whitespace-nowrap">Contato</TableHead>
+              <TableHead className="w-[130px] whitespace-nowrap text-center">Status</TableHead>
+              <TableHead className="w-[100px] whitespace-nowrap text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredClients.length === 0 ? (
-              <TableEmpty colSpan={8} message="Nenhum cliente encontrado" />
+              <TableEmpty
+                colSpan={5}
+                icon={Users}
+                message={
+                  searchTerm || statusFilter !== "ALL"
+                    ? "Nenhum cliente encontrado para os filtros selecionados"
+                    : "Nenhum cliente cadastrado no sistema"
+                }
+              />
             ) : (
-              filteredClients.map((client) => {
+              paginatedClients.map((client) => {
                 const color = getAvatarColor(client.companyName);
+                const showTradeName =
+                  client.tradeName &&
+                  client.tradeName.trim().toLowerCase() !== client.companyName.trim().toLowerCase();
+
                 return (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer"
+                    className="group cursor-pointer hover:bg-orange-50/20 transition-colors"
                     onClick={() => router.push(`/clients/${client.id}`)}
                   >
+                    {/* Cliente: Avatar + Razão Social + Nome Fantasia + Tags */}
                     <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-[34px] h-[34px] rounded-[9px] flex items-center justify-center shrink-0 font-bold text-xs ${color.bg} ${color.fg}`}>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 font-bold text-xs shadow-2xs ${color.bg} ${color.fg}`}
+                        >
                           {getInitials(client.companyName)}
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-[13px] font-bold text-foreground truncate">{client.companyName}</div>
-                          {client.tradeName && (
-                            <div className="text-[11.5px] text-muted-foreground truncate">{client.tradeName}</div>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="text-[13px] font-bold text-foreground group-hover:text-[#E2661D] transition-colors truncate"
+                            title={client.companyName}
+                          >
+                            {client.companyName}
+                          </div>
+                          {showTradeName && (
+                            <div
+                              className="text-[11.5px] text-muted-foreground truncate"
+                              title={client.tradeName}
+                            >
+                              {client.tradeName}
+                            </div>
+                          )}
+                          {(client.group || client.segment) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              {client.group && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-orange-50 text-orange-700 border border-orange-200">
+                                  {client.group.name}
+                                </span>
+                              )}
+                              {client.segment && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                  {client.segment.name}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground font-mono">
+
+                    {/* CNPJ / CPF */}
+                    <TableCell className="whitespace-nowrap font-mono text-[12px] font-medium text-slate-600">
                       {client.cnpjCpf?.length === 11
                         ? formatCPF(client.cnpjCpf)
                         : client.cnpjCpf?.length === 14
                         ? formatCNPJ(client.cnpjCpf)
                         : client.cnpjCpf || "—"}
                     </TableCell>
-                    <TableCell className="text-[12px] text-muted-foreground">
-                      <div>{client.email || "—"}</div>
-                      <div className="text-muted-foreground/70">{client.phone}</div>
+
+                    {/* Contato: Email e Telefone */}
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {client.email ? (
+                        <div
+                          className="flex items-center gap-1.5 text-foreground"
+                          title={client.email}
+                        >
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                          <span>{client.email}</span>
+                        </div>
+                      ) : null}
+                      {client.phone ? (
+                        <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] font-mono mt-0.5">
+                          <Phone className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                          <span>{formatPhone(client.phone)}</span>
+                        </div>
+                      ) : null}
+                      {!client.email && !client.phone && (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground">
-                      {client.address?.city}{client.address?.state ? `/${client.address.state}` : ""}
+
+                    {/* Status */}
+                    <TableCell className="whitespace-nowrap text-center">
+                      {client.status === ClientStatus.ACTIVE ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Ativo
+                        </span>
+                      ) : client.status === ClientStatus.DEFAULTER ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                          Inadimplente
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                          Inativo
+                        </span>
+                      )}
                     </TableCell>
-                    <TableCell className="text-[12px]">
-                      <div className="flex flex-wrap gap-1">
-                        {client.group && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-50 text-orange-700">
-                            {client.group.name}
-                          </span>
-                        )}
-                        {client.segment && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700">
-                            {client.segment.name}
-                          </span>
-                        )}
-                        {!client.group && !client.segment && <span className="text-muted-foreground">—</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                        client.status === ClientStatus.ACTIVE ? "bg-emerald-50 text-emerald-700" :
-                        client.status === ClientStatus.DEFAULTER ? "bg-red-50 text-red-700" :
-                        "bg-gray-100 text-gray-600"
-                      }`}>
-                        {client.status === ClientStatus.ACTIVE ? "Ativo"
-                          : client.status === ClientStatus.DEFAULTER ? "Inadimplente"
-                          : "Inativo"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground">{formatDate(client.createdAt)}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+
+                    {/* Ações */}
+                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <InlineDeleteAction
                         confirming={confirmingId === client.id}
                         deleting={deletingId === client.id}
@@ -214,6 +433,16 @@ export default function ClientsPage() {
             )}
           </TableBody>
         </Table>
+
+        {/* Rodapé de Paginação */}
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredClients.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="clientes"
+        />
       </Card>
     </div>
   );

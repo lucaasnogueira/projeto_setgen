@@ -59,22 +59,22 @@ export default function NewFuelRequestPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5 pb-12">
+    <div className="max-w-2xl mx-auto space-y-4 pb-8">
       <PageHeader title="Nova Requisição de Abastecimento" subtitle="Fica pendente até aprovação" />
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <Fuel className="h-5 w-5 text-blue-600" />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+              <Fuel className="h-3.5 w-3.5 text-[#E2661D]" />
               Dados do Abastecimento
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-8 space-y-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Veículo *</Label>
+          <CardContent className="p-4 sm:p-5 space-y-3.5">
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Veículo *</Label>
               <Select value={form.vehicleId} onValueChange={(val) => setForm({ ...form, vehicleId: val })}>
-                <SelectTrigger className="h-12 rounded-2xl">
+                <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200">
                   <SelectValue placeholder="Selecione o veículo..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -87,9 +87,9 @@ export default function NewFuelRequestPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">Litros *</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-xs text-gray-700">Litros *</Label>
                 <Input
                   type="number"
                   min={0.01}
@@ -97,11 +97,11 @@ export default function NewFuelRequestPage() {
                   value={form.liters}
                   onChange={(e) => setForm({ ...form, liters: e.target.value })}
                   placeholder="40"
-                  className="h-12 rounded-2xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">Preço por Litro *</Label>
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-xs text-gray-700">Preço por Litro *</Label>
                 <Input
                   type="number"
                   min={0.01}
@@ -109,33 +109,33 @@ export default function NewFuelRequestPage() {
                   value={form.unitPrice}
                   onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
                   placeholder="6,19"
-                  className="h-12 rounded-2xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">Posto</Label>
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-xs text-gray-700">Posto</Label>
                 <Input
                   value={form.fuelStation}
                   onChange={(e) => setForm({ ...form, fuelStation: e.target.value })}
                   placeholder="Posto Ipiranga - BR 101"
-                  className="h-12 rounded-2xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                 />
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">KM Atual</Label>
+              <div className="space-y-1.5">
+                <Label className="font-semibold text-xs text-gray-700">KM Atual</Label>
                 <Input
                   type="number"
                   min={0}
                   value={form.currentKm}
                   onChange={(e) => setForm({ ...form, currentKm: e.target.value })}
-                  className="h-12 rounded-2xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                 />
               </div>
             </div>
 
-            <div className="rounded-2xl bg-muted/40 p-4 flex items-center justify-between">
-              <span className="text-sm font-bold text-text-secondary">Valor total</span>
-              <span className="text-xl font-extrabold text-foreground">{formatCurrency(total)}</span>
+            <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-600">Valor total</span>
+              <span className="text-base font-extrabold text-gray-900">{formatCurrency(total)}</span>
             </div>
           </CardContent>
         </Card>

@@ -19,9 +19,11 @@ import {
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { StatusCard } from "@/components/ui/status-card";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Pagination } from '@/components/ui/pagination';
+import { TablePagination } from '@/components/ui/pagination';
 import { PaginatedResponse } from '@/types';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
@@ -104,48 +106,80 @@ export default function EmployeesPage() {
     return { label: 'Regular', color: 'bg-green-100 text-green-800', icon: UserCheck };
   };
 
+  const activeEmployeesCount = employees.filter((e) => e.status === EmployeeStatus.ACTIVE).length;
+  const regularAsoCount = employees.filter((e) => getASOStatus(e.asos?.[0]).label === 'Regular').length;
+  const pendingAsoCount = employees.length - regularAsoCount;
+
   if (loading && employees.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-12 w-12 animate-spin text-orange-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-orange-600" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
         title="Recursos Humanos"
         subtitle="Gestão de funcionários, ASOs e documentação"
         actions={
-          <Button onClick={() => router.push('/rh/employees/new')} className="rounded-[9px] font-bold gap-2">
-            <Plus className="h-4 w-4" />
+          <Button onClick={() => router.push('/rh/employees/new')} className="rounded-lg font-bold gap-1.5 h-9 text-xs bg-[#E2661D] hover:bg-[#c95716] text-white shadow-2xs">
+            <Plus className="h-3.5 w-3.5" />
             Novo Funcionário
           </Button>
         }
       />
 
+      {/* 4 StatusCards Padrão Setgen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
+        <StatusCard
+          label="Total de Colaboradores"
+          value={employees.length}
+          icon={Users}
+          variant="orange"
+        />
+        <StatusCard
+          label="Colaboradores Ativos"
+          value={activeEmployeesCount}
+          icon={UserCheck}
+          variant="emerald"
+        />
+        <StatusCard
+          label="ASO Regular"
+          value={regularAsoCount}
+          icon={UserCheck}
+          variant="blue"
+        />
+        <StatusCard
+          label="ASO Vencido / Pendente"
+          value={pendingAsoCount}
+          icon={AlertTriangle}
+          variant={pendingAsoCount > 0 ? "amber" : "slate"}
+        />
+      </div>
+
       {/* Filtros */}
-      <div className="bg-card rounded-[14px] border border-border p-5">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+      <Card className="p-3 sm:p-3.5 rounded-xl border border-gray-200/75 bg-white shadow-2xs">
+        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
           <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar por nome, CPF ou cargo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-gray-500 outline-none transition-all"
+              className="w-full pl-9 pr-3 h-9 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {(['ALL', ...Object.values(EmployeeStatus)] as const).map((status) => (
               <Button
                 key={status}
                 variant={statusFilter === status ? 'default' : 'outline'}
                 onClick={() => handleStatusFilterChange(status)}
                 size="sm"
-                className={statusFilter === status ? 'bg-gray-700' : ''}
+                className={`h-8 px-2.5 text-xs rounded-lg ${statusFilter === status ? 'bg-gray-900 text-white shadow-2xs' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
               >
                 {status === 'ALL' ? 'Todos' : 
                  status === EmployeeStatus.ACTIVE ? 'Ativos' : 
@@ -155,7 +189,7 @@ export default function EmployeesPage() {
             ))}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Lista de Funcionários */}
       <div className="bg-card rounded-[14px] border border-border overflow-hidden">
@@ -280,14 +314,17 @@ export default function EmployeesPage() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.totalPages > 1 && (
-        <div className="bg-card rounded-[14px] border border-border p-4 flex justify-center">
-          <Pagination
+      {meta && (
+        <Card className="rounded-xl border border-gray-200/80 bg-white overflow-hidden shadow-2xs">
+          <TablePagination
             currentPage={currentPage}
             totalPages={meta.totalPages}
+            totalItems={meta.total}
+            itemsPerPage={meta.limit || 12}
             onPageChange={setCurrentPage}
+            itemLabel="colaboradores"
           />
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -62,7 +62,10 @@ export class AccessControlController {
       },
     });
 
-    let rolePerms = user?.roleRef?.permissions.map((p) => p.permission.name) || [];
+    let rolePerms =
+      user?.roleRef?.permissions
+        ?.map((p) => p.permission?.name)
+        ?.filter((name): name is string => Boolean(name)) || [];
 
     if (rolePerms.length === 0 && user?.role) {
       const candidates =
@@ -82,7 +85,9 @@ export class AccessControlController {
           include: { permissions: { include: { permission: true } } },
         });
         if (fallbackRole && fallbackRole.permissions.length > 0) {
-          rolePerms = fallbackRole.permissions.map((p) => p.permission.name);
+          rolePerms = fallbackRole.permissions
+            .map((p) => p.permission?.name)
+            .filter((name): name is string => Boolean(name));
           break;
         }
       }
@@ -90,7 +95,9 @@ export class AccessControlController {
 
     const rawGranted = [
       ...rolePerms,
-      ...(user?.permissions.map((p) => p.permission.name) || []),
+      ...(user?.permissions
+        ?.map((p) => p.permission?.name)
+        ?.filter((name): name is string => Boolean(name)) || []),
     ];
     const userPermNames = new Set<string>(expandImpliedPermissions(rawGranted));
 

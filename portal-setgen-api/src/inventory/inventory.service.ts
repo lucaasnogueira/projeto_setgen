@@ -28,6 +28,7 @@ export class InventoryService {
     }
 
     const rawSalePrice = createProductDto.salePrice ?? createProductDto.unitPrice;
+    const rawFixedSalePrice = createProductDto.fixedSalePrice;
     const productData: Prisma.ProductCreateInput = {
       code: createProductDto.code,
       name: createProductDto.name,
@@ -37,6 +38,11 @@ export class InventoryService {
       currentStock: createProductDto.currentStock || 0,
       unitCost: createProductDto.unitCost,
       salePrice: rawSalePrice !== undefined && rawSalePrice !== null ? new Prisma.Decimal(rawSalePrice) : undefined,
+      marginPercent: createProductDto.marginPercent ?? 30,
+      fixedSalePrice: rawFixedSalePrice !== undefined && rawFixedSalePrice !== null ? new Prisma.Decimal(rawFixedSalePrice) : undefined,
+      supplierQuotations: createProductDto.supplierQuotations,
+      notes: createProductDto.notes,
+      sheetId: createProductDto.sheetId,
       ncm: createProductDto.ncm,
       category: createProductDto.category,
       externalCode: createProductDto.externalCode,
@@ -145,13 +151,19 @@ export class InventoryService {
       }
     }
 
-    const { unitPrice, locationId, ...rest } = updateProductDto as any;
+    const { unitPrice, locationId, fixedSalePrice, unitCost, ...rest } = updateProductDto as any;
     const rawSalePrice = updateProductDto.salePrice ?? unitPrice;
 
     const data: Prisma.ProductUpdateInput = {
       ...rest,
       ...(rawSalePrice !== undefined && {
         salePrice: rawSalePrice !== null ? new Prisma.Decimal(rawSalePrice) : null,
+      }),
+      ...(fixedSalePrice !== undefined && {
+        fixedSalePrice: fixedSalePrice !== null ? new Prisma.Decimal(fixedSalePrice) : null,
+      }),
+      ...(unitCost !== undefined && {
+        unitCost: unitCost !== null ? new Prisma.Decimal(unitCost) : null,
       }),
       ...(locationId !== undefined && {
         location: locationId ? { connect: { id: locationId } } : { disconnect: true },
@@ -162,6 +174,132 @@ export class InventoryService {
       where: { id },
       data,
     });
+  }
+
+  async bulkImportProducts(items: any[]) {
+    const results = {
+      created: 0,
+      updated: 0,
+      total: items.length,
+      errors: [] as string[],
+    };
+
+    for (const item of items) {
+      try {
+        const sheetId = item.sheetId ? Number(item.sheetId) : (item.id ? Number(item.id) : null);
+        const name = (item.name || item.product || item.produto || '').trim();
+        const code = (item.code || item.codigo || '').trim() || (sheetId ? `PRD-${sheetId}` : `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`);
+        const unit = (item.unit || item.unidade || 'un').trim();
+        const category = (item.category || item.categoria || '').trim() || null;
+        const marginPercent = item.marginPercent !== undefined && item.marginPercent !== '' ? Number(item.marginPercent) : 30;
+        const fixedSalePrice = item.fixedSalePrice !== undefined && item.fixedSalePrice !== '' && Number(item.fixedSalePrice) > 0 ? Number(item.fixedSalePrice) : null;
+        const notes = item.notes || item.observacoes || null;
+        const supplierQuotations = item.supplierQuotations || [];
+        const minStock = item.minStock !== undefined && item.minStock !== '' ? Number(item.minStock) : 0;
+        const currentStock = item.currentStock !== undefined && item.currentStock !== '' ? Number(item.currentStock) : 0;
+
+        // Calcular custo e venda de forma resiliente
+        let unitCost: number | null = null;
+        if (Array.isArray(supplierQuotations) && supplierQuotations.length > 0) {
+          const usedQuotation = supplierQuotations.find((q: any) => q.isUsed || q.useQuotation === 'x');
+          if (usedQuotation && Number(usedQuotation.costPrice) > 0) {
+            unitCost = Number(usedQuotation.costPrice);
+          } else {
+            const validCosts = supplierQuotations
+              .map((q: any) => Number(q.costPrice))
+              .filter((c: number) => !isNaN(c) && c > 0);
+            if (validCosts.length > 0) {
+              unitCost = Math.min(...validCosts);
+            }
+          }
+        }
+
+        // Se ainda não achou custo nas cotações ou foram 0, busca direto no objeto
+        if (unitCost === null || unitCost === 0) {
+          if (item.unitCost && Number(item.unitCost) > 0) {
+            unitCost = Number(item.unitCost);
+          } else if (item.costPrice && Number(item.costPrice) > 0) {
+            unitCost = Number(item.costPrice);
+          } else if (item.precoCusto && Number(item.precoCusto) > 0) {
+            unitCost = Number(item.precoCusto);
+          } else if (item.preco && Number(item.preco) > 0) {
+            unitCost = Number(item.preco);
+          } else if (item.valor && Number(item.valor) > 0) {
+            unitCost = Number(item.valor);
+          } else if (fixedSalePrice !== null && fixedSalePrice > 0) {
+            unitCost = Number((fixedSalePrice / (1 + marginPercent / 100)).toFixed(2));
+          } else if (item.salePrice && Number(item.salePrice) > 0) {
+            unitCost = Number((Number(item.salePrice) / (1 + marginPercent / 100)).toFixed(2));
+          }
+        }
+
+        let salePrice: number | null = null;
+        if (fixedSalePrice !== null && fixedSalePrice > 0) {
+          salePrice = fixedSalePrice;
+        } else if (item.salePrice && Number(item.salePrice) > 0) {
+          salePrice = Number(item.salePrice);
+        } else if (unitCost !== null && unitCost > 0) {
+          salePrice = Number((unitCost * (1 + marginPercent / 100)).toFixed(2));
+        }
+
+        // Buscar se já existe por sheetId, código ou nome
+        let existing: any = null;
+        if (sheetId) {
+          existing = await this.prisma.product.findFirst({ where: { sheetId } });
+        }
+        if (!existing && code) {
+          existing = await this.prisma.product.findUnique({ where: { code } });
+        }
+        if (!existing && name) {
+          existing = await this.prisma.product.findFirst({ where: { name } });
+        }
+
+        if (existing) {
+          await this.prisma.product.update({
+            where: { id: existing.id },
+            data: {
+              name: name || existing.name,
+              unit: unit || existing.unit,
+              category: category || existing.category,
+              marginPercent,
+              minStock: minStock > 0 ? minStock : existing.minStock,
+              currentStock: currentStock > 0 ? currentStock : existing.currentStock,
+              fixedSalePrice: fixedSalePrice !== null ? new Prisma.Decimal(fixedSalePrice) : existing.fixedSalePrice,
+              unitCost: unitCost !== null && unitCost > 0 ? new Prisma.Decimal(unitCost) : existing.unitCost,
+              salePrice: salePrice !== null && salePrice > 0 ? new Prisma.Decimal(salePrice) : existing.salePrice,
+              supplierQuotations: supplierQuotations.length > 0 ? supplierQuotations : existing.supplierQuotations,
+              notes: notes || existing.notes,
+              sheetId: sheetId ?? existing.sheetId,
+            },
+          });
+          results.updated++;
+        } else {
+          await this.prisma.product.create({
+            data: {
+              code,
+              name,
+              unit,
+              category,
+              minStock,
+              currentStock,
+              marginPercent,
+              fixedSalePrice: fixedSalePrice !== null ? new Prisma.Decimal(fixedSalePrice) : null,
+              unitCost: unitCost !== null && unitCost > 0 ? new Prisma.Decimal(unitCost) : null,
+              salePrice: salePrice !== null && salePrice > 0 ? new Prisma.Decimal(salePrice) : null,
+              supplierQuotations,
+              notes,
+              sheetId,
+              active: true,
+            },
+          });
+          results.created++;
+        }
+      } catch (err: any) {
+        results.errors.push(`Erro no item ${item.name || item.code}: ${err.message}`);
+      }
+    }
+
+    return results;
   }
 
   async removeProduct(id: string) {

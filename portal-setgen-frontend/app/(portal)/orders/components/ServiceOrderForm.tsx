@@ -22,6 +22,8 @@ import { ordersApi } from '@/lib/api/orders';
 import { cn } from '@/lib/utils';
 import { toDateInputValue, endOfBusinessDayISO } from '@/lib/date';
 import { StepRail, StepFooter, type WizardStep } from '@/components/ui/step-wizard';
+import { SERVICE_ORDER_STATUS_CONFIG } from '@/lib/status-config';
+import { useCanViewValues } from '@/lib/permissions';
 
 const SignaturePad = dynamic(
   () => import('./SignaturePad').then((m) => m.SignaturePad),
@@ -37,6 +39,10 @@ const fieldTypeLabels: Record<ChecklistFieldType, string> = {
   [ChecklistFieldType.SIGNATURE]: 'Assinatura',
   [ChecklistFieldType.BOOLEAN]: 'Sim/Não',
   [ChecklistFieldType.MULTIPLE_CHOICE]: 'Múltipla Escolha',
+  [ChecklistFieldType.CHECKLIST_TRI_STATE]: 'Checklist (OK/NÃO/N/A)',
+  [ChecklistFieldType.SINGLE_CHOICE]: 'Seleção Única',
+  [ChecklistFieldType.DATE]: 'Data',
+  [ChecklistFieldType.CALCULATED]: 'Calculado',
 };
 
 interface ServiceOrderFormProps {
@@ -57,6 +63,7 @@ export function ServiceOrderForm({
   loading,
   submitLabel
 }: ServiceOrderFormProps) {
+  const canViewValues = useCanViewValues();
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<ApiUser[]>([]);
   // Campos Decimal do Prisma chegam como string no JSON — sem o Number() a
@@ -198,45 +205,93 @@ export function ServiceOrderForm({
   };
 
   return (
-    <form onSubmit={onFormSubmit} className="space-y-6">
+    <form onSubmit={onFormSubmit} className="space-y-5">
+      {/* Topo do Formulário com Protocolo e Status */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-orange-50 text-orange-700 border border-orange-200">
+              {initialData?.orderNumber ? initialData.orderNumber : 'OS-2026-NOVA'}
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+              {initialData?.status ? (SERVICE_ORDER_STATUS_CONFIG[initialData.status]?.label ?? initialData.status) : 'Minuta / Rascunho'}
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-gray-900">
+            {initialData ? `Edição da Ordem de Serviço ${initialData.orderNumber}` : 'Abertura de O.S. Preventiva / Campo'}
+          </h3>
+          <p className="text-xs text-gray-400">
+            {quoteId ? `Vinculada ao Orçamento Comercial #${quoteId}` : 'Programação técnica, equipe e requisição de materiais'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-8 px-3 text-xs rounded-lg border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-8 px-4 text-xs rounded-lg bg-gray-900 hover:bg-black text-white font-medium shadow-2xs"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+            {submitLabel}
+          </Button>
+        </div>
+      </div>
+
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            Planejamento da Execução
+      {/* ABA 1: GERAL */}
+      <Card className={cn('border border-gray-200 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'geral' && 'hidden')}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Calendar className="h-3.5 w-3.5 text-[#E2661D]" />
+            1. Planejamento da Execução & Prazo
           </CardTitle>
-          <CardDescription>Prazo, equipe e ferramentas necessárias</CardDescription>
+          <CardDescription className="text-xs text-gray-400">
+            Defina o prazo de atendimento, ferramentas necessárias e técnicos de campo
+          </CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Prazo de Execução</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Prazo de Execução *</Label>
               <div className="relative group">
-                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
+                <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                 <Input
                   type="date"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                  className="h-9 pl-9 text-xs rounded-lg border-gray-200 bg-white focus:border-gray-900"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Ferramentas Necessárias</Label>
+            <div className="space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Ferramentas & Recursos de Campo</Label>
               <Input
                 value={team}
                 onChange={(e) => setTeam(e.target.value)}
-                placeholder="Ex: escada, multímetro, chave de torque"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                placeholder="Ex: multímetro calib., torquímetro, bomba de vácuo, EPIs NR-10"
+                className="h-9 text-xs rounded-lg border-gray-200 bg-white focus:border-gray-900"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-bold text-sm flex items-center gap-2"><UsersIcon className="h-4 w-4" />Equipe Responsável</Label>
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-xs text-gray-700 flex items-center gap-1.5">
+                <UsersIcon className="h-3.5 w-3.5 text-gray-400" />
+                Equipe Técnica Responsável
+              </Label>
+              <span className="text-[11px] text-gray-400">{responsibleIds.length} selecionado(s)</span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {users.map((u) => (
                 <button
@@ -244,30 +299,31 @@ export function ServiceOrderForm({
                   type="button"
                   onClick={() => toggleResponsible(u.id)}
                   className={cn(
-                    'px-3 py-2 rounded-xl border text-sm font-semibold transition-all',
+                    'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all flex items-center gap-1.5',
                     responsibleIds.includes(u.id)
-                      ? 'bg-blue-600 border-blue-600 text-white'
-                      : 'bg-background border-border text-muted-foreground hover:border-blue-300'
+                      ? 'bg-[#E2661D] border-[#E2661D] text-white shadow-2xs'
+                      : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400'
                   )}
                 >
-                  {u.name}
+                  <span>{u.name}</span>
+                  {responsibleIds.includes(u.id) && <span className="text-[10px] opacity-80">✓</span>}
                 </button>
               ))}
             </div>
           </div>
 
           {!initialData && (
-            <div className="space-y-2">
-              <Label className="font-bold text-sm flex items-center gap-2">
-                <ClipboardCheck className="h-4 w-4 text-blue-600" />
-                Template de Checklist
+            <div className="space-y-1.5 pt-1">
+              <Label className="font-semibold text-xs text-gray-700 flex items-center gap-1.5">
+                <ClipboardCheck className="h-3.5 w-3.5 text-[#E2661D]" />
+                Template de Checklist de Atendimento
               </Label>
               <Select value={checklistTemplateId} onValueChange={setChecklistTemplateId}>
-                <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
-                  <SelectValue placeholder="Nenhum" />
+                <SelectTrigger className="h-9 text-xs rounded-lg bg-white border-gray-200">
+                  <SelectValue placeholder="Nenhum (Checklist Padrão)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>Nenhum</SelectItem>
+                  <SelectItem value={NONE}>Nenhum (Checklist Padrão)</SelectItem>
                   {templates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
@@ -278,100 +334,108 @@ export function ServiceOrderForm({
         </CardContent>
       </Card>
 
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'materiais' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Layers className="h-5 w-5 text-blue-600" />
-            Materiais e Estoque
+      {/* ABA 2: MATERIAIS */}
+      <Card className={cn('border border-gray-200 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'materiais' && 'hidden')}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Layers className="h-3.5 w-3.5 text-[#E2661D]" />
+            2. Materiais & Requisição de Peças do Almoxarifado
           </CardTitle>
-          <CardDescription>Produtos previstos para a execução — alimenta a solicitação ao almoxarifado</CardDescription>
+          <CardDescription className="text-xs text-gray-400">
+            Insumos previstos para a execução — alimenta a solicitação automática ao almoxarifado
+          </CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 items-end bg-muted/50 p-6 rounded-2xl border border-dashed">
-            <div className="flex-1 space-y-2">
-              <Label className="font-bold text-sm">Produto</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="flex flex-col md:flex-row gap-3 items-end bg-gray-50/80 p-4 rounded-xl border border-gray-200">
+            <div className="flex-1 space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Peça / Insumo em Estoque</Label>
               <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                <SelectTrigger className="h-12 rounded-2xl bg-card">
-                  <SelectValue placeholder="Selecione um produto do estoque" />
+                <SelectTrigger className="h-9 text-xs rounded-lg bg-white border-gray-200">
+                  <SelectValue placeholder="Selecione um item do estoque Setgen..." />
                 </SelectTrigger>
                 <SelectContent>
                   {products.map(prod => (
                     <SelectItem key={prod.id} value={prod.id}>
-                      {prod.code} - {prod.name} (Qtd: {prod.currentStock})
+                      {prod.code} • {prod.name} (Disponível: {prod.currentStock})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-full md:w-32 space-y-2">
-              <Label className="font-bold text-sm">Qtd</Label>
+            <div className="w-full md:w-28 space-y-1.5">
+              <Label className="font-semibold text-xs text-gray-700">Quantidade</Label>
               <Input
                 type="number"
                 min="1"
                 value={itemQuantity}
                 onChange={(e) => setItemQuantity(e.target.value)}
-                className="h-12 rounded-2xl bg-card"
+                className="h-9 text-xs rounded-lg bg-white border-gray-200 text-center"
               />
             </div>
             <Button
               type="button"
               onClick={addItem}
-              className="h-12 bg-blue-600 hover:bg-blue-700 rounded-2xl font-bold flex items-center gap-2 px-8 transition-all active:scale-95"
+              className="h-9 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 px-4 shadow-2xs"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               Adicionar
             </Button>
           </div>
 
-          <div className="border rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full border-collapse bg-card">
-              <thead className="bg-muted/50 border-b">
+          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-2xs">
+            <table className="w-full border-collapse bg-white text-xs">
+              <thead className="bg-gray-50/70 border-b border-gray-100">
                 <tr>
-                  <th className="text-left py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Cód</th>
-                  <th className="text-left py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Produto</th>
-                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Qtd</th>
-                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">V. Unit</th>
-                  <th className="text-right py-4 px-6 text-xs font-bold text-muted-foreground uppercase">Total</th>
-                  <th className="w-16"></th>
+                  <th className="text-left py-2.5 px-4 font-semibold text-gray-500 uppercase text-[10px]">Cód SKU</th>
+                  <th className="text-left py-2.5 px-4 font-semibold text-gray-500 uppercase text-[10px]">Produto / Insumo</th>
+                  <th className="text-right py-2.5 px-4 font-semibold text-gray-500 uppercase text-[10px]">Qtd</th>
+                  {canViewValues && <th className="text-right py-2.5 px-4 font-semibold text-gray-500 uppercase text-[10px]">V. Unit</th>}
+                  {canViewValues && <th className="text-right py-2.5 px-4 font-semibold text-gray-500 uppercase text-[10px]">Total</th>}
+                  <th className="w-12 text-center"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-gray-100">
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground italic text-sm">
-                      Nenhum material adicionado ainda.
+                    <td colSpan={canViewValues ? 6 : 4} className="py-8 text-center text-gray-400 italic text-xs">
+                      Nenhum material adicionado ainda para esta ordem de serviço.
                     </td>
                   </tr>
                 ) : (
                   items.map((item, index) => (
-                    <tr key={index} className="hover:bg-muted/50 transition-colors">
-                      <td className="py-4 px-6 text-sm font-medium text-muted-foreground">{item.code}</td>
-                      <td className="py-4 px-6 text-sm font-bold">{item.name}</td>
-                      <td className="py-4 px-6 text-sm text-right font-semibold">{item.quantity}</td>
-                      <td className="py-4 px-6 text-sm text-right">
-                        {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-right text-blue-600 font-bold">
-                        {(item.quantity * item.unitPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </td>
-                      <td className="py-4 px-6 text-right">
+                    <tr key={index} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="py-2.5 px-4 font-mono font-bold text-gray-900">{item.code}</td>
+                      <td className="py-2.5 px-4 font-medium text-gray-800">{item.name}</td>
+                      <td className="py-2.5 px-4 text-right font-semibold text-gray-900">{item.quantity}</td>
+                      {canViewValues && (
+                        <td className="py-2.5 px-4 text-right text-gray-600 font-mono">
+                          {item.unitPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                      )}
+                      {canViewValues && (
+                        <td className="py-2.5 px-4 text-right font-bold text-gray-900 font-mono">
+                          {(item.quantity * item.unitPrice).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                      )}
+                      <td className="py-2.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => removeItem(item.productId)}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                          title="Remover material"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
-              {items.length > 0 && (
-                <tfoot className="bg-muted/30">
+              {items.length > 0 && canViewValues && (
+                <tfoot className="bg-gray-50/80 border-t border-gray-100">
                   <tr>
-                    <td colSpan={4} className="py-5 px-6 text-right font-bold text-muted-foreground">Total de Materiais:</td>
-                    <td className="py-5 px-6 text-right text-lg font-black text-blue-600">
+                    <td colSpan={4} className="py-3 px-4 text-right font-bold text-gray-600">Total de Materiais:</td>
+                    <td className="py-3 px-4 text-right text-sm font-bold text-gray-900 font-mono">
                       {items.reduce((acc, i) => acc + (i.quantity * i.unitPrice), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
                     <td></td>
@@ -383,20 +447,21 @@ export function ServiceOrderForm({
         </CardContent>
       </Card>
 
+      {/* ABA 3: CHECKLIST */}
       {checklistAnswers.length > 0 && (
-        <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'checklist' && 'hidden')}>
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="flex items-center gap-2 text-xl">
-              <ClipboardCheck className="h-5 w-5 text-blue-600" />
-              Checklist
+        <Card className={cn('border border-gray-200 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'checklist' && 'hidden')}>
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+              <ClipboardCheck className="h-3.5 w-3.5 text-[#E2661D]" />
+              3. Checklist Técnico de Campo
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs text-gray-400">
               {initialData?.checklistTemplate
                 ? `Template: ${initialData.checklistTemplate.name}`
                 : 'Preencha as respostas do checklist'}
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-8 space-y-4">
+          <CardContent className="p-4 sm:p-5 space-y-4">
             {checklistAnswers.map((item, index) => {
               if (!item.type) {
                 return (
@@ -414,20 +479,21 @@ export function ServiceOrderForm({
               }
 
               return (
-                <div key={item.id} className="p-5 rounded-2xl border bg-muted/50 space-y-3">
+                <div key={item.id} className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-2.5">
                   <div className="flex items-center justify-between gap-3">
-                    <Label className="font-bold text-sm">
+                    <Label className="font-bold text-xs text-gray-900">
                       {item.label}
                       {item.required && <span className="text-red-500 ml-1">*</span>}
-                      <span className="ml-2 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">
+                      <span className="ml-2 text-[10px] font-bold text-[#E2661D] bg-orange-50 px-2 py-0.5 rounded-full uppercase border border-orange-100">
                         {fieldTypeLabels[item.type]}
                       </span>
                     </Label>
-                    <label className="flex items-center gap-2 text-xs font-semibold shrink-0">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 shrink-0 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={item.completed}
                         onChange={(e) => updateAnswer(index, { completed: e.target.checked })}
+                        className="rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-3.5 h-3.5"
                       />
                       Concluído
                     </label>
@@ -437,7 +503,7 @@ export function ServiceOrderForm({
                     <Input
                       value={(item.answer as string) || ''}
                       onChange={(e) => updateAnswer(index, { answer: e.target.value })}
-                      className="h-11 rounded-xl bg-card"
+                      className="h-9 text-xs rounded-lg bg-white border-gray-200"
                     />
                   )}
 
@@ -446,7 +512,7 @@ export function ServiceOrderForm({
                       type="number"
                       value={item.answer === null ? '' : String(item.answer)}
                       onChange={(e) => updateAnswer(index, { answer: e.target.value === '' ? null : Number(e.target.value) })}
-                      className="h-11 rounded-xl bg-card"
+                      className="h-9 text-xs rounded-lg bg-white border-gray-200"
                     />
                   )}
 
@@ -455,7 +521,10 @@ export function ServiceOrderForm({
                       <Button
                         type="button"
                         variant={item.answer === true ? 'default' : 'outline'}
-                        className="rounded-xl"
+                        className={cn(
+                          "h-8 px-4 text-xs rounded-lg font-semibold",
+                          item.answer === true ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "border-gray-200 text-gray-700"
+                        )}
                         onClick={() => updateAnswer(index, { answer: true })}
                       >
                         Sim
@@ -463,7 +532,10 @@ export function ServiceOrderForm({
                       <Button
                         type="button"
                         variant={item.answer === false ? 'default' : 'outline'}
-                        className="rounded-xl"
+                        className={cn(
+                          "h-8 px-4 text-xs rounded-lg font-semibold",
+                          item.answer === false ? "bg-gray-900 hover:bg-black text-white" : "border-gray-200 text-gray-700"
+                        )}
                         onClick={() => updateAnswer(index, { answer: false })}
                       >
                         Não

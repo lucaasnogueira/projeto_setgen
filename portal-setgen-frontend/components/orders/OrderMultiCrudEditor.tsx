@@ -1,19 +1,29 @@
 "use client";
 
 // =================================================================
-// OrderMultiCrudEditor — Padrão Aurora Setgen
-// Sidebar esquerda com navegação por abas + Área central + Rodapé fixo
-// 100% tela cheia, sem steps quebrados, com rascunho
+// OrderMultiCrudEditor — Padrão Modular Setgen
+// Horizontal Stepper + Layout Espaçoso (Zero Squeeze) + Resumo em Tempo Real + Modais Centralizados
 // =================================================================
 
 import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import {
-  Wrench, Calendar, Package, ClipboardCheck, PenTool,
-  Save, Clock, Plus, Trash2, CheckCircle, AlertTriangle, Users, Loader2
+  Wrench,
+  Calendar,
+  CalendarDays,
+  Package,
+  ClipboardCheck,
+  PenTool,
+  Clock,
+  Plus,
+  Trash2,
+  Copy,
+  CheckCircle,
+  AlertTriangle,
+  Users,
+  Grid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ordersApi, CreateServiceOrderPayload } from "@/lib/api/orders";
@@ -22,15 +32,47 @@ import { Quote, QuoteStatus } from "@/types";
 import { inventoryApi } from "@/lib/api/inventory";
 import { usersApi, User } from "@/lib/api/users";
 import { checklistTemplatesApi } from "@/lib/api/checklist-templates";
-import { ServiceOrder, ServiceOrderStatus, ChecklistTemplate, Product, ChecklistFieldType } from "@/types";
+import {
+  ServiceOrder,
+  ChecklistTemplate,
+  Product,
+  ChecklistFieldType,
+  ScheduleTask,
+} from "@/types";
 import { toDateInputValue, endOfBusinessDayISO } from "@/lib/date";
+
+export const DEFAULT_TASK_TYPES = [
+  "Preventiva Mecânica",
+  "Corretiva Elétrica",
+  "Inspeção Termográfica",
+  "Comissionamento / Start-up",
+  "Instalação / Cabeamento de Força",
+  "Análise de Óleo / Coleta Laboratorial",
+  "Treinamento Operacional",
+  "Visita Técnica Diagnóstica",
+  "Testes com Carga em Vazio",
+  "Testes com Transferência em Carga Real",
+];
+
+// Componentes modulares comuns
+import {
+  HorizontalStepper,
+  StepItem,
+  WizardHeader,
+  WizardFooter,
+  SubEntityModal,
+  CreatedSubEntity,
+  MultiCrudInlineTable,
+  MultiCrudItem,
+  CatalogOption,
+  FormLiveSummary,
+  ModuleSwitcherModal,
+} from "@/components/common";
 
 const SignaturePad = dynamic(
   () => import("@/app/(portal)/orders/components/SignaturePad").then((m) => m.SignaturePad),
   { ssr: false }
 );
-
-type OrderTabKey = "planejamento" | "pecas" | "checklist" | "assinatura" | "observacoes";
 
 interface LocalChecklistItem {
   item: string;
@@ -52,30 +94,41 @@ export function OrderMultiCrudEditor({
   onClose,
   onSuccess,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<OrderTabKey>("planejamento");
+  const [currentStep, setCurrentStep] = useState(1);
 
   // === 1. Planejamento & Prazos ===
   const [deadline, setDeadline] = useState(toDateInputValue(initialData?.deadline));
   const [responsibleIds, setResponsibleIds] = useState<string[]>(initialData?.responsibleIds || []);
   const [team, setTeam] = useState<string>((initialData?.requiredResources?.team || []).join(", "));
+  const [priority, setPriority] = useState<"baixa" | "media" | "alta" | "urgente">("media");
 
-  // === 2. Peças & Itens ===
-  const [items, setItems] = useState<Array<{
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    name?: string;
-    code?: string;
-  }>>(initialData?.items?.map(i => ({
-    productId: i.productId,
-    quantity: Number(i.quantity),
-    unitPrice: Number(i.unitPrice),
-    name: i.product?.name,
-    code: i.product?.code,
-  })) || []);
+  // === Cronograma & Tarefas Operacionais ===
+  const [tasks, setTasks] = useState<ScheduleTask[]>(
+    Array.isArray(initialData?.requiredResources?.schedule)
+      ? initialData!.requiredResources.schedule
+      : []
+  );
+  const [taskPresets, setTaskPresets] = useState<string[]>(DEFAULT_TASK_TYPES);
+  const [fastTaskType, setFastTaskType] = useState<string>(DEFAULT_TASK_TYPES[0]);
+  const [fastTaskDate, setFastTaskDate] = useState<string>(
+    toDateInputValue(initialData?.deadline) || new Date().toISOString().split("T")[0]
+  );
+  const [fastTaskCollab, setFastTaskCollab] = useState<string>("");
+  const [customTaskTypeInput, setCustomTaskTypeInput] = useState<string>("");
+  const [showCustomTaskType, setShowCustomTaskType] = useState<boolean>(false);
 
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [itemQuantity, setItemQuantity] = useState("1");
+  // === 2. Peças & Itens Multi-CRUD ===
+  const [items, setItems] = useState<MultiCrudItem[]>(
+    initialData?.items?.map((i) => ({
+      id: i.productId,
+      code: i.product?.code || "SKU-AUTO",
+      name: i.product?.name || "Item do Estoque",
+      category: (i.product as any)?.category || "Material",
+      quantity: Number(i.quantity) || 1,
+      unitPrice: Number(i.unitPrice) || 0,
+      availableStock: i.product?.currentStock,
+    })) || []
+  );
 
   // === 3. Checklist ===
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialData?.checklistTemplateId || "");
@@ -86,10 +139,8 @@ export function OrderMultiCrudEditor({
     }))
   );
 
-  // === 4. Assinatura ===
+  // === 4. Assinatura & Horímetro ===
   const [signatureData, setSignatureData] = useState<string | null>(null);
-
-  // === 5. Observações & Horímetro ===
   const [notes, setNotes] = useState(
     (initialData?.requiredResources as any)?.notes || (initialData as any)?.notes || ""
   );
@@ -101,94 +152,18 @@ export function OrderMultiCrudEditor({
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>(quoteId || initialData?.quoteId || "");
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
 
-  
-  // === Modais de Cadastro Rápido (+) sem sair da tela ===
-  const [showQuickProductModal, setShowQuickProductModal] = useState(false);
-  const [quickProdName, setQuickProdName] = useState("");
-  const [quickProdCode, setQuickProdCode] = useState("");
-  const [quickProdUnit, setQuickProdUnit] = useState("UN");
-  const [quickProdCost, setQuickProdCost] = useState("");
-  const [quickProdPrice, setQuickProdPrice] = useState("");
-  const [quickProdStock, setQuickProdStock] = useState("10");
-  const [savingQuickProd, setSavingQuickProd] = useState(false);
-
-  const [showQuickUserModal, setShowQuickUserModal] = useState(false);
-  const [quickUserName, setQuickUserName] = useState("");
-  const [quickUserEmail, setQuickUserEmail] = useState("");
-  const [savingQuickUser, setSavingQuickUser] = useState(false);
-
-  const handleQuickCreateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickProdName.trim()) return;
-    setSavingQuickProd(true);
-    try {
-      const code = quickProdCode.trim() || `PEC-${Date.now().toString().slice(-4)}`;
-      const cost = Number(quickProdCost.replace(',', '.')) || 0;
-      const price = Number(quickProdPrice.replace(',', '.')) || (cost > 0 ? cost * 1.5 : 0);
-      const stock = Number(quickProdStock) || 0;
-
-      const created = await inventoryApi.create({
-        name: quickProdName.trim(),
-        code,
-        unit: quickProdUnit || "UN",
-        unitCost: cost,
-        unitPrice: price,
-        salePrice: price,
-        currentStock: stock,
-        minStock: 1,
-        active: true,
-      });
-
-      const freshProds = await inventoryApi.getAll().catch(() => []);
-      setProductsCatalog(freshProds);
-      setSelectedProductId(created.id);
-      setShowQuickProductModal(false);
-      setQuickProdName("");
-      setQuickProdCode("");
-      setQuickProdCost("");
-      setQuickProdPrice("");
-    } catch (err) {
-      console.error("Erro ao cadastrar peça rápida:", err);
-    } finally {
-      setSavingQuickProd(false);
-    }
-  };
-
-  const handleQuickCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickUserName.trim() || !quickUserEmail.trim()) return;
-    setSavingQuickUser(true);
-    try {
-      const created = await usersApi.create({
-        name: quickUserName.trim(),
-        email: quickUserEmail.trim(),
-        password: `Setgen@${Math.floor(1000 + Math.random() * 9000)}`,
-        role: "TECHNICIAN",
-      });
-
-      const freshUsers = await usersApi.getSelectable().catch(() => []);
-      setUsersList(freshUsers);
-      setResponsibleIds(prev => [...prev, created.id]);
-      setShowQuickUserModal(false);
-      setQuickUserName("");
-      setQuickUserEmail("");
-    } catch (err) {
-      console.error("Erro ao cadastrar técnico rápido:", err);
-    } finally {
-      setSavingQuickUser(false);
-    }
-  };
-
-  // === Catálogos ===
+  // Catálogos e listas auxiliares
   const [productsCatalog, setProductsCatalog] = useState<Product[]>([]);
   const [usersList, setUsersList] = useState<User[]>([]);
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
-
-  // === UI States ===
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draftNotice, setDraftNotice] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Modais centralizados
+  const [isSubEntityModalOpen, setIsSubEntityModalOpen] = useState(false);
+  const [isModuleSwitcherOpen, setIsModuleSwitcherOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -203,6 +178,9 @@ export function OrderMultiCrudEditor({
         setProductsCatalog(p);
         setUsersList(u);
         setTemplates(t);
+        if (u.length > 0 && !fastTaskCollab) {
+          setFastTaskCollab(u[0].name);
+        }
         const validQuotes = (qList || []).filter(
           (q: Quote) => q.status === QuoteStatus.ACCEPTED || q.status === QuoteStatus.APPROVED || q.id === quoteId
         );
@@ -214,7 +192,7 @@ export function OrderMultiCrudEditor({
       }
     }
     loadData();
-  }, []);
+  }, [quoteId]);
 
   // Verificar Rascunho se for criação
   useEffect(() => {
@@ -223,6 +201,54 @@ export function OrderMultiCrudEditor({
       if (saved) setDraftNotice(true);
     }
   }, [orderId]);
+
+  const handleFastAddTask = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
+    const newTask: ScheduleTask = {
+      code: nextCode,
+      type: fastTaskType,
+      date: fastTaskDate || deadline || new Date().toISOString().split("T")[0],
+      collaboratorName: fastTaskCollab || (usersList[0]?.name ?? "Equipe Técnica Setgen"),
+      completed: false,
+    };
+    setTasks((prev) => [...prev, newTask]);
+  };
+
+  const handleIncludeTask = () => {
+    const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
+    setTasks((prev) => [
+      ...prev,
+      {
+        code: nextCode,
+        type: taskPresets[0] || "Execução Técnica",
+        date: deadline || new Date().toISOString().split("T")[0],
+        collaboratorName: usersList[0]?.name ?? "Equipe Técnica Setgen",
+        completed: false,
+      },
+    ]);
+  };
+
+  const duplicateTask = (index: number) => {
+    const item = tasks[index];
+    const nextCode = `TSK-${String(tasks.length + 1).padStart(2, "0")}`;
+    setTasks((prev) => [
+      ...prev.slice(0, index + 1),
+      { ...item, code: nextCode },
+      ...prev.slice(index + 1),
+    ]);
+  };
+
+  const handleAddCustomTaskType = () => {
+    if (!customTaskTypeInput.trim()) return;
+    const val = customTaskTypeInput.trim();
+    if (!taskPresets.includes(val)) {
+      setTaskPresets((prev) => [...prev, val]);
+    }
+    setFastTaskType(val);
+    setCustomTaskTypeInput("");
+    setShowCustomTaskType(false);
+  };
 
   const restoreDraft = () => {
     try {
@@ -233,11 +259,15 @@ export function OrderMultiCrudEditor({
       if (d.responsibleIds) setResponsibleIds(d.responsibleIds);
       if (d.team) setTeam(d.team);
       if (d.items) setItems(d.items);
+      if (Array.isArray(d.tasks)) setTasks(d.tasks);
       if (d.selectedTemplateId) setSelectedTemplateId(d.selectedTemplateId);
       if (d.notes) setNotes(d.notes);
       if (d.initialHorimeter) setInitialHorimeter(d.initialHorimeter);
       if (d.finalHorimeter) setFinalHorimeter(d.finalHorimeter);
-    } catch {} finally {
+      if (d.priority) setPriority(d.priority);
+    } catch {
+      // Ignora falha de parse
+    } finally {
       setDraftNotice(false);
     }
   };
@@ -251,22 +281,30 @@ export function OrderMultiCrudEditor({
     localStorage.setItem(
       "setgen_order_draft",
       JSON.stringify({
-        deadline, responsibleIds, team, items, selectedTemplateId, notes,
-        initialHorimeter, finalHorimeter,
+        deadline,
+        responsibleIds,
+        team,
+        items,
+        tasks,
+        selectedTemplateId,
+        notes,
+        initialHorimeter,
+        finalHorimeter,
+        priority,
       })
     );
-    alert("Rascunho da Ordem de Serviço salvo!");
+    alert("Rascunho da Ordem de Serviço salvo com sucesso!");
   };
 
-  // Puxar dados do Orçamento Selecionado
-  const handleSelectQuote = async (qId: string) => {
-    setSelectedQuoteId(qId);
-    if (!qId) {
+  // Quando seleciona um orçamento
+  const handleSelectQuote = async (id: string) => {
+    setSelectedQuoteId(id);
+    if (!id) {
       setSelectedQuote(null);
       return;
     }
     try {
-      const q = await quotesApi.getById(qId);
+      const q = await quotesApi.getById(id);
       if (!q) return;
       setSelectedQuote(q);
 
@@ -279,93 +317,68 @@ export function OrderMultiCrudEditor({
         setResponsibleIds([q.createdById]);
       }
       if (q.scope) {
-        setNotes((prev: string) => prev ? `${prev}\n\nEscopo do Orçamento:\n${q.scope}` : q.scope);
+        setNotes((prev: string) => (prev ? `${prev}\n\nEscopo do Orçamento:\n${q.scope}` : q.scope));
       }
 
-      const importedItems: any[] = [];
-      if (q.itemProducts && q.itemProducts.length > 0) {
-        q.itemProducts.forEach((ip: any) => {
-          importedItems.push({
-            productId: ip.productId,
-            name: ip.product?.name,
-            code: ip.product?.code,
-            quantity: Number(ip.quantity) || 1,
-            unitPrice: Number(ip.unitPrice) || 0,
-          });
-        });
-      }
-      if (importedItems.length === 0 && q.quoteLines && q.quoteLines.length > 0) {
-        q.quoteLines.forEach((ql: any) => {
-          if (ql.type === 'MATERIAL') {
-            const matched = productsCatalog.find(
-              p => p.name.toLowerCase() === ql.description.toLowerCase() ||
-                   ql.description.toLowerCase().includes(p.name.toLowerCase())
-            ) || productsCatalog[0];
-            if (matched) {
-              importedItems.push({
-                productId: matched.id,
-                name: ql.description || matched.name,
-                code: matched.code,
-                quantity: Number(ql.quantity) || 1,
-                unitPrice: Number(ql.unitValue) || 0,
-              });
-            }
-          }
-        });
-      }
-
-      if (importedItems.length > 0) {
-        setItems(importedItems);
+      // Auto-inicia atividade técnica se a lista estiver vazia
+      if (tasks.length === 0) {
+        setTasks([
+          {
+            code: "TSK-01",
+            type: "Execução Técnica / Atendimento",
+            date: q.validUntil ? toDateInputValue(q.validUntil) : new Date().toISOString().split("T")[0],
+            collaboratorName: q.salesRep?.name || "Equipe Técnica Setgen",
+            completed: false,
+          },
+        ]);
       }
     } catch (err) {
-      console.error("Erro ao puxar dados do orçamento:", err);
+      console.error("Erro ao carregar orçamento selecionado:", err);
     }
   };
 
-  // Efeito para carregar quoteId se vier na URL ou props
-  useEffect(() => {
-    if (quoteId && productsCatalog.length > 0) {
-      handleSelectQuote(quoteId);
+  // Callback ao criar sub-entidade centralizada
+  const handleSubEntityCreated = (entity: CreatedSubEntity) => {
+    if (entity.type === "part") {
+      const newItem: MultiCrudItem = {
+        id: entity.id,
+        code: entity.code,
+        name: entity.name,
+        category: entity.category,
+        quantity: 1,
+        unitPrice: entity.unitPrice || 0,
+        availableStock: entity.stockQty,
+      };
+      setItems((prev) => [...prev, newItem]);
+
+      // Atualiza catálogo em memória
+      setProductsCatalog((prev) => [
+        ...prev,
+        {
+          id: entity.id,
+          code: entity.code,
+          name: entity.name,
+          currentStock: entity.stockQty || 0,
+          unitPrice: entity.unitPrice || 0,
+        } as any,
+      ]);
     }
-  }, [quoteId, productsCatalog]);
-
-  // Manipulação de Peças
-  const handleAddItem = () => {
-    if (!selectedProductId) return;
-    const prod = productsCatalog.find(p => p.id === selectedProductId);
-    if (!prod) return;
-
-    const qty = Number(itemQuantity) || 1;
-    const price = Number(prod.unitPrice ?? prod.unitCost ?? 0);
-
-    setItems(prev => {
-      const existing = prev.findIndex(i => i.productId === selectedProductId);
-      if (existing >= 0) {
-        const u = [...prev];
-        u[existing].quantity += qty;
-        return u;
-      }
-      return [...prev, { productId: prod.id, name: prod.name, code: prod.code, quantity: qty, unitPrice: price }];
-    });
-
-    setSelectedProductId("");
-    setItemQuantity("1");
   };
 
-  const handleRemoveItem = (index: number) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Checklist template change
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
-    const tmpl = templates.find(t => t.id === templateId);
+    const tmpl = templates.find((t) => t.id === templateId);
     if (tmpl && tmpl.fields) {
-      setChecklistItems(tmpl.fields.map(f => ({ item: f.label, completed: false })));
+      setChecklistItems(
+        tmpl.fields.map((f: any) => ({
+          item: f.label || f.name,
+          completed: false,
+        }))
+      );
     }
   };
 
-  const validate = (): boolean => {
+  const validate = () => {
     const e: Record<string, string> = {};
     if (!deadline) e.deadline = "Data limite é obrigatória";
     setErrors(e);
@@ -373,15 +386,25 @@ export function OrderMultiCrudEditor({
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    if (!validate()) {
+      setCurrentStep(1);
+      return;
+    }
     setSaving(true);
 
     try {
-      const teamArray = team.split(",").map(s => s.trim()).filter(Boolean);
+      const teamArray = team.split(",").map((s) => s.trim()).filter(Boolean);
       const payload: CreateServiceOrderPayload = {
         quoteId: selectedQuoteId || quoteId || initialData?.quoteId || "",
-        items: items.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
-        requiredResources: teamArray.length > 0 ? { team: teamArray } : undefined,
+        items: items.map((i) => ({
+          productId: i.id,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+        })),
+        requiredResources: {
+          team: teamArray,
+          schedule: tasks,
+        },
         deadline: deadline ? endOfBusinessDayISO(deadline) : undefined,
         responsibleIds: responsibleIds.length > 0 ? responsibleIds : undefined,
         checklist: checklistItems.length > 0 ? checklistItems : undefined,
@@ -391,11 +414,14 @@ export function OrderMultiCrudEditor({
       let result: ServiceOrder;
       if (orderId) {
         result = await ordersApi.update(orderId, {
-          requiredResources: teamArray.length > 0 ? { team: teamArray } : undefined,
+          requiredResources: {
+            team: teamArray,
+            schedule: tasks,
+          },
           deadline: deadline ? endOfBusinessDayISO(deadline) : undefined,
           responsibleIds: responsibleIds.length > 0 ? responsibleIds : undefined,
-          checklist: checklistItems.map(c => ({
-            id: '',
+          checklist: checklistItems.map((c) => ({
+            id: "",
             label: c.item,
             name: c.item,
             type: ChecklistFieldType.BOOLEAN,
@@ -410,7 +436,7 @@ export function OrderMultiCrudEditor({
         localStorage.removeItem("setgen_order_draft");
       }
 
-      alert(orderId ? "Ordem de Serviço atualizada!" : "Ordem de Serviço criada com sucesso!");
+      alert(orderId ? "Ordem de Serviço atualizada com sucesso!" : "Ordem de Serviço criada com sucesso!");
       onSuccess?.(result);
       onClose?.();
     } catch (err: any) {
@@ -420,660 +446,777 @@ export function OrderMultiCrudEditor({
     }
   };
 
-  const tabs: { key: OrderTabKey; icon: React.ComponentType<{ className?: string }>; label: string; count?: number }[] = [
-    { key: "planejamento", icon: Calendar, label: "Planejamento & Prazos" },
-    { key: "pecas", icon: Package, label: "Peças & Insumos", count: items.length },
-    { key: "checklist", icon: ClipboardCheck, label: "Checklist Técnico", count: checklistItems.length },
-    { key: "assinatura", icon: PenTool, label: "Assinatura do Cliente" },
-    { key: "observacoes", icon: Wrench, label: "Horímetro & Notas" },
+  // Configuração das etapas do Stepper
+  const steps: StepItem[] = [
+    {
+      id: 1,
+      title: "Cronograma & Prazos",
+      subtitle: tasks.length > 0 ? `${tasks.length} atividades no cronograma` : "Vínculo, prazos e cronograma",
+      badge: "Etapa 1",
+      isCompleted: Boolean(deadline),
+    },
+    {
+      id: 2,
+      title: "Peças & Almoxarifado",
+      subtitle: `${items.length} peças alocadas`,
+      badge: "Etapa 2",
+      isCompleted: items.length > 0,
+    },
+    {
+      id: 3,
+      title: "Checklist Técnico",
+      subtitle: `${checklistItems.filter((c) => c.completed).length}/${checklistItems.length} verificados`,
+      badge: "Etapa 3",
+      isCompleted: checklistItems.length > 0 && checklistItems.every((c) => c.completed),
+    },
+    {
+      id: 4,
+      title: "Fechamento & Assinatura",
+      subtitle: signatureData ? "Assinatura coletada" : "Horímetro e validação",
+      badge: "Etapa 4",
+      isCompleted: Boolean(signatureData),
+    },
   ];
 
-  if (loading) return (
-    <div className="flex items-center justify-center min-h-[400px]">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
-    </div>
-  );
+  // Cálculo financeiro
+  const materialCost = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const laborCost = responsibleIds.length * 350; // Estimativa padrão Setgen por técnico
+  const totalCost = materialCost + laborCost;
+
+  const catalogOptions: CatalogOption[] = productsCatalog.map((p) => ({
+    id: p.id,
+    code: p.code || "SKU-AUTO",
+    name: p.name,
+    unitPrice: Number(p.unitPrice) || 0,
+    availableStock: p.currentStock || 0,
+    category: "Almoxarifado",
+  }));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[450px]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-[#E2661D]" />
+          <span className="text-xs font-semibold text-slate-500">Carregando ambiente operacional...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      {/* 1. Header Modular com Ações Rápidas */}
+      <WizardHeader
+        title={orderId ? "Editar Ordem de Serviço" : "Nova Ordem de Serviço"}
+        subtitle="Gerencie o fluxo completo com requisição de peças, equipe de campo e checklist técnico."
+        code={orderId ? `#OS-${orderId.slice(0, 6)}` : "OS-2026-0891"}
+        statusBadge={orderId ? "Em Execução" : "Em Elaboração"}
+        currentStep={currentStep}
+        totalSteps={steps.length}
+        onSaveDraft={handleSaveDraft}
+        onDiscardDraft={discardDraft}
+        extraActions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsModuleSwitcherOpen(true)}
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 border-slate-200"
+          >
+            <Grid className="w-3.5 h-3.5" />
+            <span>Módulos</span>
+          </Button>
+        }
+      />
 
-      {/* ===== SIDEBAR ESQUERDA (PADRÃO CLIENTE) ===== */}
-      <aside className="w-full lg:w-64 bg-gray-50/90 border-r border-gray-200 p-5 shrink-0 flex flex-col justify-between text-xs">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-200">
-            <span className="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
-              <Wrench className="w-4 h-4 text-orange-600" />
-              {orderId ? "Editar O.S." : "Nova Ordem de Serviço"}
-            </span>
-            <span className="bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded text-[10px]">
-              {orderId ? "EDIÇÃO" : "NOVA"}
-            </span>
+      {/* 2. Top Stepper Horizontal (Sem aperto lateral) */}
+      <HorizontalStepper
+        steps={steps}
+        currentStep={currentStep}
+        onStepClick={(stepId) => setCurrentStep(stepId)}
+      />
+
+      {/* Banner de Rascunho Detectado */}
+      {draftNotice && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-between text-xs text-amber-900 max-w-[1360px] mx-auto w-full">
+          <span className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            Existe um rascunho anterior desta Ordem de Serviço armazenado localmente. Deseja recuperá-lo?
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={discardDraft} className="text-amber-800 text-xs h-7">
+              Descartar
+            </Button>
+            <Button size="sm" onClick={restoreDraft} className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-7">
+              Restaurar Dados
+            </Button>
           </div>
-
-          {/* Abas Verticais */}
-          <nav className="space-y-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-medium transition-colors text-left ${
-                    isActive
-                      ? "bg-white text-orange-600 font-semibold shadow-xs border border-gray-200/80"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? "text-orange-600" : "text-gray-400"}`} />
-                    <span>{tab.label}</span>
-                  </div>
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
         </div>
+      )}
 
-        {/* Informações da OS / Quote */}
-        <div className="pt-4 border-t border-gray-200 space-y-2 text-[11px] text-gray-500">
-          <div className="flex justify-between">
-            <span>Peças Alocadas:</span>
-            <span className="font-semibold text-gray-800">{items.length} itens</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Checklist:</span>
-            <span className="font-semibold text-gray-800">
-              {checklistItems.filter(c => c.completed).length} de {checklistItems.length}
-            </span>
-          </div>
-          {signatureData && (
-            <div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-[11px] pt-1">
-              <CheckCircle className="w-3.5 h-3.5" /> Assinatura coletada
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* ===== ÁREA CENTRAL SCROLLÁVEL ===== */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#FAFAFB]">
-
-        {/* Banner de Rascunho */}
-        {draftNotice && (
-          <div className="bg-amber-50 border-b border-amber-200 px-6 py-2.5 flex items-center justify-between text-xs text-amber-800 shrink-0">
-            <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-600" />
-              Existe um rascunho salvo anteriormente. Deseja restaurá-lo?
-            </span>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={discardDraft} className="text-amber-800 text-xs h-7">
-                Descartar
-              </Button>
-              <Button size="sm" onClick={restoreDraft} className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-7">
-                Restaurar
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-          {/* ══ ABA 1: PLANEJAMENTO & PRAZOS ══════════════════════ */}
-          {activeTab === "planejamento" && (
-            <div className="space-y-5">
-              {/* Card de Vínculo com Orçamento Aprovado */}
-              <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/50 rounded-2xl border border-orange-200 p-5 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <Label className="font-bold text-gray-900 text-xs flex items-center gap-2">
-                    <Wrench className="w-4 h-4 text-[#E2661D]" />
-                    Puxar Dados de Orçamento Aprovado / Aceito
-                  </Label>
-                  {selectedQuote && (
-                    <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle className="w-3 h-3" /> Orçamento Vinculado
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <select
-                    value={selectedQuoteId}
-                    onChange={(e) => handleSelectQuote(e.target.value)}
-                    className="flex-1 h-9 rounded-xl border border-gray-300 text-xs bg-white px-3 font-medium text-gray-800 shadow-inner"
-                  >
-                    <option value="">Selecione um orçamento aprovado para importar dados...</option>
-                    {quotesList.map((q) => (
-                      <option key={q.id} value={q.id}>
-                        #{q.quoteNumber} — {q.client?.companyName} ({q.status === 'ACCEPTED' ? 'Aceito' : 'Aprovado'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedQuote && (
-                  <div className="text-xs text-gray-700 bg-white/90 p-3.5 rounded-xl border border-orange-200/80 space-y-1.5 shadow-2xs">
-                    <p className="font-bold text-gray-900">
-                      Cliente: <span className="text-[#E2661D]">{selectedQuote.client?.companyName}</span>
-                    </p>
-                    {selectedQuote.scope && (
-                      <p className="text-[11px] text-gray-500 line-clamp-2">
-                        Escopo: {selectedQuote.scope}
+      {/* 3. Área Principal de Conteúdo em 2 Colunas Espaçosas */}
+      <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 lg:px-10 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Coluna Central do Formulário (8 colunas) */}
+          <div className="lg:col-span-8 space-y-6">
+            {/* ETAPA 1: PLANEJAMENTO & PRAZOS */}
+            {currentStep === 1 && (
+              <div className="space-y-6 animate-in fade-in-50 duration-200">
+                {/* Vínculo com Orçamento */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                        <Wrench className="w-5 h-5 text-[#E2661D]" />
+                        Vincular Orçamento Aprovado
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Importe automaticamente dados de cliente, usina e peças aprovadas.
                       </p>
-                    )}
-                    <p className="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
-                      ✓ {items.length} peça(s)/produto(s) importado(s) automaticamente para esta OS
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-orange-600" />Agendamento & Responsáveis
-                  </h4>
-                  <span className="text-gray-400 text-xs">Prazos e alocação de equipe técnica</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">
-                      Data Limite de Conclusão <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      type="date"
-                      value={deadline}
-                      onChange={e => setDeadline(e.target.value)}
-                      className="h-9 text-xs bg-white"
-                    />
-                    {errors.deadline && <p className="text-red-500 text-xs mt-1">{errors.deadline}</p>}
-                  </div>
-
-                  <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Equipe de Campo (Separada por vírgula)</Label>
-                    <Input
-                      type="text"
-                      placeholder="Ex: João Silva, Pedro Santos"
-                      value={team}
-                      onChange={e => setTeam(e.target.value)}
-                      className="h-9 text-xs bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <Label className="block font-semibold text-gray-700">Responsáveis Técnicos Registrados</Label>
-                    <button
-                      type="button"
-                      onClick={() => setShowQuickUserModal(true)}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E2661D] hover:text-[#c95716] bg-orange-100 hover:bg-orange-200/80 px-2 py-0.5 rounded-md transition-colors"
-                      title="Cadastrar Novo Colaborador sem sair da tela"
-                    >
-                      <Plus className="h-3 w-3" /> Novo Técnico
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3 bg-gray-50/70 rounded-xl border border-gray-200 max-h-48 overflow-y-auto">
-                    {usersList.map(u => (
-                      <label key={u.id} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={responsibleIds.includes(u.id)}
-                          onChange={e => {
-                            if (e.target.checked) setResponsibleIds(prev => [...prev, u.id]);
-                            else setResponsibleIds(prev => prev.filter(id => id !== u.id));
-                          }}
-                          className="rounded text-orange-600 focus:ring-orange-500 w-3.5 h-3.5"
-                        />
-                        <span className="truncate">{u.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ══ ABA 2: PEÇAS & INSUMOS ════════════════════════════ */}
-          {activeTab === "pecas" && (
-            <div className="space-y-5">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                      <Package className="w-4 h-4 text-orange-600" />Peças e Insumos do Estoque
-                    </h4>
-                    <p className="text-gray-400 text-xs mt-0.5">Vincule os materiais que serão retirados para execução da ordem</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 items-end bg-gray-50/60 p-3.5 rounded-xl border border-gray-200">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="block font-semibold text-gray-700">Selecionar Produto / Peça</Label>
-                      <button
-                        type="button"
-                        onClick={() => setShowQuickProductModal(true)}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E2661D] hover:text-[#c95716] bg-orange-100 hover:bg-orange-200/80 px-2 py-0.5 rounded-md transition-colors"
-                        title="Cadastrar Nova Peça no Estoque sem sair da tela"
-                      >
-                        <Plus className="h-3 w-3" /> Nova Peça
-                      </button>
                     </div>
+                    {selectedQuote && (
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Vinculado com Sucesso
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block">
+                      Selecionar Orçamento do Cliente
+                    </Label>
                     <select
-                      value={selectedProductId}
-                      onChange={e => setSelectedProductId(e.target.value)}
-                      className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-orange-500"
+                      value={selectedQuoteId}
+                      onChange={(e) => handleSelectQuote(e.target.value)}
+                      className="w-full h-11 rounded-xl border border-slate-200 text-sm bg-white px-3.5 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400"
                     >
-                      <option value="">Selecione uma peça...</option>
-                      {productsCatalog.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.code ? `[${p.code}] ` : ""}{p.name} (Estoque: {p.currentStock})
+                      <option value="">Selecione um orçamento para importar dados automaticamente...</option>
+                      {quotesList.map((q) => (
+                        <option key={q.id} value={q.id}>
+                          #{q.quoteNumber} — {q.client?.companyName} ({q.status === "ACCEPTED" ? "Aceito" : "Aprovado"})
                         </option>
                       ))}
                     </select>
                   </div>
 
-                  <div className="w-28">
-                    <Label className="block font-semibold text-gray-700 mb-1">Qtd.</Label>
+                  {selectedQuote && (
+                    <div className="text-xs text-slate-700 bg-orange-50/60 p-4 rounded-xl border border-orange-200/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">
+                          Cliente: <span className="text-[#E2661D]">{selectedQuote.client?.companyName}</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          {items.length} itens importados
+                        </span>
+                      </div>
+                      {selectedQuote.scope && (
+                        <p className="text-xs text-slate-600">
+                          <strong>Escopo:</strong> {selectedQuote.scope}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Agendamento e Equipe */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                  <div className="pb-3 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-[#E2661D]" />
+                      Agendamento & Equipe Técnica
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Defina o prazo de atendimento e aloque os profissionais responsáveis.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="deadline" className="text-xs font-bold text-slate-700 uppercase">
+                        Data Limite de Conclusão *
+                      </Label>
+                      <Input
+                        id="deadline"
+                        type="date"
+                        value={deadline}
+                        onChange={(e) => setDeadline(e.target.value)}
+                        className={`h-11 ${errors.deadline ? "border-red-500 ring-1 ring-red-500" : ""}`}
+                      />
+                      {errors.deadline && (
+                        <p className="text-xs text-red-600 font-semibold">{errors.deadline}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="priority" className="text-xs font-bold text-slate-700 uppercase">
+                        Grau de Prioridade
+                      </Label>
+                      <select
+                        id="priority"
+                        value={priority}
+                        onChange={(e) => setPriority(e.target.value as any)}
+                        className="w-full h-11 rounded-xl border border-slate-200 text-sm bg-white px-3.5 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      >
+                        <option value="baixa">Baixa (Rotina)</option>
+                        <option value="media">Média (Padrão)</option>
+                        <option value="alta">Alta (Prioritária)</option>
+                        <option value="urgente">Urgente (Parada Crítica)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="team" className="text-xs font-bold text-slate-700 uppercase">
+                      Equipe Complementar / Terceirizados
+                    </Label>
                     <Input
-                      type="number"
-                      min="1"
-                      value={itemQuantity}
-                      onChange={e => setItemQuantity(e.target.value)}
-                      className="h-9 text-xs bg-white"
+                      id="team"
+                      value={team}
+                      onChange={(e) => setTeam(e.target.value)}
+                      placeholder="Ex: Carlos Mecânico, Robson Apoio (separados por vírgula)"
+                      className="h-11"
                     />
                   </div>
 
-                  <Button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 px-4 rounded-lg font-bold gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar Peça
-                  </Button>
+                  {/* Seleção de Técnicos Cadastrados */}
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-slate-500" />
+                      Técnicos Efetivos Setgen ({responsibleIds.length} selecionados)
+                    </Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-3 bg-slate-50/70 border border-slate-200 rounded-xl">
+                      {usersList.map((u) => {
+                        const isSelected = responsibleIds.includes(u.id);
+                        return (
+                          <label
+                            key={u.id}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-colors text-xs select-none ${
+                              isSelected
+                                ? "bg-orange-50 border border-orange-200 text-[#E2661D] font-bold"
+                                : "bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-medium"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setResponsibleIds((prev) => [...prev, u.id]);
+                                } else {
+                                  setResponsibleIds((prev) => prev.filter((id) => id !== u.id));
+                                }
+                              }}
+                              className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
+                            />
+                            <span className="truncate">{u.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
-                {items.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-xs border border-dashed border-gray-200 rounded-xl">
-                    Nenhuma peça associada a esta Ordem de Serviço ainda.
-                  </div>
-                ) : (
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-xs">
-                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
-                        <tr>
-                          <th className="text-left px-4 py-2.5">Código / Descrição</th>
-                          <th className="text-right px-4 py-2.5">Qtd.</th>
-                          <th className="text-right px-4 py-2.5">Preço Unit.</th>
-                          <th className="text-right px-4 py-2.5">Total</th>
-                          <th className="text-center px-4 py-2.5 w-16">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {items.map((it, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50/50">
-                            <td className="px-4 py-2.5">
-                              <span className="font-mono text-gray-500 mr-2">{it.code || "—"}</span>
-                              <span className="font-medium text-gray-900">{it.name || "Item sem nome"}</span>
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-medium">{it.quantity}</td>
-                            <td className="px-4 py-2.5 text-right text-gray-600">R$ {it.unitPrice.toFixed(2)}</td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-gray-900">
-                              R$ {(it.quantity * it.unitPrice).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2.5 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(idx)}
-                                className="text-red-500 hover:text-red-700 p-1"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                {/* 3. Cronograma de Atividades Operacionais */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                        <CalendarDays className="w-4 h-4 text-[#E2661D]" />
+                        Cronograma de Atividades & Tarefas ({tasks.length})
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Defina as etapas técnicas de campo, prazos específicos e técnicos responsáveis.
+                      </p>
+                    </div>
 
-          {/* ══ ABA 3: CHECKLIST TÉCNICO ═════════════════════════ */}
-          {activeTab === "checklist" && (
-            <div className="space-y-5">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                      <ClipboardCheck className="w-4 h-4 text-orange-600" />Checklist Operacional & QTA
-                    </h4>
-                    <p className="text-gray-400 text-xs mt-0.5">Procedimento padronizado de inspeção e teste de carga</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowCustomTaskType(!showCustomTaskType)}
+                        className="text-xs h-8 gap-1.5 border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100 font-bold"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-orange-600" />
+                        Novo Tipo de Tarefa
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleIncludeTask}
+                        className="text-xs h-8 gap-1.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold shadow-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Incluir Atividade
+                      </Button>
+                    </div>
                   </div>
+
+                  {/* Painel Inline para Novo Tipo de Tarefa */}
+                  {showCustomTaskType && (
+                    <div className="p-3 bg-orange-50/70 border border-orange-200 rounded-xl space-y-2 animate-in fade-in-50">
+                      <Label className="text-xs font-bold text-orange-950 uppercase">
+                        Cadastrar Novo Tipo de Tarefa / Etapa Técnica
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder="Ex: Alinhamento a Laser, Teste de Vibração, Megômetro"
+                          value={customTaskTypeInput}
+                          onChange={(e) => setCustomTaskTypeInput(e.target.value)}
+                          className="h-9 text-xs bg-white flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddCustomTaskType();
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleAddCustomTaskType}
+                          className="h-9 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs px-4"
+                        >
+                          Salvar Tipo
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowCustomTaskType(false)}
+                          className="h-9 text-xs text-slate-500"
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BARRA DE ADIÇÃO RÁPIDA: TAREFAS */}
+                  <form
+                    onSubmit={handleFastAddTask}
+                    className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center gap-2.5"
+                  >
+                    <div className="flex-1 min-w-[200px]">
+                      <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">
+                        Tipo de Atividade Técnica
+                      </span>
+                      <select
+                        value={fastTaskType}
+                        onChange={(e) => setFastTaskType(e.target.value)}
+                        className="h-9 px-2.5 text-xs rounded-lg border border-slate-200 bg-white outline-none w-full font-medium"
+                      >
+                        {taskPresets.map((tp, idx) => (
+                          <option key={idx} value={tp}>
+                            {tp}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="w-36">
+                      <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Data Prevista</span>
+                      <Input
+                        type="date"
+                        value={fastTaskDate}
+                        onChange={(e) => setFastTaskDate(e.target.value)}
+                        className="h-9 text-xs bg-white rounded-lg border-slate-200"
+                      />
+                    </div>
+
+                    <div className="w-48">
+                      <span className="text-[10px] text-slate-500 font-semibold block mb-0.5">Técnico Responsável</span>
+                      {usersList.length > 0 ? (
+                        <select
+                          value={fastTaskCollab}
+                          onChange={(e) => setFastTaskCollab(e.target.value)}
+                          className="h-9 px-2.5 text-xs rounded-lg border border-slate-200 bg-white outline-none w-full font-medium"
+                        >
+                          {usersList.map((u) => (
+                            <option key={u.id} value={u.name}>
+                              {u.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          value={fastTaskCollab}
+                          onChange={(e) => setFastTaskCollab(e.target.value)}
+                          placeholder="Nome do técnico"
+                          className="h-9 text-xs bg-white rounded-lg border-slate-200"
+                        />
+                      )}
+                    </div>
+
+                    <div className="self-end pt-3">
+                      <Button
+                        type="submit"
+                        size="sm"
+                        className="h-9 px-3.5 bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs gap-1 shadow-xs rounded-lg"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Adicionar ao Cronograma
+                      </Button>
+                    </div>
+                  </form>
+
+                  {/* LISTA / TABELA DE TAREFAS */}
+                  {tasks.length === 0 ? (
+                    <div className="py-10 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                      <CalendarDays className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="font-semibold text-slate-700 text-sm">Nenhuma atividade no cronograma</p>
+                      <p className="text-slate-400 text-xs mt-0.5">
+                        Adicione as etapas e datas previstas para guiar a equipe técnica em campo.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="w-full text-left text-xs bg-white">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
+                            <th className="py-2.5 px-3 w-24 font-semibold">Código</th>
+                            <th className="py-2.5 px-3 font-semibold">Atividade / Tipo de Tarefa</th>
+                            <th className="py-2.5 px-3 w-36 font-semibold">Data Prevista</th>
+                            <th className="py-2.5 px-3 w-48 font-semibold">Técnico Responsável</th>
+                            <th className="py-2.5 px-2 w-16 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {tasks.map((t, i) => (
+                            <tr key={i} className="hover:bg-slate-50/60">
+                              <td className="py-2 px-3 font-mono font-bold text-[#E2661D]">
+                                <Input
+                                  value={t.code}
+                                  onChange={(e) => {
+                                    const u = [...tasks];
+                                    u[i].code = e.target.value;
+                                    setTasks(u);
+                                  }}
+                                  className="h-8 text-xs font-mono font-bold bg-white rounded-lg border-slate-200 w-20"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <select
+                                  value={t.type}
+                                  onChange={(e) => {
+                                    const u = [...tasks];
+                                    u[i].type = e.target.value;
+                                    setTasks(u);
+                                  }}
+                                  className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold outline-none w-full"
+                                >
+                                  {taskPresets.map((tp, idx) => (
+                                    <option key={idx} value={tp}>
+                                      {tp}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2 px-3">
+                                <Input
+                                  type="date"
+                                  value={t.date}
+                                  onChange={(e) => {
+                                    const u = [...tasks];
+                                    u[i].date = e.target.value;
+                                    setTasks(u);
+                                  }}
+                                  className="h-8 text-xs bg-white rounded-lg border-slate-200 w-36"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                {usersList.length > 0 ? (
+                                  <select
+                                    value={t.collaboratorName || ""}
+                                    onChange={(e) => {
+                                      const u = [...tasks];
+                                      u[i].collaboratorName = e.target.value;
+                                      setTasks(u);
+                                    }}
+                                    className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white text-xs outline-none w-full font-medium"
+                                  >
+                                    <option value="">Técnico Responsável...</option>
+                                    {usersList.map((u) => (
+                                      <option key={u.id} value={u.name}>
+                                        {u.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input
+                                    value={t.collaboratorName || ""}
+                                    onChange={(e) => {
+                                      const u = [...tasks];
+                                      u[i].collaboratorName = e.target.value;
+                                      setTasks(u);
+                                    }}
+                                    placeholder="Técnico"
+                                    className="h-8 text-xs bg-white rounded-lg border-slate-200"
+                                  />
+                                )}
+                              </td>
+                              <td className="py-2 px-2">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => duplicateTask(i)}
+                                    title="Duplicar atividade"
+                                    className="text-slate-400 hover:text-[#E2661D] p-1 rounded"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTasks(tasks.filter((_, j) => j !== i))}
+                                    title="Excluir atividade"
+                                    className="text-slate-400 hover:text-red-500 p-1 rounded"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ETAPA 2: PEÇAS & ALMOXARIFADO (MULTI-CRUD MODULAR) */}
+            {currentStep === 2 && (
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs animate-in fade-in-50 duration-200">
+                <MultiCrudInlineTable
+                  items={items}
+                  onChange={(updated) => setItems(updated)}
+                  catalogOptions={catalogOptions}
+                  onOpenQuickCreateModal={() => setIsSubEntityModalOpen(true)}
+                  title="Materiais e Peças da Ordem"
+                  subtitle="Adicione itens do estoque à ordem de serviço com controle automático de saldo e custo."
+                />
+              </div>
+            )}
+
+            {/* ETAPA 3: CHECKLIST TÉCNICO */}
+            {currentStep === 3 && (
+              <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4 animate-in fade-in-50 duration-200">
+                <div className="pb-3 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4 text-[#E2661D]" />
+                    Checklist Operacional & Inspeção
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Selecione um procedimento padronizado de inspeção técnica ou marque os itens conferidos.
+                  </p>
                 </div>
 
                 <div>
-                  <Label className="block font-semibold text-gray-700 mb-1">Template de Checklist</Label>
+                  <Label className="text-xs font-bold text-slate-700 uppercase mb-1.5 block">
+                    Modelo de Checklist
+                  </Label>
                   <select
                     value={selectedTemplateId}
-                    onChange={e => handleTemplateChange(e.target.value)}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-white text-xs outline-none focus:border-orange-500 max-w-md"
+                    onChange={(e) => handleTemplateChange(e.target.value)}
+                    className="w-full max-w-md h-11 px-3.5 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400"
                   >
                     <option value="">Selecione um checklist padrão...</option>
-                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {checklistItems.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    <Label className="block font-semibold text-gray-700">Itens de Verificação Técnica</Label>
-                    <div className="divide-y divide-gray-100 bg-gray-50/70 p-3 rounded-xl border border-gray-200 space-y-1">
+                {checklistItems.length > 0 ? (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-slate-700 uppercase">
+                        Itens de Verificação Obrigatória
+                      </Label>
+                      <span className="text-xs font-semibold text-slate-500">
+                        {checklistItems.filter((c) => c.completed).length} de {checklistItems.length} concluídos
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
                       {checklistItems.map((c, i) => (
-                        <label key={i} className="flex items-center gap-2.5 py-2 text-xs text-gray-800 cursor-pointer select-none">
+                        <label
+                          key={i}
+                          className="flex items-center gap-3 py-2.5 text-xs sm:text-sm text-slate-800 cursor-pointer select-none"
+                        >
                           <input
                             type="checkbox"
                             checked={c.completed}
-                            onChange={e => {
-                              const u = [...checklistItems]; u[i].completed = e.target.checked; setChecklistItems(u);
+                            onChange={(e) => {
+                              const updated = [...checklistItems];
+                              updated[i].completed = e.target.checked;
+                              setChecklistItems(updated);
                             }}
                             className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
                           />
-                          <span className={c.completed ? "line-through text-gray-400" : "font-medium"}>{c.item}</span>
+                          <span className={c.completed ? "line-through text-slate-400" : "font-medium"}>
+                            {c.item}
+                          </span>
                         </label>
                       ))}
                     </div>
                   </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                    Selecione um template acima para carregar os itens de verificação.
+                  </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ══ ABA 4: ASSINATURA DO CLIENTE ═════════════════════ */}
-          {activeTab === "assinatura" && (
-            <div className="space-y-5">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                  <PenTool className="w-4 h-4 text-orange-600" />Assinatura Digital de Entrega
-                </h4>
-                <p className="text-gray-500 text-xs">Coleta da assinatura do responsável pelo recebimento do gerador no local.</p>
+            {/* ETAPA 4: FECHAMENTO & ASSINATURA */}
+            {currentStep === 4 && (
+              <div className="space-y-4 animate-in fade-in-50 duration-200">
+                {/* Horímetro e Notas */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                  <div className="pb-3 border-b border-gray-100">
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-[#E2661D]" />
+                      Apontamento de Horímetro & Observações de Campo
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Registre as medições de operação e observações finais da execução.
+                    </p>
+                  </div>
 
-                <div className="max-w-lg border border-gray-200 rounded-xl p-3 bg-gray-50">
-                  <SignaturePad
-                    onSave={(blob: Blob) => {
-                      const reader = new FileReader();
-                      reader.readAsDataURL(blob);
-                      reader.onloadend = () => {
-                        setSignatureData(reader.result as string);
-                      };
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="initialHorimeter" className="text-xs font-semibold text-gray-700">
+                        Horímetro Inicial (Horas)
+                      </Label>
+                      <Input
+                        id="initialHorimeter"
+                        type="number"
+                        placeholder="Ex: 1250.5"
+                        value={initialHorimeter}
+                        onChange={(e) => setInitialHorimeter(e.target.value)}
+                        className="h-9 rounded-lg text-xs border-gray-200 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="finalHorimeter" className="text-xs font-semibold text-gray-700">
+                        Horímetro Final (Horas)
+                      </Label>
+                      <Input
+                        id="finalHorimeter"
+                        type="number"
+                        placeholder="Ex: 1258.0"
+                        value={finalHorimeter}
+                        onChange={(e) => setFinalHorimeter(e.target.value)}
+                        className="h-9 rounded-lg text-xs border-gray-200 bg-white"
+                      />
+                    </div>
+                  </div>
 
-          {/* ══ ABA 5: HORÍMETRO & NOTAS ══════════════════════════ */}
-          {activeTab === "observacoes" && (
-            <div className="space-y-5">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs space-y-4">
-                <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-orange-600" />Apontamento de Horímetro & Observações de Campo
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Horímetro Inicial (Horas)</Label>
-                    <Input
-                      type="number"
-                      placeholder="Ex: 1250.5"
-                      value={initialHorimeter}
-                      onChange={e => setInitialHorimeter(e.target.value)}
-                      className="h-9 text-xs bg-white"
+                  <div className="space-y-1.5">
+                    <Label htmlFor="notes" className="text-xs font-semibold text-gray-700">
+                      Relatório Técnico / Recomendações
+                    </Label>
+                    <textarea
+                      id="notes"
+                      rows={4}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Descreva as condições encontradas, testes realizados e orientações passadas ao cliente..."
+                      className="w-full p-3 bg-white rounded-lg border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] resize-none"
                     />
                   </div>
-                  <div>
-                    <Label className="block font-semibold text-gray-700 mb-1">Horímetro Final (Horas)</Label>
-                    <Input
-                      type="number"
-                      placeholder="Ex: 1258.0"
-                      value={finalHorimeter}
-                      onChange={e => setFinalHorimeter(e.target.value)}
-                      className="h-9 text-xs bg-white"
+                </div>
+
+                {/* Assinatura Digital do Responsável */}
+                <div className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-2xs space-y-4">
+                  <div className="pb-3 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
+                        <PenTool className="w-4 h-4 text-[#E2661D]" />
+                        Assinatura Digital de Entrega
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Coleta da assinatura do cliente ou técnico responsável no local.
+                      </p>
+                    </div>
+                    {signatureData && (
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Assinatura Coletada
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 max-w-xl">
+                    <SignaturePad
+                      onSave={(blob: Blob) => {
+                        const reader = new FileReader();
+                        reader.readAsDataURL(blob);
+                        reader.onloadend = () => {
+                          setSignatureData(reader.result as string);
+                        };
+                      }}
                     />
                   </div>
                 </div>
-
-                <div>
-                  <Label className="block font-semibold text-gray-700 mb-1">Relatório Técnico / Observações da Equipe</Label>
-                  <textarea
-                    rows={5}
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    placeholder="Descreva as condições encontradas, testes realizados e recomendações técnicas..."
-                    className="w-full p-3 bg-white rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-orange-500 resize-none"
-                  />
-                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
-        </div>
-
-        {/* ===== RODAPÉ FIXO (PADRÃO CLIENTE) ===== */}
-        <div className="h-14 bg-white border-t border-gray-200 px-6 flex items-center justify-between shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSaveDraft}
-            className="text-xs text-gray-600 hover:text-orange-600 gap-1.5"
-          >
-            <Save className="w-3.5 h-3.5" />Salvar Rascunho
-          </Button>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onClose}
-              className="text-xs rounded-lg h-9 px-4"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={saving}
-              onClick={handleSave}
-              className="bg-[#E2661D] hover:bg-[#c95716] text-white font-bold text-xs rounded-lg h-9 px-5 gap-1.5 shadow-xs"
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              {saving ? "Salvando..." : orderId ? "Salvar Alterações" : "Salvar Ordem de Serviço"}
-            </Button>
+          {/* Coluna Direita: Resumo Operacional em Tempo Real (4 colunas) */}
+          <div className="lg:col-span-4">
+            <FormLiveSummary
+              orderCode={orderId ? `#OS-${orderId.slice(0, 6)}` : "OS-2026-0891"}
+              statusBadge={orderId ? "Em Execução" : "Em Elaboração"}
+              clientName={selectedQuote?.client?.companyName || "Cliente a Definir"}
+              plantName="Usina Central Solar"
+              priority={priority}
+              techniciansCount={responsibleIds.length}
+              deadline={deadline || "Não definido"}
+              breakdown={[
+                { label: `Peças & Materiais (${items.length} un)`, amount: materialCost },
+                { label: `Mão de Obra Técnica (${responsibleIds.length} téc)`, amount: laborCost },
+                { label: "Deslocamento e Logística", amount: 150.0 },
+              ]}
+              totalAmount={totalCost + 150.0}
+              currentStep={currentStep}
+              totalSteps={steps.length}
+              isAutoSaved={true}
+            />
           </div>
         </div>
-
       </main>
 
-      {/* MODAL 1: CADASTRO RÁPIDO DE PEÇA NO ESTOQUE */}
-      <Dialog open={showQuickProductModal} onOpenChange={setShowQuickProductModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
-          <DialogHeader className="pb-3 border-b border-gray-100">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
-                <Package className="w-4 h-4" />
-              </div>
-              <span>Cadastrar Nova Peça no Estoque</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Cadastre a peça para vincular diretamente à ordem sem sair da tela.
-            </DialogDescription>
-          </DialogHeader>
+      {/* 4. Rodapé Fixo de Navegação Modular */}
+      <WizardFooter
+        currentStep={currentStep}
+        totalSteps={steps.length}
+        stepName={steps[currentStep - 1]?.title}
+        onPrev={() => setCurrentStep((s) => Math.max(1, s - 1))}
+        onNext={() => setCurrentStep((s) => Math.min(steps.length, s + 1))}
+        onSubmit={handleSave}
+        onSaveDraft={handleSaveDraft}
+        isSubmitting={saving}
+        submitLabel={orderId ? "Salvar Alterações da O.S." : "Finalizar e Emitir Ordem de Serviço"}
+      />
 
-          <form onSubmit={handleQuickCreateProduct} className="space-y-3 pt-2">
-            <div>
-              <Label className="text-xs font-bold text-gray-700">Nome da Peça / Produto *</Label>
-              <Input
-                required
-                value={quickProdName}
-                onChange={e => setQuickProdName(e.target.value)}
-                placeholder="Ex: Filtro de Combustível Racor"
-                className="h-9 text-xs bg-white mt-1"
-                autoFocus
-              />
-            </div>
+      {/* 5. Modal Centralizado: Nova Peça / Usina sem sair da tela */}
+      <SubEntityModal
+        open={isSubEntityModalOpen}
+        onOpenChange={setIsSubEntityModalOpen}
+        defaultType="part"
+        onCreated={handleSubEntityCreated}
+      />
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Código / SKU</Label>
-                <Input
-                  value={quickProdCode}
-                  onChange={e => setQuickProdCode(e.target.value)}
-                  placeholder="Ex: FIL-RAC-02"
-                  className="h-9 text-xs bg-white mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Unidade</Label>
-                <select
-                  value={quickProdUnit}
-                  onChange={e => setQuickProdUnit(e.target.value)}
-                  className="w-full h-9 text-xs rounded-lg border border-gray-300 bg-white px-2 mt-1"
-                >
-                  <option value="UN">UN</option>
-                  <option value="PC">PC</option>
-                  <option value="JG">JG</option>
-                  <option value="LT">LT</option>
-                  <option value="MT">MT</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Custo (R$)</Label>
-                <Input
-                  value={quickProdCost}
-                  onChange={e => setQuickProdCost(e.target.value)}
-                  placeholder="Ex: 90,00"
-                  className="h-9 text-xs bg-white mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Venda (R$)</Label>
-                <Input
-                  value={quickProdPrice}
-                  onChange={e => setQuickProdPrice(e.target.value)}
-                  placeholder="Ex: 150,00"
-                  className="h-9 text-xs bg-white mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-gray-700">Estoque</Label>
-                <Input
-                  type="number"
-                  value={quickProdStock}
-                  onChange={e => setQuickProdStock(e.target.value)}
-                  placeholder="10"
-                  className="h-9 text-xs bg-white mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowQuickProductModal(false)}
-                className="text-xs h-9 rounded-xl font-bold"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={savingQuickProd}
-                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
-              >
-                {savingQuickProd ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Salvar e Selecionar
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL 2: CADASTRO RÁPIDO DE TÉCNICO */}
-      <Dialog open={showQuickUserModal} onOpenChange={setShowQuickUserModal}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl p-6">
-          <DialogHeader className="pb-3 border-b border-gray-100">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
-                <Users className="w-4 h-4" />
-              </div>
-              <span>Cadastrar Novo Colaborador</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-gray-500">
-              Adicione um técnico de campo para alocar na execução desta ordem.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleQuickCreateUser} className="space-y-3 pt-2">
-            <div>
-              <Label className="text-xs font-bold text-gray-700">Nome Completo *</Label>
-              <Input
-                required
-                value={quickUserName}
-                onChange={e => setQuickUserName(e.target.value)}
-                placeholder="Ex: Roberto Gomes"
-                className="h-9 text-xs bg-white mt-1"
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-bold text-gray-700">E-mail *</Label>
-              <Input
-                type="email"
-                required
-                value={quickUserEmail}
-                onChange={e => setQuickUserEmail(e.target.value)}
-                placeholder="roberto@setgen.com.br"
-                className="h-9 text-xs bg-white mt-1"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowQuickUserModal(false)}
-                className="text-xs h-9 rounded-xl font-bold"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={savingQuickUser}
-                className="bg-[#E2661D] hover:bg-[#c95716] text-white text-xs h-9 rounded-xl font-bold gap-1.5"
-              >
-                {savingQuickUser ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Salvar e Selecionar
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* 6. Modal Centralizado: Alternador Rápido de Módulos */}
+      <ModuleSwitcherModal
+        open={isModuleSwitcherOpen}
+        onOpenChange={setIsModuleSwitcherOpen}
+        currentModuleId="orders"
+      />
     </div>
   );
 }

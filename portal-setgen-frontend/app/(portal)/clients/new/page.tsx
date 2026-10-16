@@ -7,7 +7,7 @@ export default function NewClientPage() {
   const router = useRouter();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden -mx-8 -mt-7 -mb-12">
+    <div className="h-full w-full flex flex-col min-h-0 bg-white">
       <ClientMultiCrudEditor
         onClose={() => router.push('/clients')}
         onSuccess={() => router.push('/clients')}

@@ -59,6 +59,10 @@ export enum ChecklistFieldType {
   SIGNATURE = 'SIGNATURE',
   BOOLEAN = 'BOOLEAN',
   MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
+  CHECKLIST_TRI_STATE = 'CHECKLIST_TRI_STATE',
+  SINGLE_CHOICE = 'SINGLE_CHOICE',
+  DATE = 'DATE',
+  CALCULATED = 'CALCULATED',
 }
 
 // Fase comercial (orçamento). Vira ServiceOrder só quando ACCEPTED.
@@ -88,6 +92,11 @@ export enum QuoteLineType {
   LABOR_HOUR = 'LABOR_HOUR',
   TRAVEL = 'TRAVEL',
   ADDITIONAL_COST = 'ADDITIONAL_COST',
+}
+
+export enum ItemBillingType {
+  BILLED_SEPARATELY = 'BILLED_SEPARATELY',
+  INCLUDED_IN_SERVICE = 'INCLUDED_IN_SERVICE',
 }
 
 export enum MaterialRequestStatus {
@@ -415,6 +424,16 @@ export interface TechnicalVisit {
   failureCategory?: FailureCategory;
   taskType?: VisitTaskType;
   checklistTemplate?: Pick<ChecklistTemplate, 'id' | 'name'>;
+  visitNumber?: string;
+  serviceCategory?: string;
+  technicalData?: any;
+  conclusionData?: any;
+  technicianSignature?: string;
+  clientSignature?: string;
+  clientSignerName?: string;
+  clientSignerDocument?: string;
+  clientSignatureRefused?: boolean;
+  clientRefusalReason?: string;
 }
 
 export interface Equipment {
@@ -469,6 +488,14 @@ export interface Quote {
   serviceOrder?: Pick<ServiceOrder, 'id' | 'orderNumber' | 'status' | 'progress'>;
   itemProducts?: any[];
   itemServices?: any[];
+}
+
+export interface ScheduleTask {
+  code: string;
+  type: string;
+  date: string;
+  collaboratorName?: string;
+  completed?: boolean;
 }
 
 // Fase de execução: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
@@ -540,8 +567,21 @@ export interface QuoteLine {
   unitValue: number;
   discount: number;
   totalValue: number;
+  billingType?: ItemBillingType;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface QuoteItemProduct {
+  id: string;
+  quoteId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  totalPrice: number;
+  billingType: ItemBillingType;
+  product?: Product;
 }
 
 export interface ServiceOrderAuditLogEntry {
@@ -572,7 +612,11 @@ export interface ChecklistFieldDefinition {
   type: ChecklistFieldType;
   label: string;
   required: boolean;
+  section?: string;
+  unit?: string;
   options?: string[];
+  appliesTo?: string;
+  formula?: string;
 }
 
 export interface ChecklistAnswerItem extends ChecklistFieldDefinition {
@@ -634,19 +678,45 @@ export interface Approval {
   approver?: User;
 }
 
+export interface PurchaseOrderItem {
+  id?: string;
+  description: string;
+  code?: string;
+  quantity: number;
+  unit?: string;
+  unitPrice?: number;
+  total?: number;
+}
+
 export interface PurchaseOrder {
   id: string;
-  quoteId: string;
-  clientId: string;
   orderNumber: string;
-  value: number;
+  supplierName: string;
+  supplierCnpj?: string;
+  supplierPhone?: string;
+  supplierAddress?: string;
+  supplierId?: string;
+  carrierName: string;
+  carrierDoc?: string;
+  carrierVehicle?: string;
+  destination?: string;
+  serviceOrderId?: string;
+  paymentMethod?: string;
+  items?: PurchaseOrderItem[];
+  totalAmount?: number;
+  value?: number;
   issueDate: string;
-  expiryDate: string;
-  status: PurchaseOrderStatus;
-  fileUrl: string;
-  uploadedById: string;
+  pickupDate?: string;
+  pickupStatus?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  status?: PurchaseOrderStatus;
+  notes?: string;
+  fileUrl?: string;
+  uploadedById?: string;
   createdAt: string;
   updatedAt: string;
+  quoteId?: string;
+  clientId?: string;
+  expiryDate?: string;
   quote?: Quote;
   client?: Client;
   uploadedBy?: User;
@@ -748,6 +818,13 @@ export interface StockLocation {
   createdAt: string;
 }
 
+export interface SupplierQuotation {
+  supplier: string;
+  costPrice: number;
+  quotationDate: string;
+  isUsed?: boolean;
+}
+
 export interface Product {
   id: string;
   code: string;
@@ -764,6 +841,12 @@ export interface Product {
   location?: Pick<StockLocation, 'id' | 'code'>;
   unitPrice?: number;
   salePrice?: number;
+  marginPercent?: number;
+  fixedSalePrice?: number;
+  supplierQuotations?: SupplierQuotation[];
+  notes?: string;
+  sheetId?: number;
+  category?: string;
   unitsPerPackage?: number;
   active: boolean;
   createdAt: string;
@@ -777,6 +860,7 @@ export interface MaterialRequestItem {
   productId: string;
   quantityNeeded: number;
   quantityReserved: number;
+  billingType?: ItemBillingType;
   product?: Product;
 }
 
@@ -791,10 +875,19 @@ export interface MaterialRequest {
   serviceOrder?: {
     id: string;
     orderNumber: string;
-    client?: { id: string; companyName: string };
+    deadline?: string;
+    scope?: string;
+    client?: { id: string; companyName: string; tradeName?: string };
+    equipment?: { id: string; model?: string; serialNumber?: string };
   };
   items: MaterialRequestItem[];
-  procurementOrders?: Pick<ProcurementOrder, 'id' | 'status' | 'supplierId'>[];
+  procurementOrders?: Array<{
+    id: string;
+    status: ProcurementOrderStatus;
+    supplierId?: string | null;
+    supplier?: { name: string } | null;
+    items?: Array<{ id: string; quantity: number; productId: string }>;
+  }>;
 }
 
 export interface Supplier {
@@ -813,6 +906,7 @@ export interface ProcurementOrderItem {
   id: string;
   procurementOrderId: string;
   productId: string;
+  requestedQuantity?: number;
   quantity: number;
   unitCost: number;
   product?: Product;
@@ -824,13 +918,21 @@ export interface ProcurementOrder {
   materialRequestId?: string;
   status: ProcurementOrderStatus;
   expectedDeliveryDate?: string;
+  invoiceNumber?: string;
+  invoiceAccessKey?: string;
+  invoiceUrl?: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   supplier?: Supplier;
   items: ProcurementOrderItem[];
   materialRequest?: {
     id: string;
-    serviceOrder?: { id: string; orderNumber: string };
+    serviceOrder?: {
+      id: string;
+      orderNumber: string;
+      client?: { companyName: string; tradeName?: string };
+    };
   };
 }
 
@@ -1048,3 +1150,60 @@ export interface FuelRequest {
 
 export * from './financial';
 export type { ServiceItem, ServiceTemplateItem } from '../lib/api/services';
+
+export enum DocumentType {
+  CONTRACT = 'CONTRACT',
+  APR = 'APR',
+  WORK_PERMIT = 'WORK_PERMIT',
+  ACCEPTANCE_TERM = 'ACCEPTANCE_TERM',
+  TECHNICAL_REPORT = 'TECHNICAL_REPORT',
+  ART = 'ART',
+  FINAL_INSPECTION = 'FINAL_INSPECTION',
+  OTHER = 'OTHER',
+}
+
+export function isFinalInspectionDoc(doc: any): boolean {
+  if (!doc) return false;
+  return (
+    doc.type === 'FINAL_INSPECTION' ||
+    doc.data?.subType === 'FINAL_INSPECTION' ||
+    (typeof doc.code === 'string' && doc.code.startsWith('VF')) ||
+    (typeof doc.title === 'string' && doc.title.toLowerCase().includes('vistoria final'))
+  );
+}
+
+export enum DocumentStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  SIGNED = 'SIGNED',
+  CANCELLED = 'CANCELLED',
+}
+
+export interface ServiceOrderDocument {
+  id: string;
+  serviceOrderId: string;
+  clientId: string;
+  type: DocumentType;
+  code: string;
+  title: string;
+  status: DocumentStatus;
+  data: Record<string, any>;
+  signatures?: Record<string, any> | null;
+  pdfUrl?: string | null;
+  notes?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  serviceOrder?: {
+    id: string;
+    orderNumber: string;
+    scope: string;
+  };
+  client?: {
+    id: string;
+    companyName: string;
+    tradeName?: string;
+    cnpjCpf: string;
+  };
+}
+

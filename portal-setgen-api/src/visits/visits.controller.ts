@@ -137,16 +137,32 @@ export class VisitsController {
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN)
   @ApiOperation({ summary: 'Atualizar visita técnica' })
+  @UseInterceptors(
+    FilesInterceptor('files', 10, {
+      storage: diskStorage({
+        destination: './uploads/visits',
+        filename: (req, file, callback) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        },
+      }),
+    }),
+  )
   update(
     @Param('id') id: string,
     @Body() updateVisitDto: UpdateVisitDto,
+    @UploadedFiles() files: Express.Multer.File[],
     @Request() req,
   ) {
+    const attachments = files && files.length > 0 ? files.map((file) => file.path) : undefined;
     return this.visitsService.update(
       id,
       updateVisitDto,
       req.user.id,
       req.user.role,
+      attachments,
     );
   }
 

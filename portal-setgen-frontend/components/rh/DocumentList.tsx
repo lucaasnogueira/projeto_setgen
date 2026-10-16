@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { employeeApi } from '@/lib/api/employees';
 import { EmployeeDocument, PaginatedResponse } from '@/types';
-import { Pagination } from '../ui/pagination';
+import { TablePagination } from '../ui/pagination';
 import { 
   FileBox, 
   Plus, 
@@ -199,14 +199,15 @@ export function DocumentList({ employeeId, initialDocuments, onSuccess }: Docume
           )}
         </div>
 
-        {meta && meta.totalPages > 1 && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={meta.totalPages}
-              onPageChange={setCurrentPage}
-            />
-          </div>
+        {meta && (
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={meta.totalPages}
+            totalItems={meta.total}
+            itemsPerPage={meta.limit || 5}
+            onPageChange={setCurrentPage}
+            itemLabel="documentos"
+          />
         )}
       </CardContent>
 

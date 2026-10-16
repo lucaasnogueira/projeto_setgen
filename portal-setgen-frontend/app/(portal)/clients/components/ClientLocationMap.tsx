@@ -50,29 +50,29 @@ export function ClientLocationMap({ latitude, longitude, onChange }: ClientLocat
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label className="font-bold text-sm">Latitude</Label>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        <div className="space-y-1">
+          <Label className="font-semibold text-xs text-gray-700">Latitude</Label>
           <Input
             placeholder="-15.7801"
             value={manualLat}
             onChange={(e) => setManualLat(e.target.value)}
             onBlur={applyManual}
-            className="h-11 rounded-xl"
+            className="h-9 rounded-lg text-xs border-gray-200"
           />
         </div>
-        <div className="space-y-2">
-          <Label className="font-bold text-sm">Longitude</Label>
+        <div className="space-y-1">
+          <Label className="font-semibold text-xs text-gray-700">Longitude</Label>
           <Input
             placeholder="-47.9292"
             value={manualLng}
             onChange={(e) => setManualLng(e.target.value)}
             onBlur={applyManual}
-            className="h-11 rounded-xl"
+            className="h-9 rounded-lg text-xs border-gray-200"
           />
         </div>
       </div>
-      <div className="h-72 rounded-2xl overflow-hidden border">
+      <div className="h-64 rounded-xl overflow-hidden border border-gray-200">
         <MapContainer center={position} zoom={hasPosition ? 15 : 4} className="h-full w-full">
           <TileLayer
             attribution='&copy; OpenStreetMap contributors'

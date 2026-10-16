@@ -38,13 +38,11 @@ export class CreateServiceOrderDto {
   items?: ServiceOrderItemDto[];
 
   @ApiProperty({
-    example: { team: ['João Silva', 'Maria Santos'] },
+    example: { team: ['João Silva', 'Maria Santos'], schedule: [] },
     required: false,
   })
   @IsOptional()
-  requiredResources?: {
-    team?: string[];
-  };
+  requiredResources?: any;
 
   @ApiProperty({ example: '2024-02-15T23:59:59.000Z', required: false })
   @IsDateString()

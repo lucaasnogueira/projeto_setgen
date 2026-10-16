@@ -352,7 +352,10 @@ export class UsersService {
       };
     }
 
-    let rolePerms = roleRef?.permissions.map((p) => p.permission.name) || [];
+    let rolePerms =
+      roleRef?.permissions
+        ?.map((p) => p.permission?.name)
+        ?.filter((name): name is string => Boolean(name)) || [];
     let resolvedRoleName = roleRef?.name;
 
     if (rolePerms.length === 0 && user.role) {
@@ -373,7 +376,9 @@ export class UsersService {
           include: { permissions: { include: { permission: true } } },
         });
         if (fallbackRole && fallbackRole.permissions.length > 0) {
-          rolePerms = fallbackRole.permissions.map((p) => p.permission.name);
+          rolePerms = fallbackRole.permissions
+            .map((p) => p.permission?.name)
+            .filter((name): name is string => Boolean(name));
           resolvedRoleName = fallbackRole.name;
           await this.prisma.user
             .update({
@@ -388,7 +393,9 @@ export class UsersService {
 
     const effectivePermissions = expandImpliedPermissions([
       ...rolePerms,
-      ...permissions.map((p) => p.permission.name),
+      ...permissions
+        .map((p) => p.permission?.name)
+        .filter((name): name is string => Boolean(name)),
     ]);
 
     return {

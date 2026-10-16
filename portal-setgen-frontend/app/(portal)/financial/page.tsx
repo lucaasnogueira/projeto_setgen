@@ -137,7 +137,7 @@ export default function FinancialDashboardPage() {
 
       {/* 2. KPIs com StatusCard Oficial Setgen */}
       {data ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
           <StatusCard
             label="Total de Despesas"
             value={currency(data.summary.totalExpenses)}
@@ -178,17 +178,17 @@ export default function FinancialDashboardPage() {
 
       {/* 3. Gráficos Analíticos com Design Limpo */}
       {isLoading && !data ? (
-        <div className="flex h-72 items-center justify-center bg-white rounded-2xl border border-gray-200">
+        <div className="flex h-72 items-center justify-center bg-white rounded-xl border border-gray-200">
           <RefreshCw className="h-7 w-7 animate-spin text-[#E2661D]" />
         </div>
       ) : data ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
           <CashFlowChart data={data.cashFlow} />
           <ExpensesByCategory data={data.byCategory} />
         </div>
       ) : (
-        <Card className="text-center py-20 rounded-2xl border-dashed border-gray-300">
-          <p className="text-sm text-gray-500">Nenhum dado financeiro encontrado para este período.</p>
+        <Card className="text-center py-12 rounded-xl border-dashed border-gray-300">
+          <p className="text-xs sm:text-sm text-gray-500">Nenhum dado financeiro encontrado para este período.</p>
         </Card>
       )}
     </div>

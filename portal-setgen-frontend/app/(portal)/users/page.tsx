@@ -43,6 +43,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { StatusCard } from "@/components/ui/status-card";
+import { TablePagination } from "@/components/ui/pagination";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -118,6 +120,8 @@ export default function UsersAndPermissionsPage() {
 
   // Estados de Usuários
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
@@ -462,6 +466,12 @@ export default function UsersAndPermissionsPage() {
     );
   }, [users, searchTerm]);
 
+  const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE) || 1;
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredUsers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredUsers, currentPage]);
+
   // Filtragem de Grupos de Permissões
   const filteredPermissionGroups = useMemo(() => {
     if (!moduleSearchTerm.trim()) return permissionGroups;
@@ -545,59 +555,45 @@ export default function UsersAndPermissionsPage() {
             </Button>
           </div>
 
-          {/* 3 Metric Cards no Topo (Exatamente como nas Imagens) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Total de Usuários */}
-            <Card className="p-5 rounded-2xl border border-gray-100 bg-white shadow-xs flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-orange-50 text-[#E2661D] flex items-center justify-center shrink-0">
-                <Users className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xs font-medium text-gray-500">Total de Usuários</div>
-                <div className="text-2xl font-black text-gray-900 mt-0.5">{totalUsersCount}</div>
-              </div>
-            </Card>
-
-            {/* Administradores */}
-            <Card className="p-5 rounded-2xl border border-gray-100 bg-white shadow-xs flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                <Shield className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xs font-medium text-gray-500">Administradores</div>
-                <div className="text-2xl font-black text-gray-900 mt-0.5">{adminUsersCount}</div>
-              </div>
-            </Card>
-
-            {/* Colaboradores */}
-            <Card className="p-5 rounded-2xl border border-gray-100 bg-white shadow-xs flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <UserCheck className="h-6 w-6" />
-              </div>
-              <div>
-                <div className="text-xs font-medium text-gray-500">Colaboradores</div>
-                <div className="text-2xl font-black text-gray-900 mt-0.5">{employeeUsersCount}</div>
-              </div>
-            </Card>
+          {/* 3 Metric Cards no Topo com StatusCard Padrão Setgen */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5">
+            <StatusCard
+              label="Total de Usuários"
+              value={totalUsersCount}
+              icon={Users}
+              variant="orange"
+            />
+            <StatusCard
+              label="Administradores"
+              value={adminUsersCount}
+              icon={Shield}
+              variant="purple"
+            />
+            <StatusCard
+              label="Colaboradores"
+              value={employeeUsersCount}
+              icon={UserCheck}
+              variant="blue"
+            />
           </div>
 
-          {/* Card "Cadastrar Novo Usuário" (Idêntico à Imagem 1) */}
+          {/* Card "Cadastrar Novo Usuário" */}
           {isCreateFormOpen && (
-            <Card className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 space-y-6">
-              <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
-                <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#E2661D] flex items-center justify-center">
-                  <Users className="h-5 w-5" />
+            <Card className="rounded-xl border border-gray-200/75 bg-white shadow-2xs p-4 sm:p-5 space-y-4">
+              <div className="flex items-center gap-2.5 pb-3 border-b border-gray-100">
+                <div className="w-7 h-7 rounded-lg bg-orange-50 text-[#E2661D] flex items-center justify-center">
+                  <Users className="h-4 w-4" />
                 </div>
-                <h2 className="text-sm font-bold text-gray-900">Cadastrar Novo Usuário</h2>
+                <h2 className="text-xs sm:text-[13px] font-bold text-gray-900">Cadastrar Novo Usuário</h2>
               </div>
 
-              <form onSubmit={handleCreateUser} className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Nome Completo */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Nome Completo *</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">Nome Completo *</label>
                     <div className="relative">
-                      <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         type="text"
                         required
@@ -612,48 +608,48 @@ export default function UsersAndPermissionsPage() {
                             setCorporateEmail(genLogin ? `${genLogin}@setgen.com.br` : "");
                           }
                         }}
-                        className="pl-10 text-xs h-11 rounded-xl border-gray-200"
+                        className="pl-9 text-xs h-9 rounded-lg border-gray-200"
                       />
                     </div>
                   </div>
 
                   {/* Login de Acesso (nome.sobrenome) */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Login de Acesso (nome.sobrenome) *</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">Login de Acesso *</label>
                     <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">@</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 font-mono">@</span>
                       <Input
                         type="text"
                         required
                         placeholder="joao.silva"
                         value={login}
                         onChange={(e) => setLogin(e.target.value.toLowerCase().trim())}
-                        className="pl-10 text-xs h-11 rounded-xl border-gray-200 font-mono"
+                        className="pl-8 text-xs h-9 rounded-lg border-gray-200 font-mono"
                       />
                     </div>
                   </div>
 
                   {/* E-mail Corporativo */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">E-mail Corporativo *</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">E-mail Corporativo *</label>
                     <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         type="email"
                         required
                         placeholder="joao.silva@setgen.com.br"
                         value={corporateEmail}
                         onChange={(e) => setCorporateEmail(e.target.value)}
-                        className="pl-10 text-xs h-11 rounded-xl border-gray-200"
+                        className="pl-9 text-xs h-9 rounded-lg border-gray-200"
                       />
                     </div>
                   </div>
 
-                  {/* Perfil de Acesso (Cargos do Sistema) */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Perfil de Acesso / Cargo *</label>
+                  {/* Perfil de Acesso */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">Perfil de Acesso / Cargo *</label>
                     <div className="relative">
-                      <Shield className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                      <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 z-10" />
                       <select
                         value={createRoleId}
                         onChange={(e) => {
@@ -661,7 +657,7 @@ export default function UsersAndPermissionsPage() {
                           const r = roles.find(r => r.id === e.target.value);
                           if (r && !jobTitle) setJobTitle(r.name);
                         }}
-                        className="w-full pl-10 pr-4 text-xs h-11 rounded-xl border border-gray-200 bg-white font-semibold focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+                        className="w-full pl-9 pr-3 text-xs h-9 rounded-lg border border-gray-200 bg-white font-medium focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30"
                       >
                         {roles.map((r) => (
                           <option key={r.id} value={r.id}>
@@ -673,54 +669,54 @@ export default function UsersAndPermissionsPage() {
                   </div>
 
                   {/* Cargo Operacional / Especialidade */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Cargo / Especialidade</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">Cargo / Especialidade</label>
                     <div className="relative">
-                      <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         type="text"
                         placeholder="Ex: Técnico Especialista em Geradores"
                         value={jobTitle}
                         onChange={(e) => setJobTitle(e.target.value)}
-                        className="pl-10 text-xs h-11 rounded-xl border-gray-200"
+                        className="pl-9 text-xs h-9 rounded-lg border-gray-200"
                       />
                     </div>
                   </div>
 
                   {/* Senha Provisória */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-700">Senha Provisória *</label>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-700">Senha Provisória *</label>
                     <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                       <Input
                         type={showPassword ? "text" : "password"}
                         required
                         placeholder="Mínimo 6 dígitos"
                         value={provisionalPassword}
                         onChange={(e) => setProvisionalPassword(e.target.value)}
-                        className="pl-10 pr-10 text-xs h-11 rounded-xl border-gray-200"
+                        className="pl-9 pr-9 text-xs h-9 rounded-lg border-gray-200"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex justify-end pt-2">
+                <div className="flex justify-end pt-1">
                   <Button
                     type="submit"
                     disabled={creatingUser}
-                    className="rounded-xl font-bold text-xs h-10 px-6 bg-slate-800 hover:bg-slate-900 text-white gap-2 shadow-xs"
+                    className="rounded-lg font-bold text-xs h-9 px-5 bg-slate-800 hover:bg-slate-900 text-white gap-2 shadow-2xs"
                   >
                     {creatingUser ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
-                      <Check className="h-4 w-4 text-emerald-400" />
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
                     )}
                     Cadastrar Usuário
                   </Button>
@@ -737,7 +733,10 @@ export default function UsersAndPermissionsPage() {
                 type="text"
                 placeholder="Buscar por nome, e-mail ou cargo..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30 shadow-2xs"
               />
             </div>
@@ -750,7 +749,7 @@ export default function UsersAndPermissionsPage() {
           </div>
 
           {/* Tabela de Usuários (Idêntica à Imagem 2) */}
-          <Card className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-xs">
+          <Card className="rounded-xl border border-gray-200/80 bg-white overflow-hidden shadow-2xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -771,7 +770,7 @@ export default function UsersAndPermissionsPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((user) => {
+                    paginatedUsers.map((user) => {
                       const effectiveRoleName = user.roleRef?.name || (user as any).roleName || user.role;
                       const badge = getBadgeStyle(effectiveRoleName);
                       const userInitial = user.name ? user.name.charAt(0).toUpperCase() : "U";
@@ -906,6 +905,15 @@ export default function UsersAndPermissionsPage() {
                 </tbody>
               </table>
             </div>
+
+            <TablePagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredUsers.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              onPageChange={setCurrentPage}
+              itemLabel="colaboradores"
+            />
           </Card>
         </div>
       )}
@@ -916,9 +924,9 @@ export default function UsersAndPermissionsPage() {
       {activeTab === "permissions" && (
         <div className="space-y-6 animate-in fade-in duration-150">
           {/* Header com Seletor de Perfil */}
-          <div className="p-5 rounded-2xl border border-gray-100 bg-white shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-4 sm:p-5 rounded-xl border border-gray-200/80 bg-white shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Gestão de Perfis & Permissões</h2>
+              <h2 className="text-sm sm:text-base font-bold text-gray-900">Gestão de Perfis & Permissões</h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Ative ou oculte módulos e configure acessos granulares por perfil
               </p>
@@ -929,7 +937,7 @@ export default function UsersAndPermissionsPage() {
               <select
                 value={selectedRoleId}
                 onChange={(e) => handleSelectRole(e.target.value)}
-                className="text-xs font-bold h-10 px-4 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30 min-w-[200px]"
+                className="text-xs font-semibold h-9 px-3 rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-[#E2661D]/20 focus:border-[#E2661D] min-w-[200px]"
               >
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
@@ -942,13 +950,13 @@ export default function UsersAndPermissionsPage() {
 
           {/* Campo de Busca de Módulos */}
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar módulos ou permissões..."
               value={moduleSearchTerm}
               onChange={(e) => setModuleSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#E2661D]/30 shadow-2xs"
+              className="w-full pl-9 pr-3.5 h-9 rounded-lg border border-gray-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#E2661D]/20 focus:border-[#E2661D] shadow-2xs"
             />
           </div>
 
@@ -966,7 +974,7 @@ export default function UsersAndPermissionsPage() {
               return (
                 <Card
                   key={group.name}
-                  className="rounded-2xl border border-gray-200/80 bg-white overflow-hidden shadow-xs hover:border-gray-300 transition-all"
+                  className="rounded-xl border border-gray-200/80 bg-white overflow-hidden shadow-2xs hover:border-gray-300 transition-all"
                 >
                   {/* Linha Resumo do Módulo */}
                   <div className="p-4 flex items-center justify-between gap-4">
@@ -1086,13 +1094,13 @@ export default function UsersAndPermissionsPage() {
       {/* Modal de Redefinir Senha Provisória */}
       {passwordModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 p-6 space-y-5">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl border border-gray-200 p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                   <Key className="h-4 w-4" />
                 </div>
-                <h3 className="text-sm font-bold text-gray-900">Redefinir Senha Provisória</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-gray-900">Redefinir Senha Provisória</h3>
               </div>
               <button
                 onClick={() => setPasswordModalUser(null)}
@@ -1108,13 +1116,13 @@ export default function UsersAndPermissionsPage() {
             </p>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-gray-700">Nova Senha Provisória</label>
+              <label className="text-xs font-semibold text-gray-700">Nova Senha Provisória</label>
               <Input
                 type="password"
                 placeholder="Mínimo 6 caracteres"
                 value={newPasswordValue}
                 onChange={(e) => setNewPasswordValue(e.target.value)}
-                className="text-xs h-10 rounded-xl border-gray-200"
+                className="text-xs h-9 rounded-lg border-gray-200"
               />
             </div>
 
@@ -1122,14 +1130,14 @@ export default function UsersAndPermissionsPage() {
               <Button
                 variant="outline"
                 onClick={() => setPasswordModalUser(null)}
-                className="rounded-xl text-xs h-9"
+                className="rounded-lg text-xs h-8"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleSaveProvisionalPassword}
                 disabled={savingPassword}
-                className="rounded-xl font-bold text-xs h-9 bg-[#E2661D] hover:bg-[#c95716] text-white"
+                className="rounded-lg font-semibold text-xs h-8 bg-[#E2661D] hover:bg-[#c95716] text-white"
               >
                 {savingPassword ? "Salvando..." : "Atualizar Senha"}
               </Button>
@@ -1141,14 +1149,14 @@ export default function UsersAndPermissionsPage() {
       {/* Modal de Editar Usuário */}
       {editModalUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-100 p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-xl border border-gray-200 p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-orange-50 text-[#E2661D] flex items-center justify-center">
                   <Edit2 className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Editar Usuário</h3>
+                  <h3 className="text-xs sm:text-sm font-bold text-gray-900">Editar Usuário</h3>
                   <p className="text-[11px] text-gray-400">Atualize os dados cadastrais e o perfil de acesso</p>
                 </div>
               </div>

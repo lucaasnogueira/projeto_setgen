@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Invoice } from '@/types';
 import { fiscalApi } from '@/lib/api/fiscal';
@@ -13,11 +13,14 @@ import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatusCard } from '@/components/ui/status-card';
 import { Card } from '@/components/ui/card';
+import { TablePagination } from '@/components/ui/pagination';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const router = useRouter();
 
   // Estados de Filtro
@@ -42,20 +45,33 @@ export default function InvoicesPage() {
     loadInvoices();
   }, [loadInvoices]);
 
-  const filteredInvoices = clientSearch
-    ? invoices.filter(inv => {
-        const clientName = inv.client?.companyName || inv.client?.tradeName || '';
-        return clientName.toLowerCase().includes(clientSearch.toLowerCase()) ||
-               inv.invoiceNumber?.toLowerCase().includes(clientSearch.toLowerCase()) ||
-               inv.chaveAcesso?.includes(clientSearch);
-      })
-    : invoices;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [status, startDate, endDate, clientSearch]);
+
+  const filteredInvoices = useMemo(() => {
+    return clientSearch
+      ? invoices.filter(inv => {
+          const clientName = inv.client?.companyName || inv.client?.tradeName || '';
+          return clientName.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                 inv.invoiceNumber?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                 inv.chaveAcesso?.includes(clientSearch);
+        })
+      : invoices;
+  }, [invoices, clientSearch]);
+
+  const totalPages = Math.ceil(filteredInvoices.length / ITEMS_PER_PAGE) || 1;
+  const paginatedInvoices = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredInvoices.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredInvoices, currentPage]);
 
   const clearFilters = () => {
     setStatus('ALL');
     setStartDate('');
     setEndDate('');
     setClientSearch('');
+    setCurrentPage(1);
   };
 
   const totalAutorizadas = invoices.filter(i => i.status === 'AUTORIZADA').length;
@@ -86,8 +102,22 @@ export default function InvoicesPage() {
         }
       />
 
+      {/* Banner Informativo de Regra de Negócio: Faturamento Dual Setgen */}
+      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs border border-slate-700/50">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#E2661D] text-white">Regra Fiscal Setgen</span>
+            <span className="font-semibold text-slate-200">Estrutura Dual de Emissão de Notas Fiscais</span>
+          </div>
+          <p className="text-[11.5px] text-slate-300 leading-relaxed">
+            <strong>NFS-e (Serviços):</strong> Mão de obra técnica, ART, plantão 24h e manutenções preventivas (ISS Municipal) &nbsp;·&nbsp;
+            <strong>NF-e (Locação):</strong> Locação de grupos geradores e cabos (Não incidência de ISS conf. Súmula Vinculante 31 STF)
+          </p>
+        </div>
+      </div>
+
       {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de Notas" value={invoices.length} icon={FileText} variant="orange" />
         <StatusCard label="NF-e Autorizadas" value={totalAutorizadas} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Em Processamento" value={totalProcessando} icon={Clock} variant="blue" />
@@ -95,15 +125,15 @@ export default function InvoicesPage() {
       </div>
 
       {/* Barra de Filtros Full Width */}
-      <Card className="p-4">
-        <div className="flex flex-wrap gap-4 items-center justify-between">
+      <Card className="p-3 sm:p-3.5 border border-gray-200/75 shadow-2xs">
+        <div className="flex flex-wrap gap-3 items-center justify-between">
           <div className="flex-1 min-w-[240px] max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Buscar por cliente, número ou chave de acesso..."
-                className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+                className="w-full h-9 pl-9 pr-3 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#E2661D]/30"
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
               />
@@ -178,7 +208,7 @@ export default function InvoicesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((invoice) => (
+                paginatedInvoices.map((invoice) => (
                   <tr
                     key={invoice.id}
                     className="hover:bg-gray-50/50 transition-colors cursor-pointer"
@@ -213,15 +243,21 @@ export default function InvoicesPage() {
                     <td className="px-6 py-3.5">
                       <span
                         className={`
-                          ${invoice.status === 'AUTORIZADA' ? 'bg-emerald-50 text-emerald-700' :
-                            invoice.status === 'REJEITADA' ? 'bg-red-50 text-red-700' :
-                            invoice.status === 'PROCESSANDO' ? 'bg-blue-50 text-blue-700 animate-pulse' :
-                            invoice.status === 'CANCELADA' ? 'bg-gray-100 text-gray-700' :
-                            'bg-gray-100 text-gray-600'
+                          ${invoice.status === 'AUTORIZADA' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            invoice.status === 'REJEITADA' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            invoice.status === 'PROCESSANDO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            invoice.status === 'CANCELADA' ? 'bg-gray-100 text-gray-700 border-gray-200' :
+                            'bg-gray-100 text-gray-600 border-gray-200'
                           }
-                          font-bold text-[11px] px-2.5 py-0.5 rounded-full inline-block
+                          inline-flex items-center gap-1.5 font-medium text-[11px] px-2.5 py-0.5 rounded-md border
                         `}
                       >
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          invoice.status === 'AUTORIZADA' ? 'bg-emerald-500' :
+                          invoice.status === 'REJEITADA' ? 'bg-rose-500' :
+                          invoice.status === 'PROCESSANDO' ? 'bg-blue-500 animate-pulse' :
+                          'bg-gray-400'
+                        }`} />
                         {invoice.status}
                       </span>
                     </td>
@@ -240,6 +276,15 @@ export default function InvoicesPage() {
             </tbody>
           </table>
         </div>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredInvoices.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="notas fiscais"
+        />
       </Card>
 
       <FiscalDetailsModal

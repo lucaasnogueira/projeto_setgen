@@ -5,23 +5,29 @@ interface ChecklistFieldDefinition {
   type: string;
   label: string;
   required: boolean;
+  section?: string;
+  unit?: string;
   options?: string[];
+  appliesTo?: string;
+  formula?: string;
 }
 
 // Copia os campos de um ChecklistTemplate pro array de checklist de uma
-// OS/visita, com resposta em branco — mesmo snapshot usado em
-// service-orders.service.ts e visits.service.ts, extraído aqui pra não
-// duplicar a montagem do item de resposta nos dois lugares.
+// OS/visita, preservando seção, tipo, unidade, opções e regras normativas.
 export function snapshotChecklistFields(
   fields: unknown,
 ): Prisma.InputJsonValue[] {
-  const typedFields = fields as ChecklistFieldDefinition[];
+  const typedFields = (fields || []) as ChecklistFieldDefinition[];
 
   return typedFields.map((f) => ({
     id: f.id,
     type: f.type,
     label: f.label,
-    required: f.required,
+    required: !!f.required,
+    ...(f.section && { section: f.section }),
+    ...(f.unit && { unit: f.unit }),
+    ...(f.appliesTo && { appliesTo: f.appliesTo }),
+    ...(f.formula && { formula: f.formula }),
     ...(f.options && { options: f.options }),
     answer: null,
     completed: false,

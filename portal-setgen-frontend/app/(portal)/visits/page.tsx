@@ -46,7 +46,7 @@ export default function VisitsPage() {
       />
 
       {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de Visitas" value={visits.length} icon={Calendar} variant="orange" />
         <StatusCard label="Agendadas / Em Curso" value={totalScheduled} icon={Clock} variant="amber" />
         <StatusCard label="Realizadas" value={totalCompleted} icon={CheckCircle} variant="emerald" />

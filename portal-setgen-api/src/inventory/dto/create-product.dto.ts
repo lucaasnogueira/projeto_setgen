@@ -103,4 +103,28 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   associatedEquipmentId?: string;
+
+  @ApiProperty({ required: false, example: 30 })
+  @IsNumber()
+  @IsOptional()
+  marginPercent?: number;
+
+  @ApiProperty({ required: false, example: 15.6 })
+  @IsNumber()
+  @IsOptional()
+  fixedSalePrice?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  supplierQuotations?: any;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @ApiProperty({ required: false, example: 161 })
+  @IsNumber()
+  @IsOptional()
+  sheetId?: number;
 }

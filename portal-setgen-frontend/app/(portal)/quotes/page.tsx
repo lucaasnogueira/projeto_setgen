@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { quotesApi } from '@/lib/api/quotes';
 import { Quote, QuoteStatus, UserRole } from '@/types';
@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusCard } from '@/components/ui/status-card';
+import { TablePagination } from '@/components/ui/pagination';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
 import {
   Select,
@@ -35,6 +36,8 @@ export default function QuotesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
@@ -45,6 +48,10 @@ export default function QuotesPage() {
   useEffect(() => {
     loadQuotes();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   const loadQuotes = async () => {
     try {
@@ -57,12 +64,20 @@ export default function QuotesPage() {
     }
   };
 
-  const filteredQuotes = quotes.filter(quote => {
-    const matchesSearch = quote.quoteNumber.includes(searchTerm) ||
-      quote.client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || quote.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredQuotes = useMemo(() => {
+    return quotes.filter(quote => {
+      const matchesSearch = quote.quoteNumber.includes(searchTerm) ||
+        quote.client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'ALL' || quote.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [quotes, searchTerm, statusFilter]);
+
+  const totalPages = Math.ceil(filteredQuotes.length / ITEMS_PER_PAGE) || 1;
+  const paginatedQuotes = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredQuotes.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredQuotes, currentPage]);
 
   const totalOpen = quotes.filter(q =>
     q.status === QuoteStatus.PENDING_APPROVAL || q.status === QuoteStatus.DRAFT
@@ -112,17 +127,17 @@ export default function QuotesPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de Orçamentos" value={quotes.length} icon={FileText} variant="orange" />
         <StatusCard label="Em Aberto / Rascunho" value={totalOpen} icon={Clock} variant="amber" />
         <StatusCard label="Aprovados / Aceitos" value={totalApproved} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Rejeitados / Expirados" value={totalRejected} icon={XCircle} variant="red" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card className="overflow-hidden border border-gray-200/75 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-3 border-b border-border">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[190px] h-9 text-[12.5px] rounded-[8px]">
+            <SelectTrigger className="w-[190px] h-9 text-xs rounded-lg border-gray-200">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -134,13 +149,13 @@ export default function QuotesPage() {
           </Select>
 
           <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Pesquisar orçamentos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-9 pl-9 pr-4 text-[12.5px] rounded-[8px] border border-input bg-background outline-none focus:ring-1 focus:ring-primary"
+              className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-gray-200 bg-background outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
         </div>
@@ -160,44 +175,63 @@ export default function QuotesPage() {
             {filteredQuotes.length === 0 ? (
               <TableEmpty colSpan={6} message="Nenhum orçamento encontrado." />
             ) : (
-              filteredQuotes.map((quote) => (
+              paginatedQuotes.map((quote) => (
                 <TableRow
                   key={quote.id}
                   className="cursor-pointer"
                   onClick={() => router.push(`/quotes/${quote.id}/edit`)}
                 >
-                  <TableCell className="font-mono font-semibold text-primary">
-                    {quote.quoteNumber}
+                  <TableCell className="font-mono font-bold text-gray-900">
+                    <span className="block">{quote.quoteNumber}</span>
+                    <span className="text-[10px] text-gray-400 font-normal">{formatDate(quote.createdAt)}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {quote.client ? (
                         <>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${getAvatarColor(quote.client.companyName)}`}>
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${getAvatarColor(quote.client.companyName)}`}>
                             {getInitials(quote.client.companyName)}
                           </div>
-                          <span className="font-medium text-foreground">{quote.client.companyName}</span>
+                          <div>
+                            <span className="font-semibold text-gray-900 block text-xs">{quote.client.companyName}</span>
+                            <span className="text-[11px] text-gray-400">Proposta de Locação / Serviços</span>
+                          </div>
                         </>
                       ) : (
-                        <span className="text-muted-foreground italic">Sem cliente</span>
+                        <span className="text-gray-400 italic text-xs">Sem cliente vinculado</span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(quote.createdAt)}</TableCell>
+                  <TableCell className="text-gray-500 text-xs">
+                    {quote.validUntil ? (
+                      <span className="font-medium text-gray-800">Validade: {formatDate(quote.validUntil)}</span>
+                    ) : (
+                      <span className="text-gray-400">{formatDate(quote.createdAt)}</span>
+                    )}
+                  </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${quoteStatusBadgeClass(quote.status)}`}>
-                      {QUOTE_STATUS_CONFIG[quote.status]?.label ?? quote.status}
-                    </span>
+                    {quote.status === QuoteStatus.APPROVED || quote.status === QuoteStatus.ACCEPTED ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aprovada
+                      </span>
+                    ) : quote.status === QuoteStatus.PENDING_APPROVAL ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> Em Análise
+                      </span>
+                    ) : quote.status === QuoteStatus.DRAFT ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Minuta
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> {QUOTE_STATUS_CONFIG[quote.status]?.label ?? quote.status}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {quote.salesRep ? (
-                      <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white ${getAvatarColor(quote.salesRep.name)}`}>
-                          {getInitials(quote.salesRep.name)}
-                        </div>
-                        <span className="text-sm text-muted-foreground">{quote.salesRep.name}</span>
-                      </div>
-                    ) : <span className="text-muted-foreground">—</span>}
+                      <span className="text-xs font-medium text-gray-700 block">{quote.salesRep.name}</span>
+                    ) : <span className="text-gray-400 text-xs">—</span>}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1.5">
@@ -244,6 +278,15 @@ export default function QuotesPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredQuotes.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="propostas"
+        />
       </Card>
     </div>
   );

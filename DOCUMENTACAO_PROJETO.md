@@ -17,7 +17,6 @@ Projeto Setgen/
 |   +-- src/
 |   +-- test/
 |   +-- uploads/
-|   +-- xsds/
 |   +-- .env.example
 |   +-- package.json
 +-- portal-setgen-frontend/

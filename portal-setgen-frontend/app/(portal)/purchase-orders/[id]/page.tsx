@@ -1,195 +1,246 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { purchaseOrdersApi } from '@/lib/api/purchase-orders';
-import { PurchaseOrder, UserRole } from '@/types';
-import { useAuthStore } from '@/store/auth';
+import { useEffect, useState, useRef } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { purchaseOrdersApi } from "@/lib/api/purchase-orders";
+import { PurchaseOrder } from "@/types";
 import {
-  ShoppingCart,
-  User,
-  FileText,
+  Printer,
   Edit,
   Trash2,
-  Info,
   CheckCircle,
-  AlertCircle,
-  Briefcase,
-} from 'lucide-react';
-import { Card } from "@/components/ui/card";
+  Share2,
+  ArrowLeft,
+  Copy,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CompactDetailHeader } from "@/components/layout/CompactDetailHeader";
-import { FieldBlock } from "@/components/ui/field-block";
-import Link from 'next/link';
+import { PurchaseOrderDocumentSheet } from "@/components/purchase-orders/PurchaseOrderDocumentSheet";
+import { formatCurrency } from "@/lib/utils";
+import { formatDateBR } from "@/lib/date";
+import { toast } from "sonner";
 
 export default function PurchaseOrderDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuthStore();
+  const printRef = useRef<HTMLDivElement>(null);
+  const orderId = params.id as string;
   const [order, setOrder] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (params.id) {
+    if (orderId) {
       loadOrder();
     }
-  }, [params.id]);
+  }, [orderId]);
 
   const loadOrder = async () => {
     try {
-      const data = await purchaseOrdersApi.getById(params.id as string);
+      const data = await purchaseOrdersApi.getById(orderId);
       setOrder(data);
     } catch (error) {
-      console.error('Error loading purchase order:', error);
-      alert('Erro ao carregar detalhes da ordem de compra');
-      router.push('/purchase-orders');
+      console.error(error);
+      toast.error("Erro ao carregar detalhes da Ordem de Compra");
+      router.push("/purchase-orders");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Tem certeza que deseja excluir esta ordem de compra?')) return;
+  const handlePrint = () => {
+    window.print();
+  };
 
-    try {
-      await purchaseOrdersApi.delete(params.id as string);
-      alert('Ordem de compra excluída com sucesso!');
-      router.push('/purchase-orders');
-    } catch (error) {
-      alert('Erro ao excluir ordem de compra');
+  const handleCopyLink = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link do documento copiado para a área de transferência!");
     }
   };
 
-  const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
+  const handleShareWhatsApp = () => {
+    if (!order) return;
+    const items = Array.isArray(order.items) ? order.items : [];
+    const total =
+      order.totalAmount ||
+      order.value ||
+      items.reduce(
+        (acc, it) => acc + (Number(it.quantity || 1) * Number(it.unitPrice || 0)),
+        0
+      );
+
+    const lines = [
+      `*SETGEN & SERVIÇOS - AUTORIZAÇÃO DE RETIRADA / ORDEM DE COMPRA*`,
+      `📄 *Doc:* ${order.orderNumber} (SGQ-SUP-01)`,
+      `🏪 *Loja / Fornecedor:* ${order.supplierName}`,
+      order.supplierAddress ? `📍 *Endereço:* ${order.supplierAddress}` : "",
+      `👤 *Portador Autorizado:* ${order.carrierName}`,
+      order.carrierDoc ? `🪪 *Doc (CPF/RG):* ${order.carrierDoc}` : "",
+      order.carrierVehicle ? `🚗 *Veículo:* ${order.carrierVehicle}` : "",
+      order.destination ? `🎯 *Destino / O.S.:* ${order.destination}` : "",
+      `📅 *Data de Emissão:* ${formatDateBR(order.issueDate)}`,
+      order.pickupDate ? `⏰ *Previsão de Retirada:* ${formatDateBR(order.pickupDate)}` : "",
+      `📦 *Materiais Autorizados:*`,
+      ...items.map(
+        (it, idx) =>
+          `  ${idx + 1}. ${it.description} - Qtd: ${it.quantity} ${it.unit || "UN"}${
+            it.unitPrice ? ` (${formatCurrency(Number(it.unitPrice))})` : ""
+          }`
+      ),
+      total > 0 ? `💰 *Valor Total:* ${formatCurrency(total)}` : "",
+      order.paymentMethod ? `💳 *Faturamento:* ${order.paymentMethod}` : "",
+      order.notes ? `📝 *Observações:* ${order.notes}` : "",
+      `\n_Favor liberar os materiais ao portador indicado mediante apresentação de documento com foto._`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const encoded = encodeURIComponent(lines);
+    window.open(`https://api.whatsapp.com/send?text=${encoded}`, "_blank");
+    toast.success("Mensagem formatada para o WhatsApp!");
+  };
+
+  const handleMarkCompleted = async () => {
+    if (!order) return;
+    try {
+      const updated = await purchaseOrdersApi.update(order.id, { pickupStatus: "COMPLETED" });
+      setOrder(updated);
+      toast.success("Ordem marcada como Material Retirado!");
+    } catch (err) {
+      toast.error("Erro ao atualizar status da ordem.");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!order) return;
+    if (!window.confirm(`Tem certeza que deseja excluir a Ordem de Compra ${order.orderNumber}?`))
+      return;
+
+    try {
+      await purchaseOrdersApi.delete(order.id);
+      toast.success("Ordem de Compra excluída com sucesso!");
+      router.push("/purchase-orders");
+    } catch (error) {
+      toast.error("Erro ao excluir Ordem de Compra");
+    }
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      <div className="py-28 flex flex-col items-center justify-center text-gray-400 gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-[#E2661D]" />
+        <span className="text-sm font-medium">Carregando documento em padrão executivo...</span>
       </div>
     );
   }
 
   if (!order) return null;
 
-  const isExpired = order.expiryDate && new Date(order.expiryDate) < new Date();
+  const isCompleted = order.pickupStatus === "COMPLETED";
+  const isCancelled = order.pickupStatus === "CANCELLED";
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 pb-12">
-      <CompactDetailHeader
-        icon={ShoppingCart}
-        tone="green"
-        title={`Ordem de Compra #${order.orderNumber}`}
-        badge={{
-          label: isExpired ? 'Expirada' : (order.status || 'Ativa'),
-          className: isExpired ? 'bg-status-red-bg text-status-red-fg' : 'bg-status-green-bg text-status-green-fg',
-        }}
-        meta={<><Briefcase className="h-3.5 w-3.5" />{order.client?.companyName}</>}
-        backLabel="Voltar para lista"
-        onBack={() => router.back()}
-        actions={
-          <>
-            <Link href={`/purchase-orders/${order.id}/edit`}>
-              <Button variant="outline" className="rounded-[9px] font-bold gap-2">
-                <Edit className="h-4 w-4" />
-                Editar
-              </Button>
-            </Link>
-            {canDelete && (
-              <Button
-                variant="destructive"
-                onClick={handleDelete}
-                className="rounded-[9px] font-bold gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                Excluir
-              </Button>
-            )}
-          </>
-        }
-      />
+    <div className="space-y-6 pb-20 max-w-[860px] mx-auto print:max-w-none print:m-0 print:p-0">
+      {/* =================================================================== */}
+      {/* BARRA SUPERIOR DE AÇÕES E PRODUTIVIDADE (OCULTA NA IMPRESSÃO)      */}
+      {/* =================================================================== */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-white border border-gray-200/80 shadow-2xs print:hidden">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/purchase-orders")}
+            className="text-gray-500 hover:text-gray-900 gap-1.5 text-xs font-semibold shrink-0 h-9"
+            title="Voltar para Ordens de Compra"
+          >
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span className="truncate">Voltar para Ordens</span>
+          </Button>
+          <div className="h-4 w-px bg-gray-200 hidden sm:block shrink-0" />
+          <span className="text-xs font-mono font-bold text-gray-500 hidden sm:inline whitespace-nowrap shrink-0">
+            Código: <strong className="text-gray-900">{order.orderNumber}</strong>
+          </span>
+        </div>
 
-      <Tabs defaultValue="detalhes">
-        <TabsList>
-          <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
-          <TabsTrigger value="vinculos">Vínculos & Arquivos</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
+          {!isCompleted && !isCancelled && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleMarkCompleted}
+              className="rounded-lg h-9 text-xs font-semibold gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 shrink-0"
+            >
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              Marcar Retirado
+            </Button>
+          )}
 
-        <TabsContent value="detalhes" className="mt-4">
-          <Card className="p-6">
-            <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
-              <Info className="h-4 w-4 text-status-green-fg" />
-              Informações da OC
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-              <FieldBlock
-                label="Valor"
-                value={<span className="text-[20px] font-black text-status-green-fg">{order.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
-              />
-              <FieldBlock
-                label="Status"
-                value={
-                  <span className={`inline-flex items-center gap-1.5 font-bold px-2.5 py-0.5 rounded-full text-[11.5px] ${isExpired ? 'bg-status-red-bg text-status-red-fg' : 'bg-status-green-bg text-status-green-fg'}`}>
-                    {isExpired ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                    {isExpired ? 'Expirada' : (order.status || 'Ativa')}
-                  </span>
-                }
-              />
-              <FieldBlock label="Data de Emissão" value={new Date(order.issueDate).toLocaleDateString('pt-BR')} />
-              <FieldBlock label="Data de Validade" value={new Date(order.expiryDate).toLocaleDateString('pt-BR')} />
-            </div>
-          </Card>
-        </TabsContent>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleShareWhatsApp}
+            className="rounded-lg h-9 text-xs font-semibold gap-1.5 border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 shrink-0"
+            title="Compartilhar autorização no WhatsApp"
+          >
+            <Share2 className="w-3.5 h-3.5 text-emerald-600" />
+            WhatsApp
+          </Button>
 
-        <TabsContent value="vinculos" className="mt-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="p-6">
-              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-status-green-fg" />
-                Vínculos
-              </div>
-              <div className="space-y-4">
-                {order.quoteId && (
-                  <div>
-                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Orçamento</p>
-                    <Link href={`/quotes/${order.quoteId}`}>
-                      <Button variant="outline" className="w-full justify-start gap-2 rounded-xl">
-                        <FileText className="h-4 w-4" />
-                        Ver Orçamento #{order.quote?.quoteNumber}
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-                {order.uploadedBy && (
-                  <div>
-                    <p className="text-[10.5px] text-text-muted font-bold uppercase tracking-wider mb-2">Cadastrado por</p>
-                    <div className="flex items-center gap-2 text-foreground p-3 rounded-xl bg-muted/40">
-                      <User className="h-4 w-4 text-status-green-fg" />
-                      <span className="text-[13px] font-medium">{order.uploadedBy.name}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </Card>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCopyLink}
+            className="rounded-lg h-9 text-xs font-semibold gap-1.5 border-gray-300 hover:bg-gray-50 shrink-0"
+            title="Copiar link deste documento"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Copiar Link
+          </Button>
 
-            <Card className="p-6">
-              <div className="text-[13.5px] font-bold text-foreground mb-4 flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-status-green-fg" />
-                Arquivos
-              </div>
-              {order.fileUrl ? (
-                <Button className="w-full bg-status-green-bg text-status-green-fg hover:bg-status-green-bg/80 border-none rounded-xl font-bold flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Visualizar Documento
-                </Button>
-              ) : (
-                <p className="text-[13px] text-text-muted text-center italic">Nenhum documento anexo.</p>
-              )}
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/purchase-orders/${order.id}/edit`)}
+            className="rounded-lg h-9 text-xs font-semibold gap-1.5 border-gray-300 hover:bg-gray-50 shrink-0"
+          >
+            <Edit className="w-3.5 h-3.5" />
+            Editar
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            onClick={handlePrint}
+            className="rounded-lg h-9 text-xs font-semibold gap-1.5 bg-[#E2661D] hover:bg-[#d05a18] text-white shadow-2xs shrink-0"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimir / Salvar PDF
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleDelete}
+            className="rounded-lg h-9 text-xs font-semibold border-red-200 text-red-600 hover:bg-red-50 p-2 shrink-0"
+            title="Excluir ordem de compra"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* =================================================================== */}
+      {/* FOLHA OFICIAL A4 — PADRÃO EXECUTIVO SGQ                             */}
+      {/* =================================================================== */}
+      <div className="w-full print:p-0 print:m-0" ref={printRef}>
+        <PurchaseOrderDocumentSheet order={order} />
+      </div>
     </div>
   );
 }

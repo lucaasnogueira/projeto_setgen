@@ -56,33 +56,33 @@ export function ArtCard({ serviceOrderId, art, onIssued }: ArtCardProps) {
 
   if (art) {
     return (
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+      <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
             ART
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-3.5 sm:p-4 space-y-2.5">
           <div>
-            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Número</p>
-            <p className="text-sm font-bold text-foreground">{art.number}</p>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Número</p>
+            <p className="text-xs font-bold text-gray-900">{art.number}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Responsável Técnico</p>
-            <p className="text-sm text-foreground">{art.engineerName} — CREA {art.creaNumber}</p>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Responsável Técnico</p>
+            <p className="text-xs text-gray-700">{art.engineerName} — CREA {art.creaNumber}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Emissão</p>
-            <p className="text-sm text-foreground">{formatDateBR(art.issueDate)}</p>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Emissão</p>
+            <p className="text-xs text-gray-700">{formatDateBR(art.issueDate)}</p>
           </div>
           {art.fileUrl && (
             <button
               type="button"
               onClick={() => openAuthedFile(art.fileUrl!)}
-              className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline pt-2"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E2661D] hover:underline pt-1"
             >
-              <FileDown className="h-4 w-4" />
+              <FileDown className="h-3.5 w-3.5" />
               Ver documento
             </button>
           )}
@@ -92,48 +92,48 @@ export function ArtCard({ serviceOrderId, art, onIssued }: ArtCardProps) {
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="bg-muted/30 border-b">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <HardHat className="h-5 w-5 text-amber-600" />
+    <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+      <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+        <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+          <HardHat className="h-4 w-4 text-amber-600" />
           ART
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="p-3.5 sm:p-4 space-y-3">
         {!showForm ? (
           <>
-            <p className="text-sm text-muted-foreground">Esta OS ainda não possui ART emitida.</p>
-            <Button onClick={() => setShowForm(true)} className="w-full rounded-[9px] font-bold">
+            <p className="text-xs text-gray-500">Esta OS ainda não possui ART emitida.</p>
+            <Button onClick={() => setShowForm(true)} className="w-full h-9 rounded-lg font-semibold text-xs bg-gray-900 hover:bg-black text-white shadow-2xs">
               Emitir ART
             </Button>
           </>
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Número da ART</Label>
-              <Input value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="ART-2026-000123" />
+          <div className="space-y-2.5">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Número da ART</Label>
+              <Input className="h-9 text-xs rounded-lg border-gray-200" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="ART-2026-000123" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Responsável Técnico</Label>
-              <Input value={form.engineerName} onChange={(e) => setForm({ ...form, engineerName: e.target.value })} placeholder="Eng. João Silva" />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Responsável Técnico</Label>
+              <Input className="h-9 text-xs rounded-lg border-gray-200" value={form.engineerName} onChange={(e) => setForm({ ...form, engineerName: e.target.value })} placeholder="Eng. João Silva" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">CREA</Label>
-              <Input value={form.creaNumber} onChange={(e) => setForm({ ...form, creaNumber: e.target.value })} placeholder="SP-1234567890" />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">CREA</Label>
+              <Input className="h-9 text-xs rounded-lg border-gray-200" value={form.creaNumber} onChange={(e) => setForm({ ...form, creaNumber: e.target.value })} placeholder="SP-1234567890" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Data de emissão</Label>
-              <Input type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Data de emissão</Label>
+              <Input className="h-9 text-xs rounded-lg border-gray-200" type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Arquivo (opcional)</Label>
-              <input type="file" onChange={(e) => setFile(e.target.files?.[0])} className="text-xs" />
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-gray-700">Arquivo (opcional)</Label>
+              <input type="file" onChange={(e) => setFile(e.target.files?.[0])} className="text-xs text-gray-600 block w-full" />
             </div>
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1 rounded-[9px] font-bold" onClick={() => setShowForm(false)} disabled={saving}>
+            <div className="flex gap-2 pt-1.5">
+              <Button variant="outline" className="flex-1 h-9 rounded-lg font-semibold text-xs border-gray-200" onClick={() => setShowForm(false)} disabled={saving}>
                 Cancelar
               </Button>
-              <Button className="flex-1 rounded-[9px] font-bold" onClick={handleSubmit} disabled={saving}>
+              <Button className="flex-1 h-9 rounded-lg font-semibold text-xs bg-gray-900 hover:bg-black text-white shadow-2xs" onClick={handleSubmit} disabled={saving}>
                 {saving ? 'Emitindo...' : 'Emitir'}
               </Button>
             </div>

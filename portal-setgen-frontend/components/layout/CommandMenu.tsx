@@ -58,13 +58,13 @@ export function CommandMenu() {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="overflow-hidden p-0 shadow-2xl rounded-2xl border-none max-w-2xl">
-          <Command className="flex h-full w-full flex-col overflow-hidden rounded-2xl bg-popover text-popover-foreground">
-            <div className="flex items-center border-b px-4 py-4" cmdk-input-wrapper="">
-              <Search className="mr-3 h-5 w-5 shrink-0 opacity-50" />
+        <DialogContent className="overflow-hidden p-0 shadow-2xl rounded-xl border border-gray-200/80 max-w-2xl bg-white">
+          <Command className="flex h-full w-full flex-col overflow-hidden rounded-xl bg-popover text-popover-foreground">
+            <div className="flex items-center border-b border-gray-100 px-3.5 py-2.5" cmdk-input-wrapper="">
+              <Search className="mr-2.5 h-4 w-4 shrink-0 opacity-50" />
               <Command.Input
                 placeholder="O que você está procurando?"
-                className="flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-9 w-full rounded-md bg-transparent py-2 text-xs outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             <Command.List className="max-h-[450px] overflow-y-auto overflow-x-hidden p-4 scrollbar-hide">

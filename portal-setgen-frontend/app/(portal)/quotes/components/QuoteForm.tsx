@@ -5,12 +5,13 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { clientsApi } from '@/lib/api/clients';
-import { Briefcase, Calendar, Info, DollarSign, AlertTriangle, Wrench } from 'lucide-react';
+import { Briefcase, Calendar, Info, DollarSign, AlertTriangle, Wrench, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ServiceOrderType, Quote, PaymentMethod } from '@/types';
 import { usersApi, User as ApiUser } from '@/lib/api/users';
 import { toDateInputValue, endOfBusinessDayISO } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -124,32 +125,73 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
   };
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5">
+      {/* Topo do Formulário com Protocolo e Status */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-orange-50 text-orange-700 border border-orange-200">
+              {initialData?.quoteNumber ? initialData.quoteNumber : 'PROP-2026-NOVA'}
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+              {initialData ? (initialData.status ? initialData.status : 'Proposta Ativa') : 'Minuta / Rascunho'}
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-gray-900">
+            {initialData ? `Edição da Proposta ${initialData.quoteNumber}` : 'Nova Proposta Comercial de Locação / Serviços'}
+          </h3>
+          <p className="text-xs text-gray-400">
+            Defina o cliente, escopo técnico, horas franquia, faturamento dual e condições comerciais
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-8 px-3 text-xs rounded-lg border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-8 px-4 text-xs rounded-lg bg-gray-900 hover:bg-black text-white font-medium shadow-2xs"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+            {submitLabel}
+          </Button>
+        </div>
+      </div>
+
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Info className="h-5 w-5 text-blue-600" />
-            Informações do Orçamento
+      {/* Identificação Principal */}
+      {/* Identificação Principal */}
+      <Card className={cn('border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'geral' && 'hidden')}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Info className="h-3.5 w-3.5 text-[#E2661D]" />
+            1. Informações Básicas do Orçamento
           </CardTitle>
-          <CardDescription>Defina o tipo de serviço e o cliente responsável</CardDescription>
+          <CardDescription className="text-xs text-gray-400">Defina o tipo de serviço e o cliente tomador</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Tipo *</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Tipo de Atendimento *</Label>
               <Controller
                 name="type"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialData}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white border-gray-200">
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita</SelectItem>
-                      <SelectItem value={ServiceOrderType.EXECUTION}>Execução de Serviço</SelectItem>
+                      <SelectItem value={ServiceOrderType.VISIT_REPORT}>Relatório de Visita Técnica</SelectItem>
+                      <SelectItem value={ServiceOrderType.EXECUTION}>Execução de Serviço / Locação</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -157,14 +199,14 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
               {errors.type && <p className="text-xs font-bold text-red-500">{errors.type.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Cliente *</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Cliente / Usina *</Label>
               <Controller
                 name="clientId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialData}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white border-gray-200">
                       <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
                     <SelectContent>
@@ -183,65 +225,66 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
         </CardContent>
       </Card>
 
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'geral' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Briefcase className="h-5 w-5 text-blue-600" />
-            Escopo e Detalhamento
+      {/* Escopo Técnico */}
+      <Card className={cn('border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'geral' && 'hidden')}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Briefcase className="h-3.5 w-3.5 text-[#E2661D]" />
+            2. Escopo Técnico & Dimensionamento
           </CardTitle>
-          <CardDescription>Descreva tecnicamente o que será realizado</CardDescription>
+          <CardDescription className="text-xs text-gray-400">Descreva tecnicamente os geradores e serviços a serem fornecidos</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Defeitos Relatados</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700 flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" />Defeitos Relatados</Label>
               <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full flex min-h-[85px] rounded-lg border border-gray-200 bg-white p-2.5 text-xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                 placeholder="Problemas informados pelo cliente..."
                 {...register('reportedDefects')}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm flex items-center gap-2"><Wrench className="h-4 w-4" />Serviços Solicitados</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700 flex items-center gap-1.5"><Wrench className="h-3.5 w-3.5 text-[#E2661D]" />Serviços Solicitados</Label>
               <textarea
-                className="w-full flex min-h-[100px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                className="w-full flex min-h-[85px] rounded-lg border border-gray-200 bg-white p-2.5 text-xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                 placeholder="Ações específicas solicitadas..."
                 {...register('requestedServices')}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Escopo Proposto *</Label>
+          <div className="space-y-1">
+            <Label className="font-semibold text-xs text-gray-700">Escopo Proposto *</Label>
             <textarea
-              className="w-full flex min-h-[120px] rounded-2xl border border-border bg-background px-4 py-3 text-sm transition-all focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+              className="w-full flex min-h-[95px] rounded-lg border border-gray-200 bg-white p-2.5 text-xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
               placeholder="Descrição técnica detalhada do trabalho..."
               {...register('scope')}
             />
             {errors.scope && <p className="text-xs font-bold text-red-500">{errors.scope.message}</p>}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Validade do Orçamento</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Validade do Orçamento</Label>
               <div className="relative group">
-                <Calendar className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-blue-600" />
+                <Calendar className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 group-focus-within:text-[#E2661D]" />
                 <Input
                   type="date"
-                  className="h-12 pl-10 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                  className="h-9 pl-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                   {...register('validUntil')}
                 />
               </div>
               {errors.validUntil && <p className="text-xs font-bold text-red-500">{errors.validUntil.message}</p>}
-              <p className="text-xs text-muted-foreground">Necessária antes de enviar ao cliente — usada pra expirar automaticamente sem resposta.</p>
+              <p className="text-[11px] text-gray-400">Necessária antes de enviar ao cliente — usada pra expirar automaticamente sem resposta.</p>
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Observações Internas</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Observações Internas</Label>
               <Input
                 placeholder="Notas para a equipe comercial..."
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register('notes')}
               />
             </div>
@@ -249,24 +292,24 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
         </CardContent>
       </Card>
 
-      <Card className={cn('border-none shadow-xl rounded-3xl overflow-hidden', activeStep !== 'pagamento' && 'hidden')}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <DollarSign className="h-5 w-5 text-blue-600" />
-            Pagamento e Garantia
+      <Card className={cn('border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white', activeStep !== 'pagamento' && 'hidden')}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <DollarSign className="h-3.5 w-3.5 text-[#E2661D]" />
+            3. Condições Comerciais, Pagamento & Garantia
           </CardTitle>
-          <CardDescription>Condições comerciais do orçamento</CardDescription>
+          <CardDescription className="text-xs text-gray-400">Condições comerciais, prazos e faturamento da locação</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Forma de Pagamento</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Forma de Pagamento</Label>
               <Controller
                 name="paymentMethod"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Não definida" />
                     </SelectTrigger>
                     <SelectContent>
@@ -280,25 +323,25 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Garantia (meses)</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Garantia (meses)</Label>
               <Input
                 type="number"
                 min="0"
                 placeholder="12"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register('warrantyMonths')}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Responsável Comercial</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Responsável Comercial</Label>
               <Controller
                 name="salesRepId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Não definido" />
                     </SelectTrigger>
                     <SelectContent>
@@ -312,22 +355,22 @@ export function QuoteForm({ initialData, onSubmit, onCancel, loading, submitLabe
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Prazo de Pagamento (dias)</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Prazo de Pagamento (dias)</Label>
               <Input
                 type="number"
                 min="0"
                 placeholder="30"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register('paymentTermDays')}
               />
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <Label className="font-bold text-sm">Condição de Pagamento</Label>
+            <div className="space-y-1 md:col-span-2">
+              <Label className="font-semibold text-xs text-gray-700">Condição de Pagamento</Label>
               <Input
                 placeholder="Ex: 50% entrada e 50% na conclusão"
-                className="h-12 rounded-2xl border-border focus:ring-blue-500/20 focus:border-blue-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register('paymentTerms')}
               />
             </div>

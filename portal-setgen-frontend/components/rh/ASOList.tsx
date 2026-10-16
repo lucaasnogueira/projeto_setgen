@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Pagination } from '../ui/pagination';
+import { TablePagination } from '../ui/pagination';
 import { PaginatedResponse } from '@/types';
 import { openAuthedFile } from '@/lib/utils/auth-file';
 import { 
@@ -61,7 +61,7 @@ interface ASOListProps {
 export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
   const [asos, setAsos] = useState<ASO[]>(initialAsos);
   const [currentPage, setCurrentPage] = useState(1);
-  const [meta, setMeta] = useState<{ totalPages: number } | null>(null);
+  const [meta, setMeta] = useState<PaginatedResponse<ASO>['meta'] | null>(null);
 
   const loadAsos = async (page: number) => {
     setLoading(true);
@@ -256,14 +256,15 @@ export function ASOList({ employeeId, initialAsos, onSuccess }: ASOListProps) {
             </tbody>
           </table>
         </div>
-        {meta && meta.totalPages > 1 && (
-          <div className="border-t border-border bg-card">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={meta.totalPages}
-              onPageChange={setCurrentPage}
-            />
-          </div>
+        {meta && (
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={meta.totalPages}
+            totalItems={meta.total}
+            itemsPerPage={meta.limit || 5}
+            onPageChange={setCurrentPage}
+            itemLabel="ASOs"
+          />
         )}
       </CardContent>
 

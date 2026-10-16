@@ -1,4 +1,3 @@
-// Prisma Schema - Portal Setgen
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,9 +7,1538 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================
-// USUÃRIOS E AUTENTICAÃ‡ÃƒO
-// ============================================
+model User {
+  id                       String                     @id @default(uuid())
+  name                     String
+  email                    String                     @unique
+  password                 String
+  role                     UserRole
+  active                   Boolean                    @default(true)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  roleId                   String?
+  notifyPrefs              Json?
+  auvochatEnabled          Boolean                    @default(false)
+  avatarUrl                String?
+  basePointAddress         String?
+  basePointLat             Float?
+  basePointLng             Float?
+  checkinType              CheckinType                @default(MANUAL)
+  defaultScreen            DefaultScreen              @default(AGENDA)
+  hourlyRate               Decimal                    @default(0.00) @db.Decimal(12, 2)
+  jobTitle                 String?
+  kmRate                   Decimal                    @default(0.00) @db.Decimal(12, 2)
+  language                 String                     @default("pt-BR")
+  login                    String?                    @unique
+  monitoringIntervalMin    Int                        @default(3)
+  notifyApprovalEmail      Boolean                    @default(true)
+  notifyApprovalWeb        Boolean                    @default(true)
+  phone                    String?
+  workShiftSchedule        Json?
+  workShiftType            WorkShiftType              @default(SEMPRE_ATIVO)
+  approvals                Approval[]
+  auditLogs                AuditLog[]
+  clientsResponsibleFor    Client[]                   @relation("ClientResponsibleUser")
+  collaboratorAttachments  CollaboratorAttachment[]
+  collaboratorPermissions  CollaboratorPermission?
+  deliveredServices        Delivery[]                 @relation("DeliveredBy")
+  employee                 Employee?
+  expenseAttachments       ExpenseAttachment[]
+  approvedExpenses         Expense[]                  @relation("ApprovedExpenses")
+  expenses                 Expense[]                  @relation("UserExpenses")
+  fuelRequestsApproved     FuelRequest[]              @relation("FuelApprovedBy")
+  fuelRequestsMade         FuelRequest[]              @relation("FuelRequestedBy")
+  createdNotasFiscais      NotaFiscal[]               @relation("CreatedNotasFiscais")
+  collaboratorStocks       ProductCollaboratorStock[]
+  uploadedPurchaseOrders   PurchaseOrder[]            @relation("UploadedPurchaseOrders")
+  quoteAttachmentsUploaded QuoteAttachment[]          @relation("QuoteAttachmentUploader")
+  quoteTasksAssigned       QuoteTask[]                @relation("QuoteTaskAssignee")
+  createdQuotes            Quote[]                    @relation("CreatedQuotes")
+  salesQuotes              Quote[]                    @relation("QuoteSalesRep")
+  assignedWorkOrders       ServiceOrder[]             @relation("AssignedWorkOrders")
+  createdServiceOrders     ServiceOrder[]             @relation("CreatedServiceOrders")
+  stockMovements           StockMovement[]
+  requestedVisits          TechnicalVisit[]           @relation("VisitRequestedBy")
+  createdVisits            TechnicalVisit[]           @relation("CreatedVisits")
+  permissions              UserPermission[]
+  roleRef                  Role?                      @relation(fields: [roleId], references: [id])
+  createdVehicleTrips      VehicleTrip[]
+  workOrderExecutionLogs   WorkOrderExecutionLog[]
+  managedTeams             Team[]                     @relation("TeamManagers")
+  teams                    Team[]                     @relation("TeamMembers")
+  createdDocuments         ServiceOrderDocument[]
+
+  @@map("users")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  moduleId    String?
+  module      SystemModule?    @relation(fields: [moduleId], references: [id])
+  roles       RolePermission[]
+  users       UserPermission[]
+
+  @@map("permissions")
+}
+
+model SystemModule {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  name        String
+  description String?
+  route       String
+  icon        String       @default("Layers")
+  orderIndex  Int          @default(0)
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  permissions Permission[]
+
+  @@map("system_modules")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       User[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+model CollaboratorPermission {
+  id                                  String   @id @default(uuid())
+  userId                              String   @unique
+  canCreateTasks                      Boolean  @default(false)
+  canAccessAllTaskTypes               Boolean  @default(false)
+  canExecuteTasks                     Boolean  @default(true)
+  canEditTasks                        Boolean  @default(false)
+  canDeleteTasks                      Boolean  @default(false)
+  canRemoveCollectedSignature         Boolean  @default(false)
+  canPauseTasks                       Boolean  @default(true)
+  canRescheduleTasks                  Boolean  @default(false)
+  canUseGalleryPhotos                 Boolean  @default(true)
+  canEditTasksPostCheckout            Boolean  @default(false)
+  canManualCheckoutWithPending        Boolean  @default(false)
+  canManualCheckinWithOpenCheckout    Boolean  @default(false)
+  canFillReportWithoutCheckin         Boolean  @default(false)
+  canManualCheckinOffSchedule         Boolean  @default(false)
+  canAddQuestionnaire                 Boolean  @default(false)
+  canRemoveQuestionnaire              Boolean  @default(false)
+  canRemoveEquipmentFromQuestionnaire Boolean  @default(false)
+  canChangeBasePoint                  Boolean  @default(false)
+  canManageClients                    Boolean  @default(false)
+  canAccessProductsAndQuotes          Boolean  @default(false)
+  canEditClientAddress                Boolean  @default(false)
+  canChangeQuoteStatus                Boolean  @default(false)
+  canViewClientSensitiveContacts      Boolean  @default(false)
+  canViewSendDigitalOsReports         Boolean  @default(false)
+  canManageFinancialCategories        Boolean  @default(false)
+  canStartDisplacement                Boolean  @default(true)
+  canViewCostPrices                   Boolean  @default(false)
+  canMoveCompanyStock                 Boolean  @default(false)
+  canManageKeywords                   Boolean  @default(false)
+  canManageProjects                   Boolean  @default(false)
+  canViewEquipment                    Boolean  @default(true)
+  canCreateEquipment                  Boolean  @default(false)
+  canEditEquipment                    Boolean  @default(false)
+  canDeleteEquipment                  Boolean  @default(false)
+  canDeleteTicketNotes                Boolean  @default(false)
+  createdAt                           DateTime @default(now())
+  updatedAt                           DateTime @updatedAt
+  user                                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("collaborator_permissions")
+}
+
+model CollaboratorAttachment {
+  id         String   @id @default(uuid())
+  userId     String
+  fileName   String
+  fileUrl    String
+  fileSize   BigInt?
+  mimeType   String?
+  uploadedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("collaborator_attachments")
+}
+
+model Client {
+  id                    String            @id @default(uuid())
+  cnpjCpf               String            @unique
+  companyName           String
+  tradeName             String?
+  address               Json
+  phone                 String
+  email                 String
+  contacts              Json[]
+  status                ClientStatus      @default(ACTIVE)
+  notes                 String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  billingEmail          String?
+  corporateEmails       String[]          @default([])
+  corporatePhones       String[]          @default([])
+  externalCode          String?           @unique
+  groupId               String?
+  icmsTaxpayerType      IcmsTaxpayerType?
+  internalNotes         String?
+  latitude              Float?
+  longitude             Float?
+  municipalRegistration String?
+  onSiteContact         String?
+  responsibleTeamId     String?
+  responsibleUserId     String?
+  segmentId             String?
+  stateRegistration     String?
+  isPublicAgency        Boolean           @default(false)
+  addresses             ClientAddress[]
+  contactList           ClientContact[]
+  group                 ClientTaxonomy?   @relation("ClientGroupTaxonomy", fields: [groupId], references: [id])
+  responsibleTeam       Team?             @relation(fields: [responsibleTeamId], references: [id])
+  responsibleUser       User?             @relation("ClientResponsibleUser", fields: [responsibleUserId], references: [id])
+  segment               ClientTaxonomy?   @relation("ClientSegmentTaxonomy", fields: [segmentId], references: [id])
+  equipments            Equipment[]
+  expenses              Expense[]
+  notasFiscais          NotaFiscal[]
+  purchaseOrders        PurchaseOrder[]
+  quotes                Quote[]
+  serviceOrders         ServiceOrder[]
+  technicalVisits       TechnicalVisit[]
+  documents             ServiceOrderDocument[]
+
+  @@map("clients")
+}
+
+model ClientAddress {
+  id               String   @id @default(uuid())
+  clientId         String
+  label            String   @default("Principal")
+  streetAddress    String
+  complement       String?
+  latitude         Float?
+  longitude        Float?
+  sourceExtraction String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_addresses")
+}
+
+model ClientContact {
+  id          String   @id @default(uuid())
+  clientId    String
+  contactType String
+  value       String
+  label       String?
+  name        String?
+  createdAt   DateTime @default(now())
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quotes      Quote[]
+
+  @@map("client_contacts")
+}
+
+model Team {
+  id             String   @id @default(uuid())
+  name           String   @unique
+  description    String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  responsibleFor Client[]
+  managers       User[]   @relation("TeamManagers")
+  members        User[]   @relation("TeamMembers")
+
+  @@map("teams")
+}
+
+model ClientTaxonomy {
+  id               String             @id @default(uuid())
+  kind             ClientTaxonomyKind
+  name             String
+  color            String?
+  active           Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  clientsAsGroup   Client[]           @relation("ClientGroupTaxonomy")
+  clientsAsSegment Client[]           @relation("ClientSegmentTaxonomy")
+
+  @@unique([kind, name])
+  @@map("client_taxonomies")
+}
+
+model Equipment {
+  id                   String                @id @default(uuid())
+  clientId             String
+  type                 EquipmentType         @default(GENERATOR)
+  brand                String?
+  model                String?
+  serialNumber         String?
+  powerRating          String?
+  installLocation      String?
+  purchaseDate         DateTime?
+  notes                String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  active               Boolean               @default(true)
+  category             String?
+  expirationDate       DateTime?
+  identifier           String?               @unique
+  name                 String?
+  parentEquipmentId    String?
+  photoUrl             String?
+  qrCodeHash           String?               @unique
+  qrCodeInherited      Boolean               @default(true)
+  qrCodePublicRead     Boolean               @default(false)
+  specifications       Json?
+  warrantyEndDate      DateTime?
+  equipmentAttachments EquipmentAttachment[]
+  client               Client                @relation(fields: [clientId], references: [id])
+  parentEquipment      Equipment?            @relation("EquipmentHierarchy", fields: [parentEquipmentId], references: [id])
+  childEquipments      Equipment[]           @relation("EquipmentHierarchy")
+  associatedProducts   Product[]
+  workOrders           ServiceOrder[]        @relation("WorkOrderEquipment")
+  technicalVisits      TechnicalVisit[]
+  visitLinks           VisitEquipment[]
+  warranties           Warranty[]
+
+  @@index([clientId])
+  @@map("equipments")
+}
+
+model EquipmentAttachment {
+  id          String    @id @default(uuid())
+  equipmentId String
+  fileName    String
+  fileUrl     String
+  uploadedAt  DateTime  @default(now())
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@map("equipment_attachments")
+}
+
+model FailureCategory {
+  id              String           @id @default(uuid())
+  name            String           @unique
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  technicalVisits TechnicalVisit[]
+
+  @@map("failure_categories")
+}
+
+model VisitTaskType {
+  id                         String             @id @default(uuid())
+  name                       String             @unique
+  defaultChecklistTemplateId String?
+  active                     Boolean            @default(true)
+  createdAt                  DateTime           @default(now())
+  technicalVisits            TechnicalVisit[]
+  defaultChecklistTemplate   ChecklistTemplate? @relation(fields: [defaultChecklistTemplateId], references: [id])
+
+  @@map("visit_task_types")
+}
+
+model TechnicalVisit {
+  id                  String              @id @default(uuid())
+  clientId            String
+  technicianId        String?
+  visitDate           DateTime
+  visitType           VisitType
+  location            String
+  description         String
+  identifiedNeeds     String?
+  suggestedScope      String?
+  estimatedDeadline   String?
+  estimatedValue      Decimal?            @db.Decimal(10, 2)
+  attachments         String[]
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  attachmentsData     Json?
+  checkinAccuracy     Float?
+  checkinAt           DateTime?
+  checkinLat          Float?
+  checkinLng          Float?
+  checkoutAccuracy    Float?
+  checkoutAt          DateTime?
+  checkoutLat         Float?
+  checkoutLng         Float?
+  responsibleIds      String[]
+  userReport          String?
+  chargeable          Boolean             @default(false)
+  equipmentId         String?
+  failureCategoryId   String?
+  scheduledEnd        DateTime?
+  scheduledStart      DateTime?
+  status              VisitStatus         @default(SCHEDULED)
+  actualValue         Decimal?            @db.Decimal(10, 2)
+  checklist           Json[]
+  checklistTemplateId String?
+  createdById         String?
+  externalCode        String?             @unique
+  visitNumber         String?             @unique
+  serviceCategory     String?             @default("ELECTRICAL")
+  technicalData       Json?
+  conclusionData      Json?
+  technicianSignature String?             @db.Text
+  clientSignature     String?             @db.Text
+  clientSignerName    String?
+  clientSignerDocument String?
+  clientSignatureRefused Boolean?         @default(false)
+  clientRefusalReason String?             @db.Text
+  priority            VisitPriority       @default(MEDIUM)
+  taskTypeId          String?
+  expenses            Expense[]
+  quotes              Quote[]
+  linkedOrders        ServiceOrderVisit[]
+  checklistTemplate   ChecklistTemplate?  @relation(fields: [checklistTemplateId], references: [id])
+  client              Client              @relation(fields: [clientId], references: [id])
+  createdBy           User?               @relation("VisitRequestedBy", fields: [createdById], references: [id])
+  equipment           Equipment?          @relation(fields: [equipmentId], references: [id])
+  failureCategory     FailureCategory?    @relation(fields: [failureCategoryId], references: [id])
+  taskType            VisitTaskType?      @relation(fields: [taskTypeId], references: [id])
+  technician          User?               @relation("CreatedVisits", fields: [technicianId], references: [id])
+  equipments          VisitEquipment[]
+
+  @@index([equipmentId])
+  @@index([technicianId])
+  @@map("technical_visits")
+}
+
+model VisitEquipment {
+  id          String         @id @default(uuid())
+  visitId     String
+  equipmentId String
+  createdAt   DateTime       @default(now())
+  equipment   Equipment      @relation(fields: [equipmentId], references: [id])
+  visit       TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, equipmentId])
+  @@map("visit_equipment")
+}
+
+model ChecklistTemplate {
+  id               String            @id @default(uuid())
+  name             String
+  description      String?
+  serviceOrderType ServiceOrderType?
+  active           Boolean           @default(true)
+  fields           Json
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  serviceOrders    ServiceOrder[]
+  technicalVisits  TechnicalVisit[]
+  visitTaskTypes   VisitTaskType[]
+
+  @@map("checklist_templates")
+}
+
+model Quote {
+  id                          String                @id @default(uuid())
+  quoteNumber                 String                @unique
+  type                        ServiceOrderType
+  clientId                    String
+  technicalVisitId            String?
+  scope                       String
+  createdById                 String
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+  notes                       String?
+  reportedDefects             String?
+  requestedServices           String?
+  validUntil                  DateTime?
+  paymentMethod               PaymentMethod?
+  paymentTerms                String?
+  salesRepId                  String?
+  warrantyMonths              Int?
+  paymentTermDays             Int?
+  status                      QuoteStatus           @default(DRAFT)
+  allowMultiplePaymentMethods Boolean               @default(false)
+  contactId                   String?
+  discountType                DiscountType          @default(VALOR_FIXO)
+  discountValue               Decimal               @default(0.00) @db.Decimal(12, 2)
+  externalCode                String?
+  internalNotes               String?
+  paymentMethodConfigId       String?
+  requestDate                 DateTime              @default(now())
+  subtotalAdditionalCosts     Decimal               @default(0.00) @db.Decimal(12, 2)
+  subtotalProducts            Decimal               @default(0.00) @db.Decimal(12, 2)
+  subtotalServices            Decimal               @default(0.00) @db.Decimal(12, 2)
+  targetType                  QuoteTargetType       @default(CLIENTE)
+  totalAmount                 Decimal               @default(0.00) @db.Decimal(12, 2)
+  approvals                   Approval[]
+  purchaseOrders              PurchaseOrder[]
+  additionalCosts             QuoteAdditionalCost[]
+  quoteAttachments            QuoteAttachment[]
+  itemProducts                QuoteItemProduct[]
+  itemServices                QuoteItemService[]
+  quoteLines                  QuoteLine[]
+  tasks                       QuoteTask[]
+  client                      Client                @relation(fields: [clientId], references: [id])
+  contact                     ClientContact?        @relation(fields: [contactId], references: [id])
+  createdBy                   User                  @relation("CreatedQuotes", fields: [createdById], references: [id])
+  paymentMethodConfig         PaymentMethodConfig?  @relation(fields: [paymentMethodConfigId], references: [id])
+  salesRep                    User?                 @relation("QuoteSalesRep", fields: [salesRepId], references: [id])
+  technicalVisit              TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
+  serviceOrder                ServiceOrder?
+
+  @@map("quotes")
+}
+
+model QuoteLine {
+  id          String           @id @default(uuid())
+  quoteId     String
+  type        QuoteLineType
+  description String
+  quantity    Decimal          @db.Decimal(10, 2)
+  unitValue   Decimal          @db.Decimal(10, 2)
+  totalValue  Decimal          @db.Decimal(10, 2)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  discount    Decimal          @default(0) @db.Decimal(10, 2)
+  billingType ItemBillingType? @default(BILLED_SEPARATELY)
+  quote       Quote            @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+model QuoteItemProduct {
+  id             String          @id @default(uuid())
+  quoteId        String
+  productId      String
+  quantity       Decimal         @db.Decimal(10, 2)
+  unitPrice      Decimal         @db.Decimal(12, 2)
+  discountAmount Decimal         @default(0.00) @db.Decimal(12, 2)
+  totalPrice     Decimal         @db.Decimal(12, 2)
+  billingType    ItemBillingType @default(BILLED_SEPARATELY)
+  createdAt      DateTime        @default(now())
+  product        Product         @relation(fields: [productId], references: [id])
+  quote          Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_item_products")
+}
+
+model QuoteItemService {
+  id                String   @id @default(uuid())
+  quoteId           String
+  serviceId         String
+  quantity          Decimal  @db.Decimal(10, 2)
+  unitPrice         Decimal  @db.Decimal(12, 2)
+  discountAmount    Decimal  @default(0.00) @db.Decimal(12, 2)
+  totalPrice        Decimal  @db.Decimal(12, 2)
+  customObservation String?
+  createdAt         DateTime @default(now())
+  quote             Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  service           Service  @relation(fields: [serviceId], references: [id])
+
+  @@map("quote_item_services")
+}
+
+model QuoteAdditionalCost {
+  id          String   @id @default(uuid())
+  quoteId     String
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_additional_costs")
+}
+
+model QuoteTask {
+  id                     String   @id @default(uuid())
+  quoteId                String
+  taskCode               String?
+  taskType               String
+  executionDate          DateTime
+  assignedCollaboratorId String?
+  createdAt              DateTime @default(now())
+  assignedCollaborator   User?    @relation("QuoteTaskAssignee", fields: [assignedCollaboratorId], references: [id])
+  quote                  Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_tasks")
+}
+
+model QuoteAttachment {
+  id           String   @id @default(uuid())
+  quoteId      String
+  fileName     String
+  fileUrl      String
+  uploadedById String
+  showToClient Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  quote        Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  uploadedBy   User     @relation("QuoteAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@map("quote_attachments")
+}
+
+model Service {
+  id                    String                 @id @default(uuid())
+  title                 String
+  category              String?
+  unit                  String?                @default("sv")
+  price                 Decimal                @default(0.00) @db.Decimal(12, 2)
+  externalCode          String?                @unique
+  defaultObservation    String?
+  observationEditable   Boolean                @default(true)
+  active                Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  quoteItemServices     QuoteItemService[]
+  templates             ServiceTemplate[]
+  workOrderItemServices WorkOrderItemService[]
+
+  @@map("services")
+}
+
+model ServiceTemplate {
+  id              String   @id @default(uuid())
+  serviceId       String
+  title           String
+  templateContent String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@map("service_templates")
+}
+
+model PaymentMethodConfig {
+  id                   String   @id @default(uuid())
+  description          String
+  maxInstallments      Int      @default(1)
+  bankAccount          String
+  gatewayOrModality    String
+  feePercentage        Decimal  @default(0.00) @db.Decimal(5, 2)
+  feeFixedAmount       Decimal  @default(0.00) @db.Decimal(10, 2)
+  settlementPeriodDays Int      @default(0)
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  quotes               Quote[]
+
+  @@map("payment_method_configs")
+}
+
+model ServiceOrder {
+  id                     String                  @id @default(uuid())
+  orderNumber            String                  @unique
+  quoteId                String                  @unique
+  clientId               String
+  status                 ServiceOrderStatus      @default(AWAITING_MATERIALS)
+  scope                  String
+  requiredResources      Json?
+  deadline               DateTime?
+  responsibleIds         String[]
+  checklist              Json[]
+  checklistTemplateId    String?
+  progress               Int                     @default(0)
+  attachments            String[]
+  createdById            String
+  paymentStatus          PaymentStatus           @default(PENDING)
+  completedAt            DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  assignedCollaboratorId String?
+  checkinTime            DateTime?
+  checkoutTime           DateTime?
+  displacementCostReal   Decimal                 @default(0.00) @db.Decimal(12, 2)
+  equipmentId            String?
+  grossProfitReal        Decimal                 @default(0.00) @db.Decimal(12, 2)
+  grossRevenueReal       Decimal                 @default(0.00) @db.Decimal(12, 2)
+  hourlyRateSnapshot     Decimal                 @default(0.00) @db.Decimal(12, 2)
+  kmRateSnapshot         Decimal                 @default(0.00) @db.Decimal(12, 2)
+  laborCostReal          Decimal                 @default(0.00) @db.Decimal(12, 2)
+  totalKmTraveled        Decimal                 @default(0.00) @db.Decimal(8, 2)
+  totalMaterialCostReal  Decimal                 @default(0.00) @db.Decimal(12, 2)
+  totalWorkedHours       Decimal                 @default(0.00) @db.Decimal(6, 2)
+  art                    ART?
+  delivery               Delivery?
+  expenses               Expense[]
+  materialRequests       MaterialRequest[]
+  notasFiscais           NotaFiscal[]
+  items                  ServiceOrderProduct[]
+  linkedVisits           ServiceOrderVisit[]
+  assignedCollaborator   User?                   @relation("AssignedWorkOrders", fields: [assignedCollaboratorId], references: [id])
+  checklistTemplate      ChecklistTemplate?      @relation(fields: [checklistTemplateId], references: [id])
+  client                 Client                  @relation(fields: [clientId], references: [id])
+  createdBy              User                    @relation("CreatedServiceOrders", fields: [createdById], references: [id])
+  equipment              Equipment?              @relation("WorkOrderEquipment", fields: [equipmentId], references: [id])
+  quote                  Quote                   @relation(fields: [quoteId], references: [id])
+  executionLogs          WorkOrderExecutionLog[]
+  itemServices           WorkOrderItemService[]
+  signature              WorkOrderSignature?
+  documents              ServiceOrderDocument[]
+
+  @@map("service_orders")
+}
+
+model WorkOrderItemService {
+  id               String       @id @default(uuid())
+  serviceOrderId   String
+  serviceId        String
+  quantity         Decimal      @db.Decimal(10, 2)
+  unitPrice        Decimal      @db.Decimal(12, 2)
+  scopeObservation String?
+  completed        Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  service          Service      @relation(fields: [serviceId], references: [id])
+  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@map("work_order_item_services")
+}
+
+model WorkOrderExecutionLog {
+  id             String       @id @default(uuid())
+  serviceOrderId String
+  userId         String
+  actionType     String
+  recordedAt     DateTime     @default(now())
+  latitude       Float?
+  longitude      Float?
+  odometerKm     Decimal?     @db.Decimal(10, 2)
+  notes          String?
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@map("work_order_execution_logs")
+}
+
+model WorkOrderSignature {
+  id                String       @id @default(uuid())
+  serviceOrderId    String       @unique
+  signerName        String
+  signerDocument    String
+  signatureImageUrl String
+  signedAt          DateTime     @default(now())
+  ipAddress         String?
+  latitude          Float?
+  longitude         Float?
+  serviceOrder      ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@map("work_order_signatures")
+}
+
+model ServiceOrderVisit {
+  id               String         @id @default(uuid())
+  serviceOrderId   String
+  technicalVisitId String
+  createdAt        DateTime       @default(now())
+  serviceOrder     ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  technicalVisit   TechnicalVisit @relation(fields: [technicalVisitId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceOrderId, technicalVisitId])
+  @@map("service_order_visits")
+}
+
+model CompanySettings {
+  id        String   @id @default(uuid())
+  name      String
+  cnpj      String?
+  phone     String?
+  email     String?
+  address   String?
+  updatedAt DateTime @updatedAt
+
+  @@map("company_settings")
+}
+
+model ART {
+  id             String       @id @default(uuid())
+  serviceOrderId String       @unique
+  number         String
+  engineerName   String
+  creaNumber     String
+  issueDate      DateTime
+  fileUrl        String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@map("arts")
+}
+
+model ExpenseCategory {
+  id            String              @id @default(uuid())
+  name          String
+  code          String              @unique
+  type          ExpenseCategoryType
+  group         ExpenseGroup
+  description   String?
+  color         String?
+  icon          String?
+  isActive      Boolean             @default(true)
+  defaultBudget Decimal?            @db.Decimal(10, 2)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  budgets       Budget[]
+  expenses      Expense[]
+  recurring     RecurringExpense[]
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id                String              @id @default(uuid())
+  code              String              @unique
+  description       String
+  type              ExpenseType
+  amount            Decimal             @db.Decimal(10, 2)
+  paidAmount        Decimal?            @db.Decimal(10, 2)
+  date              DateTime
+  dueDate           DateTime
+  paymentDate       DateTime?
+  competenceDate    DateTime
+  categoryId        String
+  costCenterId      String?
+  visitId           String?
+  serviceOrderId    String?
+  clientId          String?
+  paymentMethod     PaymentMethod?
+  bankAccountId     String?
+  documentNumber    String?
+  userId            String
+  approvedBy        String?
+  approvalDate      DateTime?
+  rejectionReason   String?
+  status            ExpenseStatus       @default(PENDING)
+  notes             String?
+  isRecurring       Boolean             @default(false)
+  recurringId       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  installment       Int?
+  isFixed           Boolean             @default(false)
+  parentExpenseId   String?
+  reconciled        Boolean             @default(false)
+  reconciledAt      DateTime?
+  reconciledBy      String?
+  supplier          String?
+  tags              String[]
+  totalInstallments Int?
+  cashFlows         CashFlow[]
+  attachments       ExpenseAttachment[]
+  approver          User?               @relation("ApprovedExpenses", fields: [approvedBy], references: [id])
+  bankAccount       BankAccount?        @relation(fields: [bankAccountId], references: [id])
+  category          ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  client            Client?             @relation(fields: [clientId], references: [id])
+  costCenter        CostCenter?         @relation(fields: [costCenterId], references: [id])
+  parentExpense     Expense?            @relation("InstallmentExpenses", fields: [parentExpenseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  installments      Expense[]           @relation("InstallmentExpenses")
+  recurring         RecurringExpense?   @relation(fields: [recurringId], references: [id])
+  serviceOrder      ServiceOrder?       @relation(fields: [serviceOrderId], references: [id])
+  user              User                @relation("UserExpenses", fields: [userId], references: [id])
+  visit             TechnicalVisit?     @relation(fields: [visitId], references: [id])
+  fuelRequest       FuelRequest?
+
+  @@index([categoryId])
+  @@index([userId])
+  @@index([status])
+  @@index([competenceDate])
+  @@map("expenses")
+}
+
+model CostCenter {
+  id          String       @id @default(uuid())
+  name        String
+  code        String       @unique
+  description String?
+  isActive    Boolean      @default(true)
+  parentId    String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  budgets     Budget[]
+  parent      CostCenter?  @relation("SubCenters", fields: [parentId], references: [id])
+  children    CostCenter[] @relation("SubCenters")
+  employees   Employee[]
+  expenses    Expense[]
+
+  @@map("cost_centers")
+}
+
+model Budget {
+  id            String          @id @default(uuid())
+  year          Int
+  month         Int?
+  categoryId    String
+  costCenterId  String?
+  plannedAmount Decimal         @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
+  costCenter    CostCenter?     @relation(fields: [costCenterId], references: [id])
+
+  @@unique([year, month, categoryId, costCenterId])
+  @@map("budgets")
+}
+
+model RecurringExpense {
+  id          String              @id @default(uuid())
+  description String
+  categoryId  String
+  amount      Decimal             @db.Decimal(10, 2)
+  frequency   RecurrenceFrequency
+  dayOfMonth  Int?
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  expenses    Expense[]
+  category    ExpenseCategory     @relation(fields: [categoryId], references: [id])
+
+  @@map("recurring_expenses")
+}
+
+model BankAccount {
+  id        String     @id @default(uuid())
+  name      String
+  bankName  String
+  agency    String
+  account   String
+  type      String
+  balance   Decimal    @default(0) @db.Decimal(10, 2)
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  pixKey    String?
+  cashFlows CashFlow[]
+  expenses  Expense[]
+
+  @@map("bank_accounts")
+}
+
+model CashFlow {
+  id            String       @id @default(uuid())
+  date          DateTime
+  type          CashFlowType
+  category      String
+  amount        Decimal      @db.Decimal(10, 2)
+  balance       Decimal      @db.Decimal(10, 2)
+  description   String
+  expenseId     String?
+  bankAccountId String
+  createdAt     DateTime     @default(now())
+  bankAccount   BankAccount  @relation(fields: [bankAccountId], references: [id])
+  expense       Expense?     @relation(fields: [expenseId], references: [id])
+
+  @@index([date])
+  @@index([bankAccountId])
+  @@map("cash_flow")
+}
+
+model ExpenseAttachment {
+  id         String   @id @default(uuid())
+  expenseId  String
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [uploadedBy], references: [id])
+
+  @@map("expense_attachments")
+}
+
+model Approval {
+  id         String         @id @default(uuid())
+  quoteId    String
+  approverId String
+  status     ApprovalStatus
+  comments   String?
+  approvedAt DateTime       @default(now())
+  createdAt  DateTime       @default(now())
+  approver   User           @relation(fields: [approverId], references: [id])
+  quote      Quote          @relation(fields: [quoteId], references: [id])
+
+  @@map("approvals")
+}
+
+model PurchaseOrder {
+  id              String              @id @default(uuid())
+  quoteId         String?
+  clientId        String?
+  orderNumber     String
+  value           Decimal             @default(0.00) @db.Decimal(10, 2)
+  issueDate       DateTime            @default(now())
+  expiryDate      DateTime?
+  status          PurchaseOrderStatus @default(PENDING)
+  fileUrl         String?
+  uploadedById    String?
+  supplierName    String?
+  supplierCnpj    String?
+  supplierPhone   String?
+  supplierAddress String?
+  supplierId      String?
+  carrierName     String?
+  carrierDoc      String?
+  carrierVehicle  String?
+  destination     String?
+  serviceOrderId  String?
+  paymentMethod   String?
+  items           Json?               @default("[]")
+  totalAmount     Decimal?            @default(0.00) @db.Decimal(10, 2)
+  pickupDate      DateTime?
+  notes           String?
+  pickupStatus    String?             @default("PENDING")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  client          Client?             @relation(fields: [clientId], references: [id])
+  quote           Quote?              @relation(fields: [quoteId], references: [id])
+  uploadedBy      User?               @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
+
+  @@map("purchase_orders")
+}
+
+model Delivery {
+  id                  String       @id @default(uuid())
+  serviceOrderId      String       @unique
+  deliveryDate        DateTime
+  deliveredById       String
+  receivedBy          String
+  checklist           Json[]
+  evidences           String[]
+  acceptanceSignature String?
+  notes               String?
+  createdAt           DateTime     @default(now())
+  deliveredBy         User         @relation("DeliveredBy", fields: [deliveredById], references: [id])
+  serviceOrder        ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  warranty            Warranty?
+
+  @@map("deliveries")
+}
+
+model Warranty {
+  id             String     @id @default(uuid())
+  deliveryId     String     @unique
+  equipmentId    String?
+  coverageMonths Int        @default(12)
+  startDate      DateTime
+  endDate        DateTime
+  terms          String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  delivery       Delivery   @relation(fields: [deliveryId], references: [id])
+  equipment      Equipment? @relation(fields: [equipmentId], references: [id])
+
+  @@index([endDate])
+  @@map("warranties")
+}
+
+model StockLocation {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  products    Product[]
+
+  @@map("stock_locations")
+}
+
+model Product {
+  id                    String                     @id @default(uuid())
+  code                  String                     @unique
+  name                  String
+  description           String?
+  unit                  String
+  minStock              Int                        @default(0)
+  currentStock          Int                        @default(0)
+  active                Boolean                    @default(true)
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
+  unitCost              Decimal?                   @db.Decimal(10, 2)
+  ncm                   String?
+  barcode               String?                    @unique
+  locationId            String?
+  photoUrl              String?
+  associatedEquipmentId String?
+  category              String?
+  externalCode          String?
+  salePrice             Decimal?                   @default(0.00) @db.Decimal(10, 2)
+  marginPercent         Float?                     @default(30)
+  fixedSalePrice        Decimal?                   @db.Decimal(10, 2)
+  supplierQuotations    Json?
+  notes                 String?                    @db.Text
+  sheetId               Int?
+  materialRequestItems  MaterialRequestItem[]
+  notaFiscalItems       NotaFiscalItem[]
+  procurementOrderItems ProcurementOrderItem[]
+  productAttachments    ProductAttachment[]
+  collaboratorStocks    ProductCollaboratorStock[]
+  associatedEquipment   Equipment?                 @relation(fields: [associatedEquipmentId], references: [id])
+  location              StockLocation?             @relation(fields: [locationId], references: [id])
+  quoteItemProducts     QuoteItemProduct[]
+  serviceOrders         ServiceOrderProduct[]
+  movements             StockMovement[]
+
+  @@map("products")
+}
+
+model ProductCollaboratorStock {
+  id        String   @id @default(uuid())
+  productId String
+  userId    String
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@map("product_collaborator_stocks")
+}
+
+model ProductAttachment {
+  id         String   @id @default(uuid())
+  productId  String
+  fileName   String
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_attachments")
+}
+
+model ServiceOrderProduct {
+  id             String          @id @default(uuid())
+  serviceOrderId String
+  productId      String
+  quantity       Int
+  unitPrice      Decimal         @db.Decimal(10, 2)
+  totalPrice     Decimal         @db.Decimal(10, 2)
+  billingType    ItemBillingType @default(BILLED_SEPARATELY)
+  createdAt      DateTime        @default(now())
+  product        Product         @relation(fields: [productId], references: [id])
+  serviceOrder   ServiceOrder    @relation(fields: [serviceOrderId], references: [id])
+
+  @@map("service_order_products")
+}
+
+model MaterialRequest {
+  id                    String                @id @default(uuid())
+  serviceOrderId        String
+  status                MaterialRequestStatus @default(PENDING)
+  priority              Int                   @default(0)
+  expectedExecutionDate DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  items                 MaterialRequestItem[]
+  serviceOrder          ServiceOrder          @relation(fields: [serviceOrderId], references: [id])
+  procurementOrders     ProcurementOrder[]
+
+  @@index([serviceOrderId])
+  @@map("material_requests")
+}
+
+model MaterialRequestItem {
+  id                String          @id @default(uuid())
+  materialRequestId String
+  productId         String
+  quantityNeeded    Int
+  quantityReserved  Int             @default(0)
+  billingType       ItemBillingType @default(BILLED_SEPARATELY)
+  materialRequest   MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
+  product           Product         @relation(fields: [productId], references: [id])
+
+  @@map("material_request_items")
+}
+
+model Supplier {
+  id                String             @id @default(uuid())
+  name              String
+  cnpj              String?            @unique
+  contact           String?
+  email             String?
+  phone             String?
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  procurementOrders ProcurementOrder[]
+
+  @@map("suppliers")
+}
+
+model ProcurementOrder {
+  id                   String                 @id @default(uuid())
+  supplierId           String?
+  materialRequestId    String?
+  status               ProcurementOrderStatus @default(QUOTING)
+  expectedDeliveryDate DateTime?
+  invoiceNumber        String?
+  invoiceAccessKey     String?
+  invoiceUrl           String?
+  notes                String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  items                ProcurementOrderItem[]
+  materialRequest      MaterialRequest?       @relation(fields: [materialRequestId], references: [id])
+  supplier             Supplier?              @relation(fields: [supplierId], references: [id])
+
+  @@index([materialRequestId])
+  @@map("procurement_orders")
+}
+
+model ProcurementOrderItem {
+  id                 String           @id @default(uuid())
+  procurementOrderId String
+  productId          String
+  requestedQuantity  Int?
+  quantity           Int
+  unitCost           Decimal          @db.Decimal(10, 2)
+  procurementOrder   ProcurementOrder @relation(fields: [procurementOrderId], references: [id], onDelete: Cascade)
+  product            Product          @relation(fields: [productId], references: [id])
+
+  @@map("procurement_order_items")
+}
+
+model StockMovement {
+  id          String       @id @default(uuid())
+  productId   String
+  type        MovementType
+  quantity    Int
+  unitCost    Decimal?     @db.Decimal(10, 2)
+  totalCost   Decimal?     @db.Decimal(10, 2)
+  reason      String?
+  referenceId String?
+  createdById String
+  createdAt   DateTime     @default(now())
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  product     Product      @relation(fields: [productId], references: [id])
+
+  @@map("stock_movements")
+}
+
+model Vehicle {
+  id                  String        @id @default(uuid())
+  name                String
+  plate               String        @unique
+  photoUrl            String?
+  currentKm           Int           @default(0)
+  lastOilChangeKm     Int           @default(0)
+  oilChangeIntervalKm Int           @default(10000)
+  active              Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  fuelRequests        FuelRequest[]
+  trips               VehicleTrip[]
+
+  @@map("vehicles")
+}
+
+model VehicleTrip {
+  id          String            @id @default(uuid())
+  vehicleId   String
+  driverId    String
+  destination String
+  startKm     Int
+  endKm       Int?
+  status      VehicleTripStatus @default(OUT)
+  startedAt   DateTime          @default(now())
+  endedAt     DateTime?
+  createdById String
+  createdAt   DateTime          @default(now())
+  createdBy   User              @relation(fields: [createdById], references: [id])
+  driver      Employee          @relation(fields: [driverId], references: [id])
+  vehicle     Vehicle           @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@index([status])
+  @@map("vehicle_trips")
+}
+
+model FuelRequest {
+  id              String            @id @default(uuid())
+  vehicleId       String
+  requestedById   String
+  requestedAt     DateTime          @default(now())
+  liters          Decimal           @db.Decimal(10, 2)
+  unitPrice       Decimal           @db.Decimal(10, 2)
+  totalValue      Decimal           @db.Decimal(10, 2)
+  currentKm       Int?
+  fuelStation     String?
+  status          FuelRequestStatus @default(PENDING)
+  approverId      String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  expenseId       String?           @unique
+  createdAt       DateTime          @default(now())
+  approver        User?             @relation("FuelApprovedBy", fields: [approverId], references: [id])
+  expense         Expense?          @relation(fields: [expenseId], references: [id])
+  requestedBy     User              @relation("FuelRequestedBy", fields: [requestedById], references: [id])
+  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id])
+
+  @@index([vehicleId])
+  @@index([status])
+  @@map("fuel_requests")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  userId    String
+  action    AuditAction
+  entity    String
+  entityId  String
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Employee {
+  id                  String             @id @default(uuid())
+  name                String
+  socialName          String?
+  cpf                 String             @unique
+  rg                  String?
+  birthDate           DateTime?
+  gender              Gender?
+  civilStatus         CivilStatus?
+  nationality         String?
+  birthPlace          String?
+  photoUrl            String?
+  isPcd               Boolean            @default(false)
+  pcdType             String?
+  personalEmail       String?            @unique
+  corporateEmail      String?            @unique
+  mobilePhone         String?
+  landlinePhone       String?
+  address             Json?
+  ctps                String?
+  pisPasep            String?
+  voterId             String?
+  militaryCertificate String?
+  admissionDate       DateTime?
+  contractType        ContractType?      @default(CLT)
+  workHours           String?
+  position            String?
+  department          String?
+  costCenterId        String?
+  baseSalary          Decimal?           @db.Decimal(10, 2)
+  salaryType          SalaryType?        @default(MONTHLY)
+  workRegime          WorkRegime?        @default(PRESENTIAL)
+  bank                String?
+  agency              String?
+  account             String?
+  accountType         AccountType?
+  pixKey              String?
+  irDependents        Int                @default(0)
+  benefitsPlan        Json?
+  registration        String?            @unique
+  managerId           String?
+  team                String?
+  branch              String?
+  businessUnit        String?
+  hierarchicalLevel   HierarchicalLevel?
+  status              EmployeeStatus     @default(ACTIVE)
+  terminationReason   String?
+  terminationDate     DateTime?
+  userId              String?            @unique
+  login               String?            @unique
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  asos                ASO[]
+  documents           EmployeeDocument[]
+  movements           EmployeeMovement[]
+  costCenter          CostCenter?        @relation(fields: [costCenterId], references: [id])
+  manager             Employee?          @relation("ManagerToSubordinates", fields: [managerId], references: [id])
+  subordinates        Employee[]         @relation("ManagerToSubordinates")
+  user                User?              @relation(fields: [userId], references: [id])
+  vehicleTrips        VehicleTrip[]
+
+  @@map("employees")
+}
+
+model EmployeeMovement {
+  id            String   @id @default(uuid())
+  employeeId    String
+  type          String
+  description   String
+  previousValue String?
+  newValue      String?
+  date          DateTime @default(now())
+  createdAt     DateTime @default(now())
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_movements")
+}
+
+model ASO {
+  id         String   @id @default(uuid())
+  employeeId String
+  type       ASOType
+  examDate   DateTime
+  expiryDate DateTime
+  result     String?
+  fileUrl    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("asos")
+}
+
+model EmployeeDocument {
+  id         String   @id @default(uuid())
+  employeeId String
+  name       String
+  type       String?
+  fileUrl    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_documents")
+}
+
+model NotaFiscal {
+  id                 String            @id @default(uuid())
+  numero             String            @unique
+  serie              String
+  chaveAcesso        String?           @unique
+  protocolo          String?
+  serviceOrderId     String?
+  clientId           String
+  emitenteCnpj       String
+  destinatarioCnpj   String
+  valorBruto         Decimal           @db.Decimal(14, 2)
+  valorLiquido       Decimal           @db.Decimal(14, 2)
+  xmlAssinado        String?
+  xmlAutorizado      String?
+  pdfDanfeUrl        String?
+  status             StatusNota        @default(PENDENTE)
+  ambiente           AmbienteNota      @default(HOMOLOGACAO)
+  splitPayment       Json?
+  motivoCancelamento String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  createdById        String
+  eventos            EventoSefaz[]
+  impostos           ImpostoRetido[]
+  itens              NotaFiscalItem[]
+  client             Client            @relation(fields: [clientId], references: [id])
+  createdBy          User              @relation("CreatedNotasFiscais", fields: [createdById], references: [id])
+  serviceOrder       ServiceOrder?     @relation(fields: [serviceOrderId], references: [id])
+  webhooks           WebhookDispatch[]
+
+  @@index([serviceOrderId])
+  @@index([clientId])
+  @@index([status])
+  @@map("notas_fiscais")
+}
+
+model NotaFiscalItem {
+  id             String     @id @default(uuid())
+  notaId         String
+  productId      String
+  ncm            String
+  descricao      String
+  quantidade     Decimal    @db.Decimal(10, 3)
+  valorUnitario  Decimal    @db.Decimal(14, 4)
+  valorTotal     Decimal    @db.Decimal(14, 2)
+  fabricadoNaZfm Boolean    @default(false)
+  cfop           String     @default("5102")
+  createdAt      DateTime   @default(now())
+  nota           NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+  product        Product    @relation(fields: [productId], references: [id])
+
+  @@index([notaId])
+  @@map("nota_fiscal_itens")
+}
+
+model ImpostoRetido {
+  id                  String     @id @default(uuid())
+  notaId              String
+  aliquotaIss         Decimal?   @db.Decimal(6, 4)
+  valorIss            Decimal?   @db.Decimal(14, 4)
+  aliquotaIcms        Decimal?   @db.Decimal(6, 4)
+  valorIcms           Decimal?   @db.Decimal(14, 4)
+  aliquotaPis         Decimal?   @db.Decimal(6, 4)
+  valorPis            Decimal?   @db.Decimal(14, 4)
+  aliquotaCofins      Decimal?   @db.Decimal(6, 4)
+  valorCofins         Decimal?   @db.Decimal(14, 4)
+  aliquotaCbs         Decimal    @db.Decimal(6, 4)
+  valorCbs            Decimal    @db.Decimal(14, 4)
+  aliquotaIbs         Decimal    @db.Decimal(6, 4)
+  valorIbs            Decimal    @db.Decimal(14, 4)
+  creditoPresumidoZfm Decimal?   @db.Decimal(14, 4)
+  beneficioZfmAtivo   Boolean    @default(false)
+  totalImpostoLegado  Decimal    @db.Decimal(14, 4)
+  totalImposto2026    Decimal    @db.Decimal(14, 4)
+  calculoPorFora      Boolean    @default(true)
+  createdAt           DateTime   @default(now())
+  nota                NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+
+  @@map("impostos_retidos")
+}
+
+model EventoSefaz {
+  id         String          @id @default(uuid())
+  notaId     String
+  tipo       EventoSefazTipo
+  codigo     String
+  descricao  String
+  protocolo  String?
+  xmlEvento  String?
+  xmlRetorno String?
+  createdAt  DateTime        @default(now())
+  nota       NotaFiscal      @relation(fields: [notaId], references: [id], onDelete: Cascade)
+
+  @@map("eventos_sefaz")
+}
+
+model WebhookDispatch {
+  id            String            @id @default(uuid())
+  notaId        String
+  evento        WebhookEventoTipo
+  url           String
+  payload       Json
+  statusCode    Int?
+  tentativas    Int               @default(0)
+  sucesso       Boolean           @default(false)
+  proxTentativa DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  nota          NotaFiscal        @relation(fields: [notaId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_dispatches")
+}
 
 enum UserRole {
   ADMIN
@@ -46,220 +1574,6 @@ enum DiscountType {
   PERCENTUAL
 }
 
-model User {
-  id          String   @id @default(uuid())
-  name        String
-  email       String   @unique
-  password    String
-  role        UserRole
-  roleId      String?
-  roleRef     Role?    @relation(fields: [roleId], references: [id])
-  active      Boolean  @default(true)
-  notifyPrefs Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // RelaÃ§Ãµes
-  // Campos Operacionais de Colaborador (Field Service)
-  avatarUrl               String?
-  login                   String?             @unique
-  jobTitle                String?
-  phone                   String?
-  auvochatEnabled         Boolean             @default(false)
-  monitoringIntervalMin   Int                 @default(3)
-  basePointAddress        String?             @db.Text
-  basePointLat            Float?
-  basePointLng            Float?
-  checkinType             CheckinType         @default(MANUAL)
-  hourlyRate              Decimal             @default(0.00) @db.Decimal(12, 2)
-  kmRate                  Decimal             @default(0.00) @db.Decimal(12, 2)
-  language                String              @default("pt-BR")
-  workShiftType           WorkShiftType       @default(SEMPRE_ATIVO)
-  workShiftSchedule       Json?
-  notifyApprovalWeb       Boolean             @default(true)
-  notifyApprovalEmail     Boolean             @default(true)
-  defaultScreen           DefaultScreen       @default(AGENDA)
-
-  // Relações
-  createdVisits          TechnicalVisit[] @relation("CreatedVisits")
-  requestedVisits        TechnicalVisit[] @relation("VisitRequestedBy")
-  createdQuotes          Quote[]          @relation("CreatedQuotes")
-  salesQuotes            Quote[]          @relation("QuoteSalesRep")
-  createdServiceOrders   ServiceOrder[]   @relation("CreatedServiceOrders")
-  approvals              Approval[]
-  uploadedPurchaseOrders PurchaseOrder[]  @relation("UploadedPurchaseOrders")
-  createdNotasFiscais    NotaFiscal[]     @relation("CreatedNotasFiscais")
-  deliveredServices      Delivery[]       @relation("DeliveredBy")
-  auditLogs              AuditLog[]
-  stockMovements         StockMovement[]
-  createdVehicleTrips    VehicleTrip[]
-  fuelRequestsMade       FuelRequest[]    @relation("FuelRequestedBy")
-  fuelRequestsApproved   FuelRequest[]    @relation("FuelApprovedBy")
-
-  // Times e clientes sob responsabilidade
-  teams                 Team[]   @relation("TeamMembers")
-  managedTeams          Team[]   @relation("TeamManagers")
-  clientsResponsibleFor Client[] @relation("ClientResponsibleUser")
-
-  // RelaÃ§Ãµes MÃ³dulo Financeiro
-  // Relações Módulo Financeiro
-  expenses           Expense[]           @relation("UserExpenses")
-  approvedExpenses   Expense[]           @relation("ApprovedExpenses")
-  employee           Employee?
-  expenseAttachments ExpenseAttachment[]
-
-  // PermissÃµes Granulares
-  // Permissões Granulares
-  permissions UserPermission[]
-
-  // Relações de Campo / Operacionais
-  collaboratorPermissions CollaboratorPermission?
-  collaboratorAttachments CollaboratorAttachment[]
-  collaboratorStocks      ProductCollaboratorStock[]
-  assignedWorkOrders      ServiceOrder[]              @relation("AssignedWorkOrders")
-  workOrderExecutionLogs  WorkOrderExecutionLog[]
-  quoteTasksAssigned      QuoteTask[]                 @relation("QuoteTaskAssignee")
-  quoteAttachmentsUploaded QuoteAttachment[]          @relation("QuoteAttachmentUploader")
-
-  @@map("users")
-}
-
-model Permission {
-  id          String   @id @default(uuid())
-  name        String   @unique // ex: "users:create"
-  description String?
-  moduleId    String?
-  module      SystemModule? @relation(fields: [moduleId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  roles RolePermission[]
-  users UserPermission[]
-
-  @@map("permissions")
-}
-
-model SystemModule {
-  id          String       @id @default(uuid())
-  code        String       @unique
-  name        String
-  description String?
-  icon        String?
-  route       String?
-  orderIndex  Int          @default(0)
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  permissions Permission[]
-
-  @@map("system_modules")
-}
-
-model Role {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  users       User[]
-  permissions RolePermission[]
-
-  @@map("roles")
-}
-
-model RolePermission {
-  roleId       String
-  permissionId String
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([roleId, permissionId])
-  @@map("role_permissions")
-}
-
-model UserPermission {
-  userId       String
-  permissionId String
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@id([userId, permissionId])
-  @@map("user_permissions")
-}
-
-model CollaboratorPermission {
-  id                                  String   @id @default(uuid())
-  userId                              String   @unique
-  user                                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Matriz: Tarefas
-  canCreateTasks                      Boolean  @default(false)
-  canAccessAllTaskTypes               Boolean  @default(false)
-  canExecuteTasks                     Boolean  @default(true)
-  canEditTasks                        Boolean  @default(false)
-  canDeleteTasks                      Boolean  @default(false)
-  canRemoveCollectedSignature         Boolean  @default(false)
-  canPauseTasks                       Boolean  @default(true)
-  canRescheduleTasks                  Boolean  @default(false)
-  canUseGalleryPhotos                 Boolean  @default(true)
-  canEditTasksPostCheckout            Boolean  @default(false)
-  canManualCheckoutWithPending        Boolean  @default(false)
-  canManualCheckinWithOpenCheckout    Boolean  @default(false)
-  canFillReportWithoutCheckin         Boolean  @default(false)
-  canManualCheckinOffSchedule         Boolean  @default(false)
-  canAddQuestionnaire                 Boolean  @default(false)
-  canRemoveQuestionnaire              Boolean  @default(false)
-  canRemoveEquipmentFromQuestionnaire Boolean  @default(false)
-
-  // Matriz: Colaboradores / Clientes / Comercial
-  canChangeBasePoint                  Boolean  @default(false)
-  canManageClients                    Boolean  @default(false)
-  canAccessProductsAndQuotes          Boolean  @default(false)
-  canEditClientAddress                Boolean  @default(false)
-  canChangeQuoteStatus                Boolean  @default(false)
-  canViewClientSensitiveContacts      Boolean  @default(false)
-  canViewSendDigitalOsReports         Boolean  @default(false)
-  canManageFinancialCategories        Boolean  @default(false)
-  canStartDisplacement                Boolean  @default(true)
-  canViewCostPrices                   Boolean  @default(false)
-  canMoveCompanyStock                 Boolean  @default(false)
-  canManageKeywords                   Boolean  @default(false)
-
-  // Matriz: Projetos & Equipamentos
-  canManageProjects                   Boolean  @default(false)
-  canViewEquipment                    Boolean  @default(true)
-  canCreateEquipment                  Boolean  @default(false)
-  canEditEquipment                    Boolean  @default(false)
-  canDeleteEquipment                  Boolean  @default(false)
-
-  // Auvo Desk
-  canDeleteTicketNotes                Boolean  @default(false)
-
-  createdAt                           DateTime @default(now())
-  updatedAt                           DateTime @updatedAt
-
-  @@map("collaborator_permissions")
-}
-
-model CollaboratorAttachment {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fileName   String
-  fileUrl    String
-  fileSize   BigInt?
-  mimeType   String?
-  uploadedAt DateTime @default(now())
-
-  @@map("collaborator_attachments")
-}
-
-// ============================================
-// CLIENTES
-// ============================================
-
 enum ClientStatus {
   ACTIVE
   INACTIVE
@@ -277,204 +1591,11 @@ enum ClientTaxonomyKind {
   SEGMENT
 }
 
-model Client {
-  id          String       @id @default(uuid())
-  cnpjCpf     String       @unique
-  companyName String
-  tradeName   String?
-  address     Json
-  phone       String
-  email       String
-  contacts    Json[]
-  status      ClientStatus @default(ACTIVE)
-  notes       String?      @db.Text
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  // Paridade Auvo
-  externalCode          String?           @unique
-  onSiteContact         String?
-  corporatePhones       String[]          @default([])
-  corporateEmails       String[]          @default([])
-  internalNotes         String?           @db.Text
-  icmsTaxpayerType      IcmsTaxpayerType?
-  stateRegistration     String?
-  municipalRegistration String?
-  billingEmail          String?
-  latitude              Float?
-  longitude             Float?
-
-  responsibleUserId String?
-  responsibleTeamId String?
-  groupId           String?
-  segmentId         String?
-
-  responsibleUser User?           @relation("ClientResponsibleUser", fields: [responsibleUserId], references: [id])
-  responsibleTeam Team?           @relation(fields: [responsibleTeamId], references: [id])
-  group           ClientTaxonomy? @relation("ClientGroupTaxonomy", fields: [groupId], references: [id])
-  segment         ClientTaxonomy? @relation("ClientSegmentTaxonomy", fields: [segmentId], references: [id])
-
-  // RelaÃ§Ãµes Existentes
-  technicalVisits TechnicalVisit[]
-  quotes          Quote[]
-  serviceOrders   ServiceOrder[]
-  purchaseOrders  PurchaseOrder[]
-  equipments      Equipment[]
-  notasFiscais    NotaFiscal[]
-
-  // RelaÃ§Ãµes MÃ³dulo Financeiro
-  // Relações Módulo Financeiro
-  expenses Expense[]
-
-  // Relações MultiCRUD Operacionais
-  isPublicAgency Boolean         @default(false)
-  addresses      ClientAddress[]
-  contactList    ClientContact[]
-
-  @@map("clients")
-}
-
-model ClientAddress {
-  id               String   @id @default(uuid())
-  clientId         String
-  client           Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  label            String   @default("Principal")
-  streetAddress    String   @db.Text
-  complement       String?
-  latitude         Float?
-  longitude        Float?
-  sourceExtraction String?  // 'GOOGLE_MAPS_URL', 'HERE_MAPS', 'FOURSQUARE', 'MANUAL'
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  @@map("client_addresses")
-}
-
-model ClientContact {
-  id          String   @id @default(uuid())
-  clientId    String
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  contactType String   // 'EMAIL' | 'PHONE'
-  value       String
-  label       String?  // 'Faturamento', 'Recepção', 'Gerente'
-  name        String?
-  createdAt   DateTime @default(now())
-
-  quotes      Quote[]
-
-  @@map("client_contacts")
-}
-
-model Team {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  members        User[]   @relation("TeamMembers")
-  managers       User[]   @relation("TeamManagers")
-  responsibleFor Client[]
-
-  @@map("teams")
-}
-
-model ClientTaxonomy {
-  id        String             @id @default(uuid())
-  kind      ClientTaxonomyKind
-  name      String
-  color     String?
-  active    Boolean            @default(true)
-  createdAt DateTime           @default(now())
-
-  clientsAsGroup   Client[] @relation("ClientGroupTaxonomy")
-  clientsAsSegment Client[] @relation("ClientSegmentTaxonomy")
-
-  @@unique([kind, name])
-  @@map("client_taxonomies")
-}
-
-// ============================================
-// EQUIPAMENTOS
-// ============================================
-
 enum EquipmentType {
   GENERATOR
   SUBSTATION
   OTHER
 }
-
-model Equipment {
-  id              String        @id @default(uuid())
-  clientId        String
-  name            String?
-  identifier      String?       @unique
-  category        String?
-  type            EquipmentType @default(GENERATOR)
-  brand           String?
-  model           String?
-  serialNumber    String?
-  powerRating     String?
-  installLocation String?
-  purchaseDate    DateTime?
-  expirationDate  DateTime?
-  warrantyEndDate DateTime?
-  active          Boolean       @default(true)
-  photoUrl        String?
-  notes           String?       @db.Text
-  specifications  Json?
-
-  // QR Code
-  qrCodeHash       String?       @unique
-  qrCodePublicRead Boolean       @default(false)
-  qrCodeInherited  Boolean       @default(true)
-
-  // Hierarquia Pai/Filho
-  parentEquipmentId String?
-  parentEquipment   Equipment?   @relation("EquipmentHierarchy", fields: [parentEquipmentId], references: [id])
-  childEquipments   Equipment[]  @relation("EquipmentHierarchy")
-
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  client               Client           @relation(fields: [clientId], references: [id])
-  technicalVisits      TechnicalVisit[]
-  visitLinks           VisitEquipment[]
-  warranties           Warranty[]
-  associatedProducts   Product[]
-  equipmentAttachments EquipmentAttachment[]
-  workOrders           ServiceOrder[]   @relation("WorkOrderEquipment")
-
-  @@index([clientId])
-  @@map("equipments")
-}
-
-model EquipmentAttachment {
-  id          String    @id @default(uuid())
-  equipmentId String
-  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  fileName    String
-  fileUrl     String
-  uploadedAt  DateTime  @default(now())
-
-  @@map("equipment_attachments")
-}
-
-model FailureCategory {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  technicalVisits TechnicalVisit[]
-
-  @@map("failure_categories")
-}
-
-// ============================================
-// VISITAS TÃ‰CNICAS E ORDENS DE SERVIÃ‡O
-// ============================================
 
 enum VisitType {
   COMMERCIAL
@@ -497,97 +1618,6 @@ enum VisitPriority {
   MEDIUM
   HIGH
 }
-
-model VisitTaskType {
-  id                         String   @id @default(uuid())
-  name                       String   @unique
-  defaultChecklistTemplateId String?
-  active                     Boolean  @default(true)
-  createdAt                  DateTime @default(now())
-
-  defaultChecklistTemplate ChecklistTemplate? @relation(fields: [defaultChecklistTemplateId], references: [id])
-  technicalVisits          TechnicalVisit[]
-
-  @@map("visit_task_types")
-}
-
-model TechnicalVisit {
-  id                  String        @id @default(uuid())
-  clientId            String
-  technicianId        String?
-  equipmentId         String?
-  failureCategoryId   String?
-  taskTypeId          String?
-  priority            VisitPriority @default(MEDIUM)
-  checklistTemplateId String?
-  checklist           Json[]
-  externalCode        String?       @unique
-  createdById         String?
-  actualValue         Decimal?      @db.Decimal(10, 2)
-  visitDate           DateTime
-  scheduledStart      DateTime?
-  scheduledEnd        DateTime?
-  status              VisitStatus   @default(SCHEDULED)
-  chargeable          Boolean       @default(false)
-  visitType           VisitType
-  location            String
-  description         String        @db.Text
-  userReport          String?       @db.Text
-  identifiedNeeds     String?       @db.Text
-  suggestedScope      String?       @db.Text
-  estimatedDeadline   String?
-  estimatedValue      Decimal?      @db.Decimal(10, 2)
-  attachments         String[]
-  attachmentsData     Json?
-  responsibleIds      String[]
-  notes               String?       @db.Text
-  checkinAt           DateTime?
-  checkinLat          Float?
-  checkinLng          Float?
-  checkinAccuracy     Float?
-  checkoutAt          DateTime?
-  checkoutLat         Float?
-  checkoutLng         Float?
-  checkoutAccuracy    Float?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-
-  // RelaÃ§Ãµes
-  client            Client              @relation(fields: [clientId], references: [id])
-  technician        User?               @relation("CreatedVisits", fields: [technicianId], references: [id])
-  createdBy         User?               @relation("VisitRequestedBy", fields: [createdById], references: [id])
-  equipment         Equipment?          @relation(fields: [equipmentId], references: [id])
-  equipments        VisitEquipment[]
-  failureCategory   FailureCategory?    @relation(fields: [failureCategoryId], references: [id])
-  taskType          VisitTaskType?      @relation(fields: [taskTypeId], references: [id])
-  checklistTemplate ChecklistTemplate?  @relation(fields: [checklistTemplateId], references: [id])
-  quotes            Quote[]
-  linkedOrders      ServiceOrderVisit[]
-
-  // RelaÃ§Ãµes MÃ³dulo Financeiro
-  expenses Expense[]
-
-  @@index([equipmentId])
-  @@index([technicianId])
-  @@map("technical_visits")
-}
-
-model VisitEquipment {
-  id          String   @id @default(uuid())
-  visitId     String
-  equipmentId String
-  createdAt   DateTime @default(now())
-
-  visit     TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  equipment Equipment      @relation(fields: [equipmentId], references: [id])
-
-  @@unique([visitId, equipmentId])
-  @@map("visit_equipment")
-}
-
-// ============================================
-// ORDENS DE SERVIÃ‡O
-// ============================================
 
 enum ServiceOrderType {
   VISIT_REPORT
@@ -633,607 +1663,11 @@ enum ChecklistFieldType {
   SIGNATURE
   BOOLEAN
   MULTIPLE_CHOICE
+  CHECKLIST_TRI_STATE
+  SINGLE_CHOICE
+  DATE
+  CALCULATED
 }
-
-model ChecklistTemplate {
-  id               String            @id @default(uuid())
-  name             String
-  description      String?           @db.Text
-  serviceOrderType ServiceOrderType?
-  active           Boolean           @default(true)
-  fields           Json
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-
-  serviceOrders   ServiceOrder[]
-  technicalVisits TechnicalVisit[]
-  visitTaskTypes  VisitTaskType[]
-
-  @@map("checklist_templates")
-}
-
-// Fase comercial: elaboraÃ§Ã£o, envio e aprovaÃ§Ã£o do orÃ§amento pelo cliente.
-// Fase comercial: elaboração, envio e aprovação do orçamento pelo cliente.
-// Vira ServiceOrder somente quando aceita (OC/OP verificada) - ver ServiceOrder.quoteId.
-model Quote {
-  id                String           @id @default(uuid())
-  quoteNumber       String           @unique
-  type              ServiceOrderType
-  clientId          String
-  technicalVisitId  String?
-  status            QuoteStatus      @default(DRAFT)
-  scope             String           @db.Text
-  reportedDefects   String?          @db.Text
-  requestedServices String?          @db.Text
-  notes             String?          @db.Text
-  validUntil        DateTime?
-  paymentMethod     PaymentMethod?
-  paymentTerms      String?          @db.Text
-  paymentTermDays   Int?
-  warrantyMonths    Int?
-  salesRepId        String?
-  createdById       String
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-
-  // RelaÃ§Ãµes
-  // MultiCRUD Operacional / Comercial
-  targetType                  QuoteTargetType       @default(CLIENTE)
-  contactId                   String?
-  contact                     ClientContact?        @relation(fields: [contactId], references: [id])
-  externalCode                String?
-  requestDate                 DateTime              @default(now())
-  paymentMethodConfigId       String?
-  paymentMethodConfig         PaymentMethodConfig?  @relation(fields: [paymentMethodConfigId], references: [id])
-  allowMultiplePaymentMethods Boolean               @default(false)
-  internalNotes               String?               @db.Text
-
-  // Descontos e Totais Consolidados (Snapshots)
-  discountType                DiscountType          @default(VALOR_FIXO)
-  discountValue               Decimal               @default(0.00) @db.Decimal(12, 2)
-  subtotalProducts            Decimal               @default(0.00) @db.Decimal(12, 2)
-  subtotalServices            Decimal               @default(0.00) @db.Decimal(12, 2)
-  subtotalAdditionalCosts     Decimal               @default(0.00) @db.Decimal(12, 2)
-  totalAmount                 Decimal               @default(0.00) @db.Decimal(12, 2)
-
-  // Relações
-  client         Client          @relation(fields: [clientId], references: [id])
-  technicalVisit TechnicalVisit? @relation(fields: [technicalVisitId], references: [id])
-  createdBy      User            @relation("CreatedQuotes", fields: [createdById], references: [id])
-  salesRep       User?           @relation("QuoteSalesRep", fields: [salesRepId], references: [id])
-  approvals      Approval[]
-  purchaseOrders PurchaseOrder[]
-  quoteLines     QuoteLine[]
-  serviceOrder   ServiceOrder?
-
-  // Relações Especializadas por Abas
-  itemProducts     QuoteItemProduct[]
-  itemServices     QuoteItemService[]
-  additionalCosts  QuoteAdditionalCost[]
-  tasks            QuoteTask[]
-  quoteAttachments QuoteAttachment[]
-
-  @@map("quotes")
-}
-
-model QuoteLine {
-  id          String        @id @default(uuid())
-  quoteId     String
-  type        QuoteLineType
-  description String
-  quantity    Decimal       @db.Decimal(10, 2)
-  unitValue   Decimal       @db.Decimal(10, 2)
-  discount    Decimal       @default(0) @db.Decimal(10, 2)
-  totalValue  Decimal       @db.Decimal(10, 2)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-
-  @@index([quoteId])
-  @@map("quote_lines")
-}
-
-// Fase de execuÃ§Ã£o: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
-// Escopo/campos comerciais ficam congelados aqui como cÃ³pia do Quote de origem.
-model QuoteItemProduct {
-  id             String   @id @default(uuid())
-  quoteId        String
-  quote          Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id])
-  quantity       Decimal  @db.Decimal(10, 2)
-  unitPrice      Decimal  @db.Decimal(12, 2)
-  discountAmount Decimal  @default(0.00) @db.Decimal(12, 2)
-  totalPrice     Decimal  @db.Decimal(12, 2)
-  createdAt      DateTime @default(now())
-
-  @@map("quote_item_products")
-}
-
-model QuoteItemService {
-  id                String   @id @default(uuid())
-  quoteId           String
-  quote             Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  serviceId         String
-  service           Service  @relation(fields: [serviceId], references: [id])
-  quantity          Decimal  @db.Decimal(10, 2)
-  unitPrice         Decimal  @db.Decimal(12, 2)
-  discountAmount    Decimal  @default(0.00) @db.Decimal(12, 2)
-  totalPrice        Decimal  @db.Decimal(12, 2)
-  customObservation String?  @db.Text
-  createdAt         DateTime @default(now())
-
-  @@map("quote_item_services")
-}
-
-model QuoteAdditionalCost {
-  id          String   @id @default(uuid())
-  quoteId     String
-  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  description String
-  amount      Decimal  @db.Decimal(12, 2)
-  createdAt   DateTime @default(now())
-
-  @@map("quote_additional_costs")
-}
-
-model QuoteTask {
-  id                     String   @id @default(uuid())
-  quoteId                String
-  quote                  Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  taskCode               String?
-  taskType               String
-  executionDate          DateTime
-  assignedCollaboratorId String?
-  assignedCollaborator   User?    @relation("QuoteTaskAssignee", fields: [assignedCollaboratorId], references: [id])
-  createdAt              DateTime @default(now())
-
-  @@map("quote_tasks")
-}
-
-model QuoteAttachment {
-  id           String   @id @default(uuid())
-  quoteId      String
-  quote        Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
-  fileName     String
-  fileUrl      String
-  uploadedById String
-  uploadedBy   User     @relation("QuoteAttachmentUploader", fields: [uploadedById], references: [id])
-  showToClient Boolean  @default(false)
-  createdAt    DateTime @default(now())
-
-  @@map("quote_attachments")
-}
-
-// Catálogo de Serviços e Templates
-model Service {
-  id                  String            @id @default(uuid())
-  title               String
-  price               Decimal           @default(0.00) @db.Decimal(12, 2)
-  externalCode        String?           @unique
-  defaultObservation  String?           @db.Text
-  observationEditable Boolean           @default(true)
-  active              Boolean           @default(true)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-
-  templates             ServiceTemplate[]
-  quoteItemServices     QuoteItemService[]
-  workOrderItemServices WorkOrderItemService[]
-
-  @@map("services")
-}
-
-model ServiceTemplate {
-  id              String   @id @default(uuid())
-  serviceId       String
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  title           String
-  templateContent String   @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("service_templates")
-}
-
-// Configuração de Formas de Pagamento e Condições
-model PaymentMethodConfig {
-  id                   String   @id @default(uuid())
-  description          String
-  maxInstallments      Int      @default(1)
-  bankAccount          String
-  gatewayOrModality    String
-  feePercentage        Decimal  @default(0.00) @db.Decimal(5, 2)
-  feeFixedAmount       Decimal  @default(0.00) @db.Decimal(10, 2)
-  settlementPeriodDays Int      @default(0)
-  active               Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  quotes Quote[]
-
-  @@map("payment_method_configs")
-}
-
-// Fase de execução: nasce a partir de um Quote ACCEPTED (OC/OP confirmada).
-// Escopo/campos comerciais ficam congelados aqui como cópia do Quote de origem.
-model ServiceOrder {
-  id                  String             @id @default(uuid())
-  orderNumber         String             @unique
-  quoteId             String             @unique
-  clientId            String
-  equipmentId         String?
-  status              ServiceOrderStatus @default(AWAITING_MATERIALS)
-  scope               String             @db.Text
-  requiredResources   Json?
-  deadline            DateTime?
-  responsibleIds      String[]
-  checklist           Json[]
-  checklistTemplateId String?
-  progress            Int                @default(0)
-  attachments         String[]
-  createdById         String
-  paymentStatus       PaymentStatus      @default(PENDING)
-  completedAt         DateTime?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-
-  // RelaÃ§Ãµes
-  // Apuração Operacional Real (Visão Interna)
-  assignedCollaboratorId  String?
-  assignedCollaborator    User?                  @relation("AssignedWorkOrders", fields: [assignedCollaboratorId], references: [id])
-  checkinTime             DateTime?
-  checkoutTime            DateTime?
-  totalWorkedHours        Decimal                @default(0.00) @db.Decimal(6, 2)
-  hourlyRateSnapshot      Decimal                @default(0.00) @db.Decimal(12, 2)
-  laborCostReal           Decimal                @default(0.00) @db.Decimal(12, 2)
-  totalKmTraveled         Decimal                @default(0.00) @db.Decimal(8, 2)
-  kmRateSnapshot          Decimal                @default(0.00) @db.Decimal(12, 2)
-  displacementCostReal    Decimal                @default(0.00) @db.Decimal(12, 2)
-  totalMaterialCostReal   Decimal                @default(0.00) @db.Decimal(12, 2)
-  grossRevenueReal        Decimal                @default(0.00) @db.Decimal(12, 2)
-  grossProfitReal         Decimal                @default(0.00) @db.Decimal(12, 2)
-
-  // Relações
-  quote             Quote                 @relation(fields: [quoteId], references: [id])
-  client            Client                @relation(fields: [clientId], references: [id])
-  equipment         Equipment?            @relation("WorkOrderEquipment", fields: [equipmentId], references: [id])
-  createdBy         User                  @relation("CreatedServiceOrders", fields: [createdById], references: [id])
-  checklistTemplate ChecklistTemplate?    @relation(fields: [checklistTemplateId], references: [id])
-  notasFiscais      NotaFiscal[]
-  delivery          Delivery?
-  items             ServiceOrderProduct[]
-  art               ART?
-  materialRequests  MaterialRequest[]
-  linkedVisits      ServiceOrderVisit[]
-
-  // RelaÃ§Ãµes MÃ³dulo Financeiro
-  // Relações Módulo Financeiro
-  expenses Expense[]
-
-  // Relações Operacionais de Execução
-  itemServices      WorkOrderItemService[]
-  executionLogs     WorkOrderExecutionLog[]
-  signature         WorkOrderSignature?
-
-  @@map("service_orders")
-}
-
-model WorkOrderItemService {
-  id               String       @id @default(uuid())
-  serviceOrderId   String
-  serviceOrder     ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  serviceId        String
-  service          Service      @relation(fields: [serviceId], references: [id])
-  quantity         Decimal      @db.Decimal(10, 2)
-  unitPrice        Decimal      @db.Decimal(12, 2)
-  scopeObservation String?      @db.Text
-  completed        Boolean      @default(false)
-  createdAt        DateTime     @default(now())
-
-  @@map("work_order_item_services")
-}
-
-model WorkOrderExecutionLog {
-  id             String       @id @default(uuid())
-  serviceOrderId String
-  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User         @relation(fields: [userId], references: [id])
-  actionType     String       // 'START_DISPLACEMENT', 'CHECKIN', 'PAUSE', 'CHECKOUT'
-  recordedAt     DateTime     @default(now())
-  latitude       Float?
-  longitude      Float?
-  odometerKm     Decimal?     @db.Decimal(10, 2)
-  notes          String?      @db.Text
-
-  @@map("work_order_execution_logs")
-}
-
-model WorkOrderSignature {
-  id                 String       @id @default(uuid())
-  serviceOrderId     String       @unique
-  serviceOrder       ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  signerName         String
-  signerDocument     String
-  signatureImageUrl  String       @db.Text
-  signedAt           DateTime     @default(now())
-  ipAddress          String?
-  latitude           Float?
-  longitude          Float?
-
-  @@map("work_order_signatures")
-}
-
-model ServiceOrderVisit {
-  id               String   @id @default(uuid())
-  serviceOrderId   String
-  technicalVisitId String
-  createdAt        DateTime @default(now())
-
-  serviceOrder   ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
-  technicalVisit TechnicalVisit @relation(fields: [technicalVisitId], references: [id], onDelete: Cascade)
-
-  @@unique([serviceOrderId, technicalVisitId])
-  @@map("service_order_visits")
-}
-
-model CompanySettings {
-  id        String   @id @default(uuid())
-  name      String
-  cnpj      String?
-  phone     String?
-  email     String?
-  address   String?  @db.Text
-  updatedAt DateTime @updatedAt
-
-  @@map("company_settings")
-}
-
-// ============================================
-// ART - ANOTAÃ‡ÃƒO DE RESPONSABILIDADE TÃ‰CNICA
-// ============================================
-
-model ART {
-  id             String   @id @default(uuid())
-  serviceOrderId String   @unique
-  number         String
-  engineerName   String
-  creaNumber     String
-  issueDate      DateTime
-  fileUrl        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-
-  @@map("arts")
-}
-
-// ============================================
-// MÃ“DULO FINANCEIRO (NOVO)
-// ============================================
-
-model ExpenseCategory {
-  id            String              @id @default(uuid())
-  name          String
-  code          String              @unique
-  type          ExpenseCategoryType
-  group         ExpenseGroup
-  description   String?
-  color         String? // Hex color para UI
-  icon          String? // Nome do Ã­cone Lucide
-  isActive      Boolean             @default(true)
-  defaultBudget Decimal?            @db.Decimal(10, 2)
-
-  expenses  Expense[]
-  budgets   Budget[]
-  recurring RecurringExpense[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("expense_categories")
-}
-
-model Expense {
-  id          String      @id @default(uuid())
-  code        String      @unique // Ex: DESP-2024-0001
-  description String
-  type        ExpenseType
-  amount      Decimal     @db.Decimal(10, 2)
-  paidAmount  Decimal?    @db.Decimal(10, 2)
-
-  date           DateTime
-  dueDate        DateTime
-  paymentDate    DateTime?
-  competenceDate DateTime // MÃªs de referÃªncia
-
-  categoryId String
-  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
-
-  costCenterId String?
-  costCenter   CostCenter? @relation(fields: [costCenterId], references: [id])
-
-  // VÃ­nculos Operacionais
-  visitId        String?
-  visit          TechnicalVisit? @relation(fields: [visitId], references: [id])
-  serviceOrderId String?
-  serviceOrder   ServiceOrder?   @relation(fields: [serviceOrderId], references: [id])
-  clientId       String?
-  client         Client?         @relation(fields: [clientId], references: [id])
-
-  paymentMethod  PaymentMethod?
-  bankAccountId  String?
-  bankAccount    BankAccount?   @relation(fields: [bankAccountId], references: [id])
-  documentNumber String? // NF, Recibo, etc.
-
-  userId String
-  user   User   @relation("UserExpenses", fields: [userId], references: [id])
-
-  approvedBy      String?
-  approver        User?     @relation("ApprovedExpenses", fields: [approvedBy], references: [id])
-  approvalDate    DateTime?
-  rejectionReason String?
-
-  status ExpenseStatus @default(PENDING)
-  notes  String?       @db.Text
-
-  isRecurring Boolean           @default(false)
-  recurringId String?
-  recurring   RecurringExpense? @relation(fields: [recurringId], references: [id])
-
-  // Novos campos
-  supplier          String? // Nome do fornecedor
-  installment       Int? // Parcela atual (ex: 3)
-  totalInstallments Int? // Total de parcelas (ex: 12)
-  parentExpenseId   String?
-  parentExpense     Expense?  @relation("InstallmentExpenses", fields: [parentExpenseId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  installments      Expense[] @relation("InstallmentExpenses")
-
-  tags    String[] // Tags para filtros adicionais
-  isFixed Boolean  @default(false) // Despesa fixa mensal
-
-  // Campos para conciliaÃ§Ã£o bancÃ¡ria
-  reconciled   Boolean   @default(false)
-  reconciledAt DateTime?
-  reconciledBy String?
-
-  attachments ExpenseAttachment[]
-  cashFlows   CashFlow[]
-  fuelRequest FuelRequest?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([categoryId])
-  @@index([userId])
-  @@index([status])
-  @@index([competenceDate])
-  @@map("expenses")
-}
-
-model CostCenter {
-  id          String  @id @default(uuid())
-  name        String
-  code        String  @unique
-  description String?
-  isActive    Boolean @default(true)
-
-  // Hierarquia
-  parentId String?
-  parent   CostCenter?  @relation("SubCenters", fields: [parentId], references: [id])
-  children CostCenter[] @relation("SubCenters")
-
-  expenses Expense[]
-  budgets  Budget[]
-
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  employees Employee[]
-
-  @@map("cost_centers")
-}
-
-model Budget {
-  id            String          @id @default(uuid())
-  year          Int
-  month         Int? // null = anual
-  categoryId    String
-  category      ExpenseCategory @relation(fields: [categoryId], references: [id])
-  costCenterId  String?
-  costCenter    CostCenter?     @relation(fields: [costCenterId], references: [id])
-  plannedAmount Decimal         @db.Decimal(10, 2)
-  notes         String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([year, month, categoryId, costCenterId])
-  @@map("budgets")
-}
-
-model RecurringExpense {
-  id          String              @id @default(uuid())
-  description String
-  categoryId  String
-  category    ExpenseCategory     @relation(fields: [categoryId], references: [id])
-  amount      Decimal             @db.Decimal(10, 2)
-  frequency   RecurrenceFrequency
-  dayOfMonth  Int?
-  startDate   DateTime
-  endDate     DateTime?
-  isActive    Boolean             @default(true)
-
-  expenses Expense[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("recurring_expenses")
-}
-
-model BankAccount {
-  id       String  @id @default(uuid())
-  name     String // Ex: ItaÃº Principal
-  bankName String
-  agency   String
-  account  String
-  type     String // Corrente, PoupanÃ§a
-  balance  Decimal @default(0) @db.Decimal(10, 2)
-  pixKey   String?
-  isActive Boolean @default(true)
-
-  expenses  Expense[]
-  cashFlows CashFlow[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("bank_accounts")
-}
-
-model CashFlow {
-  id          String       @id @default(uuid())
-  date        DateTime
-  type        CashFlowType // INFLOW, OUTFLOW
-  category    String
-  amount      Decimal      @db.Decimal(10, 2)
-  balance     Decimal      @db.Decimal(10, 2) // Saldo apÃ³s movimento
-  description String
-
-  expenseId String?
-  expense   Expense? @relation(fields: [expenseId], references: [id])
-
-  bankAccountId String
-  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@index([date])
-  @@index([bankAccountId])
-  @@map("cash_flow")
-}
-
-model ExpenseAttachment {
-  id         String   @id @default(uuid())
-  expenseId  String
-  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  fileName   String
-  fileUrl    String
-  fileType   String
-  fileSize   Int
-  uploadedBy String
-  user       User     @relation(fields: [uploadedBy], references: [id])
-  createdAt  DateTime @default(now())
-
-  @@map("expense_attachments")
-}
-
-// ============================================
-// ENUMS FINANCEIROS
-// ============================================
 
 enum ExpenseCategoryType {
   OPERATIONAL
@@ -1289,205 +1723,20 @@ enum RecurrenceFrequency {
 }
 
 enum CashFlowType {
-  INFLOW // Entrada
-  OUTFLOW // SaÃ­da
+  INFLOW
+  OUTFLOW
 }
-
-// ============================================
-// APROVAÃ‡Ã•ES
-// ============================================
 
 enum ApprovalStatus {
   APPROVED
   REJECTED
 }
 
-model Approval {
-  id         String         @id @default(uuid())
-  quoteId    String
-  approverId String
-  status     ApprovalStatus
-  comments   String?        @db.Text
-  approvedAt DateTime       @default(now())
-  createdAt  DateTime       @default(now())
-
-  quote    Quote @relation(fields: [quoteId], references: [id])
-  approver User  @relation(fields: [approverId], references: [id])
-
-  @@map("approvals")
-}
-
-// ============================================
-// ORDENS DE COMPRA
-// ============================================
-
 enum PurchaseOrderStatus {
   PENDING
   APPROVED
   EXPIRED
 }
-
-model PurchaseOrder {
-  id           String              @id @default(uuid())
-  quoteId      String
-  clientId     String
-  orderNumber  String
-  value        Decimal             @db.Decimal(10, 2)
-  issueDate    DateTime
-  expiryDate   DateTime
-  status       PurchaseOrderStatus @default(PENDING)
-  fileUrl      String
-  uploadedById String
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-
-  quote      Quote  @relation(fields: [quoteId], references: [id])
-  client     Client @relation(fields: [clientId], references: [id])
-  uploadedBy User   @relation("UploadedPurchaseOrders", fields: [uploadedById], references: [id])
-
-  @@map("purchase_orders")
-}
-
-// ============================================
-// ENTREGAS E ACEITES
-// ============================================
-
-model Delivery {
-  id                  String   @id @default(uuid())
-  serviceOrderId      String   @unique
-  deliveryDate        DateTime
-  deliveredById       String
-  receivedBy          String
-  checklist           Json[]
-  evidences           String[]
-  acceptanceSignature String?
-  notes               String?  @db.Text
-  createdAt           DateTime @default(now())
-
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  deliveredBy  User         @relation("DeliveredBy", fields: [deliveredById], references: [id])
-  warranty     Warranty?
-
-  @@map("deliveries")
-}
-
-// ============================================
-// GARANTIA
-// ============================================
-
-model Warranty {
-  id             String   @id @default(uuid())
-  deliveryId     String   @unique
-  equipmentId    String?
-  coverageMonths Int      @default(12)
-  startDate      DateTime
-  endDate        DateTime
-  terms          String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  delivery  Delivery   @relation(fields: [deliveryId], references: [id])
-  equipment Equipment? @relation(fields: [equipmentId], references: [id])
-
-  @@index([endDate])
-  @@map("warranties")
-}
-
-// ============================================
-// ESTOQUE 
-// ============================================
-
-model StockLocation {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-
-  products Product[]
-
-  @@map("stock_locations")
-}
-
-model Product {
-  id           String         @id @default(uuid())
-  code         String         @unique
-  name         String
-  description  String?        @db.Text
-  unit         String
-  ncm          String?
-  minStock     Int            @default(0)
-  currentStock Int            @default(0)
-  unitCost     Decimal?       @db.Decimal(10, 2)
-  salePrice    Decimal?       @default(0.00) @db.Decimal(10, 2)
-  externalCode String?
-  category     String?
-  active       Boolean        @default(true)
-  photoUrl     String?
-  barcode      String?        @unique
-  locationId   String?
-  location     StockLocation? @relation(fields: [locationId], references: [id])
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-
-  associatedEquipmentId String?
-  associatedEquipment   Equipment? @relation(fields: [associatedEquipmentId], references: [id])
-
-  movements             StockMovement[]
-  serviceOrders         ServiceOrderProduct[]
-  materialRequestItems  MaterialRequestItem[]
-  procurementOrderItems ProcurementOrderItem[]
-  notaFiscalItems       NotaFiscalItem[]
-
-  // Relações MultiCRUD Operacionais
-  collaboratorStocks    ProductCollaboratorStock[]
-  quoteItemProducts     QuoteItemProduct[]
-  productAttachments    ProductAttachment[]
-
-  @@map("products")
-}
-
-model ProductCollaboratorStock {
-  id             String   @id @default(uuid())
-  productId      String
-  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  quantity       Int      @default(0)
-  updatedAt      DateTime @updatedAt
-
-  @@unique([productId, userId])
-  @@map("product_collaborator_stocks")
-}
-
-model ProductAttachment {
-  id         String   @id @default(uuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  fileName   String
-  fileUrl    String
-  uploadedAt DateTime @default(now())
-
-  @@map("product_attachments")
-}
-
-model ServiceOrderProduct {
-  id             String   @id @default(uuid())
-  serviceOrderId String
-  productId      String
-  quantity       Int
-  unitPrice      Decimal  @db.Decimal(10, 2)
-  totalPrice     Decimal  @db.Decimal(10, 2)
-  createdAt      DateTime @default(now())
-
-  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
-  product      Product      @relation(fields: [productId], references: [id])
-
-  @@map("service_order_products")
-}
-
-// ============================================
-// SUPRIMENTOS - SOLICITAÃ‡ÃƒO DE MATERIAL E COMPRAS
-// ============================================
 
 enum MaterialRequestStatus {
   PENDING
@@ -1497,50 +1746,9 @@ enum MaterialRequestStatus {
   RELEASED
 }
 
-model MaterialRequest {
-  id                    String                @id @default(uuid())
-  serviceOrderId        String
-  status                MaterialRequestStatus @default(PENDING)
-  priority              Int                   @default(0)
-  expectedExecutionDate DateTime?
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-
-  serviceOrder      ServiceOrder          @relation(fields: [serviceOrderId], references: [id])
-  items             MaterialRequestItem[]
-  procurementOrders ProcurementOrder[]
-
-  @@index([serviceOrderId])
-  @@map("material_requests")
-}
-
-model MaterialRequestItem {
-  id                String @id @default(uuid())
-  materialRequestId String
-  productId         String
-  quantityNeeded    Int
-  quantityReserved  Int    @default(0)
-
-  materialRequest MaterialRequest @relation(fields: [materialRequestId], references: [id], onDelete: Cascade)
-  product         Product         @relation(fields: [productId], references: [id])
-
-  @@map("material_request_items")
-}
-
-model Supplier {
-  id        String   @id @default(uuid())
-  name      String
-  cnpj      String?  @unique
-  contact   String?
-  email     String?
-  phone     String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  procurementOrders ProcurementOrder[]
-
-  @@map("suppliers")
+enum ItemBillingType {
+  BILLED_SEPARATELY
+  INCLUDED_IN_SERVICE
 }
 
 enum ProcurementOrderStatus {
@@ -1551,40 +1759,6 @@ enum ProcurementOrderStatus {
   CANCELLED
 }
 
-model ProcurementOrder {
-  id                   String                 @id @default(uuid())
-  supplierId           String?
-  materialRequestId    String?
-  status               ProcurementOrderStatus @default(QUOTING)
-  expectedDeliveryDate DateTime?
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-
-  supplier        Supplier?              @relation(fields: [supplierId], references: [id])
-  materialRequest MaterialRequest?       @relation(fields: [materialRequestId], references: [id])
-  items           ProcurementOrderItem[]
-
-  @@index([materialRequestId])
-  @@map("procurement_orders")
-}
-
-model ProcurementOrderItem {
-  id                 String  @id @default(uuid())
-  procurementOrderId String
-  productId          String
-  quantity           Int
-  unitCost           Decimal @db.Decimal(10, 2)
-
-  procurementOrder ProcurementOrder @relation(fields: [procurementOrderId], references: [id], onDelete: Cascade)
-  product          Product          @relation(fields: [productId], references: [id])
-
-  @@map("procurement_order_items")
-}
-
-// ============================================
-// MOVIMENTAÃ‡Ã•ES DE ESTOQUE
-// ============================================
-
 enum MovementType {
   ENTRY
   EXIT
@@ -1592,28 +1766,6 @@ enum MovementType {
   ADJUSTMENT_OUT
   TRANSFER
 }
-
-model StockMovement {
-  id          String       @id @default(uuid())
-  productId   String
-  type        MovementType
-  quantity    Int
-  unitCost    Decimal?     @db.Decimal(10, 2)
-  totalCost   Decimal?     @db.Decimal(10, 2)
-  reason      String?      @db.Text
-  referenceId String?
-  createdById String
-  createdAt   DateTime     @default(now())
-
-  product   Product @relation(fields: [productId], references: [id])
-  createdBy User    @relation(fields: [createdById], references: [id])
-
-  @@map("stock_movements")
-}
-
-// ============================================
-// FROTA E ABASTECIMENTO
-// ============================================
 
 enum VehicleTripStatus {
   OUT
@@ -1626,75 +1778,6 @@ enum FuelRequestStatus {
   REJECTED
 }
 
-model Vehicle {
-  id                  String   @id @default(uuid())
-  name                String
-  plate               String   @unique
-  photoUrl            String?
-  currentKm           Int      @default(0)
-  lastOilChangeKm     Int      @default(0)
-  oilChangeIntervalKm Int      @default(10000)
-  active              Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  trips        VehicleTrip[]
-  fuelRequests FuelRequest[]
-
-  @@map("vehicles")
-}
-
-model VehicleTrip {
-  id          String            @id @default(uuid())
-  vehicleId   String
-  vehicle     Vehicle           @relation(fields: [vehicleId], references: [id])
-  driverId    String
-  driver      Employee          @relation(fields: [driverId], references: [id])
-  destination String
-  startKm     Int
-  endKm       Int?
-  status      VehicleTripStatus @default(OUT)
-  startedAt   DateTime          @default(now())
-  endedAt     DateTime?
-  createdById String
-  createdBy   User              @relation(fields: [createdById], references: [id])
-  createdAt   DateTime          @default(now())
-
-  @@index([vehicleId])
-  @@index([status])
-  @@map("vehicle_trips")
-}
-
-model FuelRequest {
-  id              String            @id @default(uuid())
-  vehicleId       String
-  vehicle         Vehicle           @relation(fields: [vehicleId], references: [id])
-  requestedById   String
-  requestedBy     User              @relation("FuelRequestedBy", fields: [requestedById], references: [id])
-  requestedAt     DateTime          @default(now())
-  liters          Decimal           @db.Decimal(10, 2)
-  unitPrice       Decimal           @db.Decimal(10, 2)
-  totalValue      Decimal           @db.Decimal(10, 2)
-  currentKm       Int?
-  fuelStation     String?
-  status          FuelRequestStatus @default(PENDING)
-  approverId      String?
-  approver        User?             @relation("FuelApprovedBy", fields: [approverId], references: [id])
-  approvedAt      DateTime?
-  rejectionReason String?
-  expenseId       String?           @unique
-  expense         Expense?          @relation(fields: [expenseId], references: [id])
-  createdAt       DateTime          @default(now())
-
-  @@index([vehicleId])
-  @@index([status])
-  @@map("fuel_requests")
-}
-
-// ============================================
-// AUDITORIA
-// ============================================
-
 enum AuditAction {
   CREATE
   UPDATE
@@ -1705,26 +1788,6 @@ enum AuditAction {
   LOGOUT
   ALERT
 }
-
-model AuditLog {
-  id        String      @id @default(uuid())
-  userId    String
-  action    AuditAction
-  entity    String
-  entityId  String
-  changes   Json?
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime    @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@map("audit_logs")
-}
-
-// ============================================
-// RECURSOS HUMANOS (RH)
-// ============================================
 
 enum EmployeeStatus {
   ACTIVE
@@ -1772,8 +1835,6 @@ enum AccountType {
 }
 
 enum HierarchicalLevel {
-  AUXILIAR
-  ASSISTENTE
   TRAINEE
   JUNIOR
   MID
@@ -1783,6 +1844,8 @@ enum HierarchicalLevel {
   DIRECTOR
   VP
   CEO
+  AUXILIAR
+  ASSISTENTE
 }
 
 enum ASOType {
@@ -1792,132 +1855,6 @@ enum ASOType {
   CHANGE_OF_FUNCTION
   DISMISSAL
 }
-
-model Employee {
-  id          String       @id @default(uuid())
-  // ðŸ“Œ 1. Dados Pessoais
-  name        String
-  socialName  String?
-  cpf         String       @unique
-  rg          String?
-  birthDate   DateTime?
-  gender      Gender?
-  civilStatus CivilStatus?
-  nationality String?
-  birthPlace  String?
-  photoUrl    String?
-  isPcd       Boolean      @default(false)
-  pcdType     String?
-
-  // ðŸ“Œ 2. Contato
-  personalEmail  String? @unique
-  corporateEmail String? @unique
-  mobilePhone    String?
-  landlinePhone  String?
-  address        Json? // { cep, street, number, complement, neighborhood, city, state }
-
-  // ðŸ“Œ 3. Dados Trabalhistas
-  ctps                String?
-  pisPasep            String?
-  voterId             String?
-  militaryCertificate String?
-  admissionDate       DateTime?
-  contractType        ContractType? @default(CLT)
-  workHours           String? // Jornada de trabalho
-  position            String? // Cargo
-  department          String?
-  costCenterId        String?
-  costCenter          CostCenter?   @relation(fields: [costCenterId], references: [id])
-  baseSalary          Decimal?      @db.Decimal(10, 2)
-  salaryType          SalaryType?   @default(MONTHLY)
-  workRegime          WorkRegime?   @default(PRESENTIAL)
-
-  // ðŸ“Œ 4. Dados Financeiros
-  bank         String?
-  agency       String?
-  account      String?
-  accountType  AccountType?
-  pixKey       String?
-  irDependents Int          @default(0)
-  benefitsPlan Json? // [ { type: 'VT', value: 100 }, ... ]
-
-  // ðŸ“Œ 5. Estrutura Organizacional
-  registration      String?            @unique // MatrÃ­cula
-  managerId         String?
-  manager           Employee?          @relation("ManagerToSubordinates", fields: [managerId], references: [id])
-  subordinates      Employee[]         @relation("ManagerToSubordinates")
-  team              String?
-  branch            String? // Filial
-  businessUnit      String? // Unidade de negÃ³cio
-  hierarchicalLevel HierarchicalLevel?
-
-  // ðŸ“Œ 6. Status do Colaborador
-  status            EmployeeStatus     @default(ACTIVE)
-  terminationReason String?            @db.Text
-  terminationDate   DateTime?
-  movements         EmployeeMovement[]
-  vehicleTrips      VehicleTrip[]
-
-  // ðŸ“Œ 7. Dados de Acesso ao Sistema
-  userId String? @unique
-  user   User?   @relation(fields: [userId], references: [id])
-  login  String? @unique
-
-  // ðŸ“Œ 8. Anexos
-  asos      ASO[]
-  documents EmployeeDocument[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("employees")
-}
-
-model EmployeeMovement {
-  id            String   @id @default(uuid())
-  employeeId    String
-  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type          String // PROMOTION, TRANSFER, SALARY_ADJUSTMENT, STATUS_CHANGE
-  description   String   @db.Text
-  previousValue String?
-  newValue      String?
-  date          DateTime @default(now())
-  createdAt     DateTime @default(now())
-
-  @@map("employee_movements")
-}
-
-model ASO {
-  id         String   @id @default(uuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  type       ASOType
-  examDate   DateTime
-  expiryDate DateTime
-  result     String? // Ex: APTO, INAPTO
-  fileUrl    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("asos")
-}
-
-model EmployeeDocument {
-  id         String   @id @default(uuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  name       String
-  type       String? // Ex: RG, CPF, CTPS
-  fileUrl    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("employee_documents")
-}
-
-// ============================================
-// MÓDULO FISCAL – NF-e / NFS-e (2026)
-// ============================================
 
 enum StatusNota {
   PENDENTE
@@ -1947,130 +1884,43 @@ enum WebhookEventoTipo {
   NOTA_CANCELADA
 }
 
-// Tabela principal da NF-e (mercadoria)
-model NotaFiscal {
-  id                 String       @id @default(uuid())
-  numero             String       @unique
-  serie              String
-  chaveAcesso        String?      @unique
-  protocolo          String?
-  serviceOrderId     String?
-  clientId           String
-  createdById        String
-  emitenteCnpj       String
-  destinatarioCnpj   String
-  valorBruto         Decimal      @db.Decimal(14, 2)
-  valorLiquido       Decimal      @db.Decimal(14, 2)
-  xmlAssinado        String?      @db.Text
-  xmlAutorizado      String?      @db.Text
-  pdfDanfeUrl        String?
-  status             StatusNota   @default(PENDENTE)
-  ambiente           AmbienteNota @default(HOMOLOGACAO)
-  // Split Payment: { valorRetido, aliquotaTotal, banco, chavePix }
-  splitPayment       Json?
-  motivoCancelamento String?
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-
-  serviceOrder ServiceOrder?     @relation(fields: [serviceOrderId], references: [id])
-  client       Client            @relation(fields: [clientId], references: [id])
-  createdBy    User              @relation("CreatedNotasFiscais", fields: [createdById], references: [id])
-  itens        NotaFiscalItem[]
-  impostos     ImpostoRetido[]
-  eventos      EventoSefaz[]
-  webhooks     WebhookDispatch[]
-
-  @@index([serviceOrderId])
-  @@index([clientId])
-  @@index([status])
-  @@map("notas_fiscais")
+enum DocumentType {
+  CONTRACT
+  APR
+  WORK_PERMIT
+  ACCEPTANCE_TERM
+  TECHNICAL_REPORT
+  ART
+  OTHER
 }
 
-model NotaFiscalItem {
-  id             String     @id @default(uuid())
-  notaId         String
-  nota           NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product    @relation(fields: [productId], references: [id])
-  ncm            String
-  descricao      String
-  quantidade     Decimal    @db.Decimal(10, 3)
-  valorUnitario  Decimal    @db.Decimal(14, 4)
-  valorTotal     Decimal    @db.Decimal(14, 2)
-  fabricadoNaZfm Boolean    @default(false)
-  cfop           String     @default("5102")
-  createdAt      DateTime   @default(now())
-
-  @@index([notaId])
-  @@map("nota_fiscal_itens")
+enum DocumentStatus {
+  DRAFT
+  ACTIVE
+  SIGNED
+  CANCELLED
 }
 
-// Impostos calculados, dual-regime 2026
-model ImpostoRetido {
-  id     String     @id @default(uuid())
-  notaId String
-  nota   NotaFiscal @relation(fields: [notaId], references: [id], onDelete: Cascade)
+model ServiceOrderDocument {
+  id             String         @id @default(uuid())
+  serviceOrderId String
+  clientId       String
+  type           DocumentType
+  code           String
+  title          String
+  status         DocumentStatus @default(DRAFT)
+  data           Json
+  signatures     Json?
+  pdfUrl         String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  // ─── Regime Legado ───────────────────────────────────────
-  aliquotaIss    Decimal? @db.Decimal(6, 4)
-  valorIss       Decimal? @db.Decimal(14, 4)
-  aliquotaIcms   Decimal? @db.Decimal(6, 4)
-  valorIcms      Decimal? @db.Decimal(14, 4)
-  aliquotaPis    Decimal? @db.Decimal(6, 4)
-  valorPis       Decimal? @db.Decimal(14, 4)
-  aliquotaCofins Decimal? @db.Decimal(6, 4)
-  valorCofins    Decimal? @db.Decimal(14, 4)
+  serviceOrder   ServiceOrder   @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  client         Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy      User?          @relation(fields: [createdById], references: [id])
 
-  // ─── Reforma Tributária 2026 ─────────────────────────────
-  aliquotaCbs Decimal @db.Decimal(6, 4) // 0.9000 (%)
-  valorCbs    Decimal @db.Decimal(14, 4)
-  aliquotaIbs Decimal @db.Decimal(6, 4) // 0.1000 (%)
-  valorIbs    Decimal @db.Decimal(14, 4)
-
-  // ─── ZFM ─────────────────────────────────────────────────
-  creditoPresumidoZfm Decimal? @db.Decimal(14, 4)
-  beneficioZfmAtivo   Boolean  @default(false)
-
-  // ─── Totais ──────────────────────────────────────────────
-  totalImpostoLegado Decimal @db.Decimal(14, 4)
-  totalImposto2026   Decimal @db.Decimal(14, 4)
-  calculoPorFora     Boolean @default(true)
-
-  createdAt DateTime @default(now())
-
-  @@map("impostos_retidos")
+  @@map("service_order_documents")
 }
 
-// Eventos de ciclo de vida enviados / recebidos da SEFAZ
-model EventoSefaz {
-  id         String          @id @default(uuid())
-  notaId     String
-  nota       NotaFiscal      @relation(fields: [notaId], references: [id], onDelete: Cascade)
-  tipo       EventoSefazTipo
-  codigo     String // Código de retorno SEFAZ (ex: "100", "301")
-  descricao  String
-  protocolo  String?
-  xmlEvento  String?         @db.Text
-  xmlRetorno String?         @db.Text
-  createdAt  DateTime        @default(now())
-
-  @@map("eventos_sefaz")
-}
-
-// Despachos de webhook para o portal principal
-model WebhookDispatch {
-  id            String            @id @default(uuid())
-  notaId        String
-  nota          NotaFiscal        @relation(fields: [notaId], references: [id], onDelete: Cascade)
-  evento        WebhookEventoTipo
-  url           String
-  payload       Json
-  statusCode    Int?
-  tentativas    Int               @default(0)
-  sucesso       Boolean           @default(false)
-  proxTentativa DateTime?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-
-  @@map("webhook_dispatches")
-}

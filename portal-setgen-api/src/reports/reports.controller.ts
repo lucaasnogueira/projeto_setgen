@@ -24,6 +24,13 @@ import { ReportFiltersDto } from './dto/report-filters.dto';
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
+  @Get('overview')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiOperation({ summary: 'Resumo executivo de indicadores (KPIs e atividades recentes)' })
+  async getOverview(@Query() filters: ReportFiltersDto) {
+    return this.reportsService.getOverview(filters);
+  }
+
   @Get('visits-by-month')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Relatório de visitas por mês' })

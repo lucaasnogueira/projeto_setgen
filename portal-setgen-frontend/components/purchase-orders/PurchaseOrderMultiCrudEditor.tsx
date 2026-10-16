@@ -414,7 +414,7 @@ export function PurchaseOrderMultiCrudEditor({
                 </h4>
                 <p className="text-gray-400 text-xs">Faça o upload do documento emitido pelo cliente para fins de compliance e auditoria</p>
 
-                <div className="border-2 border-dashed border-gray-200 hover:border-orange-400 rounded-2xl p-8 text-center transition-colors">
+                <div className="border border-dashed border-gray-300 hover:border-[#E2661D] rounded-xl p-5 text-center transition-colors bg-gray-50/50">
                   <input
                     type="file"
                     id="poFileUpload"

@@ -181,17 +181,21 @@ export class PublicQuotesService {
     const isRejected = order.status === QuoteStatus.REJECTED;
 
     const linesRows = order.quoteLines
-      .map(
-        (line, idx) => `
+      .map((line, idx) => {
+        const isIncluded = (line as any).billingType === 'INCLUDED_IN_SERVICE';
+        return `
         <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}">
-          <td class="badge-col"><span class="type-badge ${line.type.toLowerCase()}">${escapeHtml(QUOTE_LINE_TYPE_LABELS[line.type] || line.type)}</span></td>
+          <td class="badge-col">
+            <span class="type-badge ${line.type.toLowerCase()}">${escapeHtml(QUOTE_LINE_TYPE_LABELS[line.type] || line.type)}</span>
+            ${isIncluded ? '<span style="display:inline-block; margin-left:4px; font-size:10px; background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; padding:2px 6px; border-radius:4px; font-weight:700;">Incluso no Serviço</span>' : ''}
+          </td>
           <td><strong>${escapeHtml(line.description)}</strong></td>
           <td class="num">${Number(line.quantity)}</td>
-          <td class="num">${formatCurrency(Number(line.unitValue))}</td>
-          <td class="num text-red-600">${Number(line.discount) > 0 ? '-' + formatCurrency(Number(line.discount)) : '—'}</td>
-          <td class="num font-bold text-gray-900">${formatCurrency(Number(line.totalValue))}</td>
-        </tr>`,
-      )
+          <td class="num">${isIncluded ? '<span style="color:#059669; font-weight:600;">Incluso</span>' : formatCurrency(Number(line.unitValue))}</td>
+          <td class="num text-red-600">${!isIncluded && Number(line.discount) > 0 ? '-' + formatCurrency(Number(line.discount)) : '—'}</td>
+          <td class="num font-bold text-gray-900">${isIncluded ? '<span style="color:#059669; font-weight:700;">R$ 0,00</span>' : formatCurrency(Number(line.totalValue))}</td>
+        </tr>`;
+      })
       .join('');
 
     const statusBadge = isAccepted

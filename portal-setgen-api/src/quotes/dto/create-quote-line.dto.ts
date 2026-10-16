@@ -8,7 +8,7 @@ import {
   IsOptional,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { QuoteLineType } from '@prisma/client';
+import { QuoteLineType, ItemBillingType } from '@prisma/client';
 
 export class CreateQuoteLineDto {
   @ApiProperty({ enum: QuoteLineType, example: QuoteLineType.SERVICE })
@@ -38,4 +38,9 @@ export class CreateQuoteLineDto {
   @Min(0, { message: 'Desconto não pode ser negativo' })
   @IsOptional()
   discount?: number;
+
+  @ApiProperty({ enum: ItemBillingType, required: false, example: ItemBillingType.BILLED_SEPARATELY })
+  @IsEnum(ItemBillingType)
+  @IsOptional()
+  billingType?: ItemBillingType;
 }

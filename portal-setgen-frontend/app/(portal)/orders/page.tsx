@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ordersApi } from '@/lib/api/orders';
 import { ServiceOrder, ServiceOrderStatus, UserRole } from '@/types';
@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { StatusCard } from '@/components/ui/status-card';
+import { TablePagination } from '@/components/ui/pagination';
 import { InlineDeleteAction } from '@/components/ui/inline-delete-action';
 import { useInlineDelete } from '@/lib/hooks/use-inline-delete';
 import {
@@ -36,6 +37,8 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const router = useRouter();
   const { user } = useAuthStore();
   const canDelete = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
@@ -49,6 +52,10 @@ export default function OrdersPage() {
     loadOrders();
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
   const loadOrders = async () => {
     try {
       const data = await ordersApi.getAll();
@@ -60,12 +67,20 @@ export default function OrdersPage() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = order.orderNumber.includes(searchTerm) ||
-      order.client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesSearch = order.orderNumber.includes(searchTerm) ||
+        order.client?.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'ALL' || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [orders, searchTerm, statusFilter]);
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE) || 1;
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredOrders.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredOrders, currentPage]);
 
   const totalOpen = orders.filter(o =>
     o.status === ServiceOrderStatus.AWAITING_MATERIALS || o.status === ServiceOrderStatus.IN_PROGRESS
@@ -102,17 +117,17 @@ export default function OrdersPage() {
       />
 
       {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de O.S." value={orders.length} icon={Wrench} variant="orange" />
         <StatusCard label="Em Andamento / Abertas" value={totalOpen} icon={Clock} variant="amber" />
         <StatusCard label="Concluídas" value={totalCompleted} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Canceladas" value={totalCancelled} icon={XCircle} variant="red" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card className="overflow-hidden border border-gray-200/75 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-3 border-b border-border">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[190px] h-9 text-[12.5px] rounded-[8px]">
+            <SelectTrigger className="w-[190px] h-9 text-xs rounded-lg border-gray-200">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -124,13 +139,13 @@ export default function OrdersPage() {
           </Select>
 
           <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Pesquisar O.S. ou cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-9 pl-9 pr-4 text-[12.5px] rounded-[8px] border border-input bg-background outline-none focus:ring-1 focus:ring-primary"
+              className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-gray-200 bg-background outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
         </div>
@@ -150,49 +165,67 @@ export default function OrdersPage() {
             {filteredOrders.length === 0 ? (
               <TableEmpty colSpan={6} message="Nenhuma ordem de serviço encontrada." />
             ) : (
-              filteredOrders.map((order) => (
+              paginatedOrders.map((order) => (
                 <TableRow
                   key={order.id}
                   className="cursor-pointer"
                   onClick={() => router.push(`/orders/${order.id}`)}
                 >
-                  <TableCell className="font-mono font-bold text-primary">
-                    {order.orderNumber}
+                  <TableCell className="font-mono font-bold text-gray-900">
+                    <span className="block">{order.orderNumber}</span>
+                    <span className="text-[10px] text-gray-400 font-normal">{formatDate(order.createdAt)}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {order.client ? (
                         <>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${getAvatarColor(order.client.companyName)}`}>
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white shrink-0 ${getAvatarColor(order.client.companyName)}`}>
                             {getInitials(order.client.companyName)}
                           </div>
-                          <span className="font-medium text-foreground">{order.client.companyName}</span>
+                          <div>
+                            <span className="font-semibold text-gray-900 block text-xs">{order.client.companyName}</span>
+                            <span className="text-[11px] text-gray-400">Usina / Planta Industrial</span>
+                          </div>
                         </>
                       ) : (
-                        <span className="text-muted-foreground italic">Sem cliente</span>
+                        <span className="text-gray-400 italic text-xs">Sem cliente vinculado</span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(order.createdAt)}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {order.deadline ? formatDate(order.deadline) : '—'}
+                  <TableCell className="text-gray-500 text-xs">
+                    {order.deadline ? (
+                      <span className="font-medium text-gray-800">{formatDate(order.deadline)}</span>
+                    ) : (
+                      <span className="text-gray-400">Sem prazo definido</span>
+                    )}
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${serviceOrderStatusBadgeClass(order.status)}`}>
-                      {SERVICE_ORDER_STATUS_CONFIG[order.status]?.label ?? order.status}
-                    </span>
+                    {order.status === ServiceOrderStatus.COMPLETED ? (
+                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Concluída
+                      </span>
+                    ) : order.status === ServiceOrderStatus.IN_PROGRESS ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> Em Andamento
+                      </span>
+                    ) : order.status === ServiceOrderStatus.AWAITING_MATERIALS ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Aguardando Peças
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${serviceOrderStatusBadgeClass(order.status)}`}>
+                        {SERVICE_ORDER_STATUS_CONFIG[order.status]?.label ?? order.status}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                    <div className="flex items-center justify-end gap-2">
+                      <button
                         onClick={() => router.push(`/orders/${order.id}`)}
-                        title="Ver detalhes da O.S."
+                        className="text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors px-2 py-1 rounded hover:bg-gray-100"
                       >
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
+                        Abrir O.S. ↗
+                      </button>
                       {canDelete && (
                         <InlineDeleteAction
                           confirming={confirmId === order.id}
@@ -209,6 +242,15 @@ export default function OrdersPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredOrders.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="ordens"
+        />
       </Card>
     </div>
   );

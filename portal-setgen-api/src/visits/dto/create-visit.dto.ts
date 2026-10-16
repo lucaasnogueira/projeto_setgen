@@ -10,7 +10,7 @@ import {
   IsArray,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { VisitType, VisitPriority } from '@prisma/client';
+import { VisitType, VisitPriority, VisitStatus } from '@prisma/client';
 
 // multipart/form-data manda campo repetido como array, mas com só 1 valor vira string solta
 const toArray = ({ value }: { value: unknown }) =>
@@ -151,4 +151,77 @@ export class CreateVisitDto {
   @IsString({ each: true })
   @IsOptional()
   legends?: string[];
+
+  @ApiProperty({ example: 'ELECTRICAL', required: false })
+  @IsString()
+  @IsOptional()
+  serviceCategory?: string;
+
+  @ApiProperty({ example: 'VT-2026-0001', required: false })
+  @IsString()
+  @IsOptional()
+  visitNumber?: string;
+
+  @ApiProperty({ required: false, description: 'Dados técnicos por categoria (Elétrica, Civil, Manutenção)' })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
+  @IsOptional()
+  technicalData?: any;
+
+  @ApiProperty({ required: false, description: 'Diagnóstico, viabilidade, materiais estimados e próximos passos' })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
+  @IsOptional()
+  conclusionData?: any;
+
+  @ApiProperty({ required: false, description: 'Assinatura digital base64 do técnico' })
+  @IsString()
+  @IsOptional()
+  technicianSignature?: string;
+
+  @ApiProperty({ required: false, description: 'Assinatura digital base64 do cliente/representante' })
+  @IsString()
+  @IsOptional()
+  clientSignature?: string;
+
+  @ApiProperty({ required: false, description: 'Nome do recebedor/cliente' })
+  @IsString()
+  @IsOptional()
+  clientSignerName?: string;
+
+  @ApiProperty({ required: false, description: 'Documento/cargo do cliente' })
+  @IsString()
+  @IsOptional()
+  clientSignerDocument?: string;
+
+  @ApiProperty({ required: false, description: 'Se o cliente recusou ou esteve ausente' })
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsOptional()
+  clientSignatureRefused?: boolean;
+
+  @ApiProperty({ required: false, description: 'Motivo da recusa ou ausência' })
+  @IsString()
+  @IsOptional()
+  clientRefusalReason?: string;
+
+  @ApiProperty({ enum: VisitStatus, required: false })
+  @IsEnum(VisitStatus)
+  @IsOptional()
+  status?: VisitStatus;
 }

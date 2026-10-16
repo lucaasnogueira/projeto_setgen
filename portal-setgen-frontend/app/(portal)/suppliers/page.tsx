@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { StatusCard } from "@/components/ui/status-card";
 import { InlineDeleteAction } from "@/components/ui/inline-delete-action";
 import { useInlineDelete } from "@/lib/hooks/use-inline-delete";
+import { TablePagination } from "@/components/ui/pagination";
+import { useMemo } from "react";
 import {
   Table,
   TableHeader,
@@ -21,10 +23,13 @@ import {
   TableEmpty,
 } from "@/components/ui/table";
 
+const ITEMS_PER_PAGE = 10;
+
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const router = useRouter();
   const { confirmId, deleting, requestDelete, cancelDelete, confirmDelete } = useInlineDelete(
     (id) => suppliersApi.delete(id),
@@ -35,6 +40,10 @@ export default function SuppliersPage() {
     suppliersApi.getAll().then(setSuppliers).catch((e) => console.error(e)).finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const filtered = suppliers.filter((s) => {
     if (!s) return false;
     const term = (searchTerm || '').toLowerCase();
@@ -43,6 +52,12 @@ export default function SuppliersPage() {
     const contact = (s.contact || '').toLowerCase();
     return name.includes(term) || cnpj.includes(searchTerm) || contact.includes(term);
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  const paginatedSuppliers = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filtered.slice(start, start + ITEMS_PER_PAGE);
+  }, [filtered, currentPage]);
 
   const totalActive = suppliers.filter(s => s.active).length;
   const totalInactive = suppliers.filter(s => !s.active).length;
@@ -73,23 +88,23 @@ export default function SuppliersPage() {
       />
 
       {/* 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total Fornecedores" value={suppliers.length} icon={Building} variant="orange" />
         <StatusCard label="Fornecedores Ativos" value={totalActive} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Inativos" value={totalInactive} icon={Clock} variant="slate" />
         <StatusCard label="Com CNPJ Homologado" value={totalWithCnpj} icon={FileText} variant="blue" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+      <Card className="overflow-hidden border border-gray-200/75 shadow-2xs">
+        <div className="flex items-center justify-between gap-2.5 px-4 py-3 border-b border-border">
           <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar por razão social, CNPJ ou contato..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-[#E2661D]/30"
+              className="w-full h-9 pl-9 pr-3 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#E2661D]/30"
             />
           </div>
         </div>
@@ -108,7 +123,7 @@ export default function SuppliersPage() {
             {filtered.length === 0 ? (
               <TableEmpty colSpan={5} message="Nenhum fornecedor encontrado" />
             ) : (
-              filtered.map((s) => (
+              paginatedSuppliers.map((s) => (
                 <TableRow key={s.id} className="hover:bg-gray-50/50">
                   <TableCell>
                     <div className="flex items-center gap-2.5">
@@ -148,6 +163,15 @@ export default function SuppliersPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="fornecedores"
+        />
       </Card>
     </div>
   );

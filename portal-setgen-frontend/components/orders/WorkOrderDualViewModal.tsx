@@ -186,20 +186,20 @@ export function WorkOrderDualViewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-5 rounded-xl border border-gray-200/80 bg-white shadow-2xl">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                <FileText className="h-6 w-6" />
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-orange-50 border border-orange-200/60 text-[#E2661D]">
+                <FileText className="h-4 w-4" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">
+                <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900">
                   {clientView
                     ? `OS #${clientView.orderNumber} - ${clientView.client?.companyName || "Cliente"}`
                     : "Visões da Ordem de Serviço"}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-xs text-gray-500 mt-0.5">
                   Alternância segura entre visão pública do cliente e visão gerencial interna de custos.
                 </DialogDescription>
               </div>

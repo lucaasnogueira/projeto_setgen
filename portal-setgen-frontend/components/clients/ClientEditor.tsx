@@ -1849,11 +1849,11 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
 
       {/* ===== MODAL DE CADASTRO RÁPIDO (MULTI-CRUD "+") ===== */}
       <Dialog open={!!quickModal} onOpenChange={(open) => !open && setQuickModal(null)}>
-        <DialogContent className="max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-6">
+        <DialogContent className="max-w-md bg-white border border-gray-200/80 rounded-xl shadow-xl p-4 sm:p-5">
           <DialogHeader className="space-y-1 pb-3 border-b border-gray-100">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
-                <Plus className="w-4 h-4" />
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                <Plus className="w-3.5 h-3.5" />
               </div>
               <span>
                 {quickModal === "user" && "Cadastrar Novo Colaborador"}
@@ -1970,11 +1970,11 @@ export function ClientMultiCrudEditor({ clientId, onClose, onSuccess }: Props) {
       </Dialog>
       {/* ===== MODAL ADICIONAR EQUIPAMENTO AO CLIENTE ===== */}
       <Dialog open={showAddEquipmentModal} onOpenChange={setShowAddEquipmentModal}>
-        <DialogContent className="max-w-xl bg-white border border-gray-200 rounded-2xl shadow-xl p-6">
+        <DialogContent className="max-w-xl bg-white border border-gray-200/80 rounded-xl shadow-xl p-4 sm:p-5">
           <DialogHeader className="space-y-1 pb-3 border-b border-gray-100">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
-                <Zap className="w-4 h-4" />
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-[#E2661D]">
+                <Zap className="w-3.5 h-3.5" />
               </div>
               <span>Vincular Novo Equipamento ao Cliente</span>
             </DialogTitle>

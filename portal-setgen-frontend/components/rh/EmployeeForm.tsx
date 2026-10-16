@@ -262,32 +262,32 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
   };
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit as any)} className="space-y-8">
+    <form onSubmit={handleSubmit(onFormSubmit as any)} className="space-y-4">
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
       {/* 1. Dados Pessoais */}
-      <div className={cn("space-y-6", activeStep !== "personal" && "hidden")}>
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <User className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "personal" && "hidden")}>
+          <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold flex items-center gap-2 text-gray-900">
+                <User className="h-3.5 w-3.5 text-[#E2661D]" />
                 Dados Pessoais
               </CardTitle>
-              <CardDescription>Informações básicas e civis do colaborador</CardDescription>
+              <CardDescription className="text-[11px] text-gray-500">Informações básicas e civis do colaborador</CardDescription>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2 lg:col-span-2">
-                  <Label className="font-bold text-sm">Nome Completo *</Label>
-                  <Input {...register("name")} placeholder="Ex: João da Silva" className="h-12 rounded-2xl" />
-                  {errors.name && <p className="text-xs font-bold text-red-500">{errors.name.message}</p>}
+            <CardContent className="p-4 sm:p-5 space-y-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5 lg:col-span-2">
+                  <Label className="font-semibold text-xs text-gray-700">Nome Completo *</Label>
+                  <Input {...register("name")} placeholder="Ex: João da Silva" className="h-9 rounded-lg text-xs border-gray-200" />
+                  {errors.name && <p className="text-[11px] font-bold text-red-500">{errors.name.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Nome Social</Label>
-                  <Input {...register("socialName")} placeholder="Opcional" className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Nome Social</Label>
+                  <Input {...register("socialName")} placeholder="Opcional" className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">CPF *</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">CPF *</Label>
                   <Controller
                     name="cpf"
                     control={control}
@@ -296,29 +296,29 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                         mask="000.000.000-00"
                         value={field.value}
                         onAccept={field.onChange}
-                        className="w-full flex h-12 rounded-2xl border border-input bg-background px-4 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                        className="w-full flex h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs focus:ring-1 focus:ring-[#E2661D] focus:border-[#E2661D] outline-none"
                         placeholder="000.000.000-00"
                       />
                     )}
                   />
-                  {errors.cpf && <p className="text-xs font-bold text-red-500">{errors.cpf.message}</p>}
+                  {errors.cpf && <p className="text-[11px] font-bold text-red-500">{errors.cpf.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">RG</Label>
-                  <Input {...register("rg")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">RG</Label>
+                  <Input {...register("rg")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Data de Nascimento</Label>
-                  <Input type="date" {...register("birthDate")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Data de Nascimento</Label>
+                  <Input type="date" {...register("birthDate")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Gênero</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Gênero</Label>
                   <Controller
                     name="gender"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={Gender.MALE}>Masculino</SelectItem>
                           <SelectItem value={Gender.FEMALE}>Feminino</SelectItem>
@@ -329,14 +329,14 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Estado Civil</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Estado Civil</Label>
                   <Controller
                     name="civilStatus"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={CivilStatus.SINGLE}>Solteiro(a)</SelectItem>
                           <SelectItem value={CivilStatus.MARRIED}>Casado(a)</SelectItem>
@@ -348,45 +348,45 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Nacionalidade</Label>
-                  <Input {...register("nationality")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Nacionalidade</Label>
+                  <Input {...register("nationality")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 border-dashed">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" id="isPcd" {...register("isPcd")} className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500" />
-                  <Label htmlFor="isPcd" className="font-bold text-sm cursor-pointer">Colaborador PCD?</Label>
+                  <input type="checkbox" id="isPcd" {...register("isPcd")} className="h-4 w-4 rounded border-gray-300 text-[#E2661D] focus:ring-[#E2661D]" />
+                  <Label htmlFor="isPcd" className="font-semibold text-xs text-gray-700 cursor-pointer">Colaborador PCD?</Label>
                 </div>
-                {isPcd && <Input {...register("pcdType")} placeholder="Descreva a deficiência..." className="flex-1 h-11 bg-card rounded-xl" />}
+                {isPcd && <Input {...register("pcdType")} placeholder="Descreva a deficiência..." className="flex-1 h-9 bg-white rounded-lg text-xs border-gray-200" />}
               </div>
             </CardContent>
           </Card>
       </div>
 
       {/* 2. Contato */}
-      <div className={cn("space-y-6", activeStep !== "contact" && "hidden")}>
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Mail className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "contact" && "hidden")}>
+          <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-[#E2661D]" />
                 Canais de Contato
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">E-mail Pessoal</Label>
-                  <Input {...register("personalEmail")} placeholder="exemplo@email.com" className="h-12 rounded-2xl" />
-                  {errors.personalEmail && <p className="text-xs font-bold text-red-500">{errors.personalEmail.message}</p>}
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">E-mail Pessoal</Label>
+                  <Input {...register("personalEmail")} placeholder="exemplo@email.com" className="h-9 rounded-lg text-xs border-gray-200" />
+                  {errors.personalEmail && <p className="text-[11px] font-semibold text-red-500">{errors.personalEmail.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">E-mail Corporativo</Label>
-                  <Input {...register("corporateEmail")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">E-mail Corporativo</Label>
+                  <Input {...register("corporateEmail")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Celular</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Celular</Label>
                   <Controller
                     name="mobilePhone"
                     control={control}
@@ -395,7 +395,7 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                         mask="(00) 00000-0000"
                         value={field.value}
                         onAccept={field.onChange}
-                        className="w-full flex h-12 rounded-2xl border border-input bg-background px-4 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                        className="w-full flex h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#E2661D] focus:ring-1 focus:ring-[#E2661D]/20 transition-all"
                         placeholder="(00) 00000-0000"
                       />
                     )}
@@ -403,11 +403,11 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                 </div>
               </div>
 
-              <div className="pt-6 border-t border-dashed">
-                 <Label className="font-bold text-lg mb-4 block flex items-center gap-2"><MapPin className="h-5 w-5 text-indigo-600"/> Endereço Residencial</Label>
-                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    <div className="md:col-span-2 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">CEP</Label>
+              <div className="pt-3 border-t border-gray-100">
+                 <Label className="font-bold text-xs sm:text-sm text-gray-900 mb-3 flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-[#E2661D]"/> Endereço Residencial</Label>
+                 <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">CEP</Label>
                       <Controller
                         name="address.cep"
                         control={control}
@@ -416,30 +416,30 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                             mask="00000-000"
                             value={field.value}
                             onAccept={(val) => { field.onChange(val); handleCepLookup(val); }}
-                            className="w-full h-11 rounded-xl border border-input px-3"
+                            className="w-full h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs outline-none focus:border-[#E2661D] focus:ring-1 focus:ring-[#E2661D]/20 transition-all"
                           />
                         )}
                       />
                     </div>
-                    <div className="md:col-span-4 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">Logradouro</Label>
-                      <Input {...register("address.street")} className="h-11 rounded-xl" />
+                    <div className="md:col-span-4 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">Logradouro</Label>
+                      <Input {...register("address.street")} className="h-9 rounded-lg text-xs border-gray-200" />
                     </div>
-                    <div className="md:col-span-1 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">Nº</Label>
-                      <Input {...register("address.number")} className="h-11 rounded-xl" />
+                    <div className="md:col-span-1 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">Nº</Label>
+                      <Input {...register("address.number")} className="h-9 rounded-lg text-xs border-gray-200" />
                     </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">Bairro</Label>
-                      <Input {...register("address.neighborhood")} className="h-11 rounded-xl" />
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">Bairro</Label>
+                      <Input {...register("address.neighborhood")} className="h-9 rounded-lg text-xs border-gray-200" />
                     </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">Cidade</Label>
-                      <Input {...register("address.city")} className="h-11 rounded-xl" />
+                    <div className="md:col-span-2 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">Cidade</Label>
+                      <Input {...register("address.city")} className="h-9 rounded-lg text-xs border-gray-200" />
                     </div>
-                    <div className="md:col-span-1 space-y-2">
-                      <Label className="font-bold text-xs uppercase text-muted-foreground">UF</Label>
-                      <Input {...register("address.state")} maxLength={2} className="h-11 rounded-xl uppercase" />
+                    <div className="md:col-span-1 space-y-1.5">
+                      <Label className="font-semibold text-xs text-gray-700">UF</Label>
+                      <Input {...register("address.state")} maxLength={2} className="h-9 rounded-lg text-xs border-gray-200 uppercase" />
                     </div>
                  </div>
               </div>
@@ -448,59 +448,59 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       </div>
 
       {/* 3. Dados Trabalhistas */}
-      <div className={cn("space-y-6", activeStep !== "labor" && "hidden")}>
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "labor" && "hidden")}>
+          <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5 text-[#E2661D]" />
                 Vínculo e Cargo
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Cargo *</Label>
-                  <Input {...register("position")} className="h-12 rounded-2xl" />
-                  {errors.position && <p className="text-xs font-bold text-red-500">{errors.position.message}</p>}
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              <div className="grid md:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Cargo *</Label>
+                  <Input {...register("position")} className="h-9 rounded-lg text-xs border-gray-200" />
+                  {errors.position && <p className="text-[11px] font-semibold text-red-500">{errors.position.message}</p>}
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Departamento</Label>
-                  <Input {...register("department")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Departamento</Label>
+                  <Input {...register("department")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Data de Admissão *</Label>
-                  <Input type="date" {...register("admissionDate")} className="h-12 rounded-2xl" />
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-4 gap-6 border-t border-dashed pt-6">
-                <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase text-muted-foreground">CTPS</Label>
-                  <Input {...register("ctps")} className="h-11 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase text-muted-foreground">PIS/PASEP</Label>
-                  <Input {...register("pisPasep")} className="h-11 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase text-muted-foreground">Tít. Eleitor</Label>
-                  <Input {...register("voterId")} className="h-11 rounded-xl" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase text-muted-foreground">Reservista</Label>
-                  <Input {...register("militaryCertificate")} className="h-11 rounded-xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Data de Admissão *</Label>
+                  <Input type="date" {...register("admissionDate")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-6 pt-4">
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Contrato</Label>
+              <div className="grid md:grid-cols-4 gap-3.5 border-t border-gray-100 pt-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">CTPS</Label>
+                  <Input {...register("ctps")} className="h-9 rounded-lg text-xs border-gray-200" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">PIS/PASEP</Label>
+                  <Input {...register("pisPasep")} className="h-9 rounded-lg text-xs border-gray-200" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Tít. Eleitor</Label>
+                  <Input {...register("voterId")} className="h-9 rounded-lg text-xs border-gray-200" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Reservista</Label>
+                  <Input {...register("militaryCertificate")} className="h-9 rounded-lg text-xs border-gray-200" />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-3.5 pt-1">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Contrato</Label>
                   <Controller
                     name="contractType"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={ContractType.CLT}>CLT</SelectItem>
                           <SelectItem value={ContractType.PJ}>PJ</SelectItem>
@@ -511,14 +511,14 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Regime</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Regime</Label>
                   <Controller
                     name="workRegime"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={WorkRegime.PRESENTIAL}>Presencial</SelectItem>
                           <SelectItem value={WorkRegime.HYBRID}>Híbrido</SelectItem>
@@ -528,10 +528,10 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Salário Base</Label>
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Salário Base</Label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" />
+                    <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Controller
                       name="baseSalary"
                       control={control}
@@ -542,7 +542,7 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                           unmask={true}
                           value={field.value.toString()}
                           onAccept={(_, mask: any) => field.onChange(parseFloat(mask.unmaskedValue) || 0)}
-                          className="flex h-12 w-full rounded-2xl border border-input pl-10 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                          className="flex h-9 w-full rounded-lg border border-gray-200 bg-white pl-8 py-1.5 text-xs outline-none focus:border-[#E2661D] focus:ring-1 focus:ring-[#E2661D]/20 transition-all"
                         />
                       )}
                     />
@@ -554,38 +554,38 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       </div>
 
       {/* 4. Financeiro */}
-      <div className={cn("space-y-6", activeStep !== "financial" && "hidden")}>
-           <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "financial" && "hidden")}>
+           <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+                <CreditCard className="h-3.5 w-3.5 text-[#E2661D]" />
                 Dados Bancários
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Banco</Label>
-                  <Input {...register("bank")} className="h-12 rounded-2xl" placeholder="Ex: Santander" />
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              <div className="grid md:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Banco</Label>
+                  <Input {...register("bank")} className="h-9 rounded-lg text-xs border-gray-200" placeholder="Ex: Santander" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Agência</Label>
-                  <Input {...register("agency")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Agência</Label>
+                  <Input {...register("agency")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Conta</Label>
-                  <Input {...register("account")} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Conta</Label>
+                  <Input {...register("account")} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
               </div>
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Tipo de Conta</Label>
+              <div className="grid md:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Tipo de Conta</Label>
                   <Controller
                     name="accountType"
                     control={control}
                     render={({ field }) => (
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={AccountType.CHECKING}>Corrente</SelectItem>
                           <SelectItem value={AccountType.SAVINGS}>Poupança</SelectItem>
@@ -594,13 +594,13 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                     )}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Chave PIX</Label>
-                  <Input {...register("pixKey")} className="h-12 rounded-2xl" placeholder="E-mail, CPF, etc." />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Chave PIX</Label>
+                  <Input {...register("pixKey")} className="h-9 rounded-lg text-xs border-gray-200" placeholder="E-mail, CPF, etc." />
                 </div>
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Dep. Imposto Renda</Label>
-                  <Input type="number" {...register("irDependents", { valueAsNumber: true })} className="h-12 rounded-2xl" />
+                <div className="space-y-1.5">
+                  <Label className="font-semibold text-xs text-gray-700">Dep. Imposto Renda</Label>
+                  <Input type="number" {...register("irDependents", { valueAsNumber: true })} className="h-9 rounded-lg text-xs border-gray-200" />
                 </div>
               </div>
             </CardContent>
@@ -608,42 +608,42 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       </div>
 
       {/* 5. Estrutura */}
-      <div className={cn("space-y-6", activeStep !== "org" && "hidden")}>
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Users className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "org" && "hidden")}>
+          <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Users className="h-3.5 w-3.5 text-[#E2661D]" />
                 Hierarquia e Unidade
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-               <div className="grid md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Matrícula</Label>
-                    <Input {...register("registration")} className="h-12 rounded-2xl" />
+            <CardContent className="p-4 sm:p-5 space-y-4">
+               <div className="grid md:grid-cols-3 gap-3.5">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Matrícula</Label>
+                    <Input {...register("registration")} className="h-9 rounded-lg text-xs border-gray-200" />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Equipe / Time</Label>
-                    <Input {...register("team")} className="h-12 rounded-2xl" />
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Equipe / Time</Label>
+                    <Input {...register("team")} className="h-9 rounded-lg text-xs border-gray-200" />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Unidade de Negócio</Label>
-                    <Input {...register("businessUnit")} className="h-12 rounded-2xl" />
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Unidade de Negócio</Label>
+                    <Input {...register("businessUnit")} className="h-9 rounded-lg text-xs border-gray-200" />
                   </div>
                </div>
-               <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Filial</Label>
-                    <Input {...register("branch")} className="h-12 rounded-2xl" />
+               <div className="grid md:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Filial</Label>
+                    <Input {...register("branch")} className="h-9 rounded-lg text-xs border-gray-200" />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Nível Hierárquico</Label>
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Nível Hierárquico</Label>
                     <Controller
                       name="hierarchicalLevel"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={HierarchicalLevel.AUXILIAR}>Auxiliar</SelectItem>
                             <SelectItem value={HierarchicalLevel.ASSISTENTE}>Assistente</SelectItem>
@@ -665,24 +665,24 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
       </div>
 
       {/* 6. Status */}
-      <div className={cn("space-y-6", activeStep !== "status" && "hidden")}>
-          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-card/70 backdrop-blur-md">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Clock className="h-5 w-5 text-indigo-600" />
+      <div className={cn("space-y-4", activeStep !== "status" && "hidden")}>
+          <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-[#E2661D]" />
                 Situação e Acesso
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-               <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Status Atual</Label>
+            <CardContent className="p-4 sm:p-5 space-y-4">
+               <div className="grid md:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Status Atual</Label>
                     <Controller
                       name="status"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <SelectTrigger className="h-12 rounded-2xl"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={EmployeeStatus.ACTIVE}>Ativo</SelectItem>
                             <SelectItem value={EmployeeStatus.AWAY}>Afastado</SelectItem>
@@ -693,23 +693,23 @@ export function EmployeeForm({ initialData, onSubmit, onCancel, loading }: Emplo
                       )}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Login de Acesso</Label>
-                    <Input {...register("login")} className="h-12 rounded-2xl" placeholder="Username do sistema" />
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-xs text-gray-700">Login de Acesso</Label>
+                    <Input {...register("login")} className="h-9 rounded-lg text-xs border-gray-200" placeholder="Username do sistema" />
                   </div>
                </div>
 
                {currentStatus === EmployeeStatus.TERMINATED && (
-                 <div className="p-6 bg-red-50/50 rounded-3xl border border-red-100 space-y-4 animate-in slide-in-from-top-2">
-                   <Label className="font-bold text-lg text-red-700 flex items-center gap-2"><AlertCircle className="h-5 w-5"/> Dados de Desligamento</Label>
-                   <div className="grid md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Data</Label>
-                        <Input type="date" {...register("terminationDate")} className="h-12 rounded-2xl border-red-200" />
+                 <div className="p-4 bg-red-50/60 rounded-xl border border-red-100 space-y-3 animate-in slide-in-from-top-2">
+                   <Label className="font-bold text-xs sm:text-sm text-red-700 flex items-center gap-2"><AlertCircle className="h-4 w-4"/> Dados de Desligamento</Label>
+                   <div className="grid md:grid-cols-2 gap-3.5">
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs text-gray-700">Data</Label>
+                        <Input type="date" {...register("terminationDate")} className="h-9 rounded-lg text-xs border-red-200 bg-white" />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Motivo</Label>
-                        <Input {...register("terminationReason")} className="h-12 rounded-2xl border-red-200" placeholder="Ex: Pedido de demissão" />
+                      <div className="space-y-1.5">
+                        <Label className="font-semibold text-xs text-gray-700">Motivo</Label>
+                        <Input {...register("terminationReason")} className="h-9 rounded-lg text-xs border-red-200 bg-white" placeholder="Ex: Pedido de demissão" />
                       </div>
                    </div>
                  </div>

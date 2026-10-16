@@ -17,6 +17,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { TablePagination } from "@/components/ui/pagination";
 
 export default function FleetReportPage() {
   const [trips, setTrips] = useState<VehicleTrip[]>([]);
@@ -24,6 +25,8 @@ export default function FleetReportPage() {
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
 
   useEffect(() => {
     loadTrips();
@@ -37,6 +40,7 @@ export default function FleetReportPage() {
         to: to ? new Date(new Date(to).getTime() + 86400000).toISOString() : undefined,
       });
       setTrips(data);
+      setCurrentPage(1);
     } catch (error) {
       console.error("Erro ao carregar histórico da frota:", error);
     } finally {
@@ -52,6 +56,12 @@ export default function FleetReportPage() {
       t.vehicle?.plate?.toLowerCase().includes(term)
     );
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  const paginatedTrips = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-5 print:space-y-2">
@@ -74,7 +84,10 @@ export default function FleetReportPage() {
             type="text"
             placeholder="Buscar motorista, carro..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-60 px-3 py-2 border border-border rounded-[8px] text-[12.5px] outline-none focus:ring-2 focus:ring-primary/30"
           />
           <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40 h-9" />
@@ -101,7 +114,7 @@ export default function FleetReportPage() {
             {filtered.length === 0 ? (
               <TableEmpty colSpan={8} message={loading ? "Carregando..." : "Nenhuma saída encontrada"} />
             ) : (
-              filtered.map((t) => (
+              paginatedTrips.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell>
                     <div className="text-[13px] font-bold text-foreground">{t.vehicle?.name}</div>
@@ -127,6 +140,16 @@ export default function FleetReportPage() {
             )}
           </TableBody>
         </Table>
+
+        <TablePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filtered.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+          itemLabel="saídas"
+          className="print:hidden"
+        />
       </Card>
     </div>
   );

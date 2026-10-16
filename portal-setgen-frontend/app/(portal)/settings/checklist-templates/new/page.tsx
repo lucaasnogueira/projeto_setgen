@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { checklistTemplatesApi } from '@/lib/api/checklist-templates';
 import { ChecklistTemplateForm } from '../components/ChecklistTemplateForm';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { toast } from 'sonner';
 
 export default function NewChecklistTemplatePage() {
   const router = useRouter();
@@ -14,17 +15,17 @@ export default function NewChecklistTemplatePage() {
     setLoading(true);
     try {
       await checklistTemplatesApi.create(payload);
-      alert('Template criado com sucesso!');
+      toast.success('Template criado com sucesso!');
       router.push('/settings/checklist-templates');
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Erro ao criar template');
+      toast.error(error.response?.data?.message || 'Erro ao criar template');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
       <PageHeader title="Novo Template de Checklist" subtitle="Monte os campos que a OS vai carregar" />
 
       <ChecklistTemplateForm

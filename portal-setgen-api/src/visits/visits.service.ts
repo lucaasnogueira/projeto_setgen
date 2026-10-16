@@ -205,8 +205,26 @@ export class VisitsService {
           : '',
     }));
 
+    let visitNumber = createVisitDto.visitNumber;
+    if (!visitNumber) {
+      const currentYear = new Date().getFullYear();
+      const count = await this.prisma.technicalVisit.count();
+      visitNumber = `VT-${currentYear}-${String(count + 1).padStart(4, '0')}`;
+    }
+
     const visitData: Prisma.TechnicalVisitCreateInput = {
       client: { connect: { id: createVisitDto.clientId } },
+      visitNumber,
+      serviceCategory: createVisitDto.serviceCategory || 'ELECTRICAL',
+      technicalData: createVisitDto.technicalData ?? undefined,
+      conclusionData: createVisitDto.conclusionData ?? undefined,
+      technicianSignature: createVisitDto.technicianSignature,
+      clientSignature: createVisitDto.clientSignature,
+      clientSignerName: createVisitDto.clientSignerName,
+      clientSignerDocument: createVisitDto.clientSignerDocument,
+      clientSignatureRefused: createVisitDto.clientSignatureRefused ?? false,
+      clientRefusalReason: createVisitDto.clientRefusalReason,
+      ...(createVisitDto.status && { status: createVisitDto.status }),
       ...(createVisitDto.technicianId && {
         technician: { connect: { id: createVisitDto.technicianId } },
       }),
@@ -516,6 +534,7 @@ export class VisitsService {
     updateVisitDto: UpdateVisitDto,
     userId: string,
     userRole: UserRole,
+    attachments?: string[],
   ) {
     const visit = await this.findOne(id);
 
@@ -554,6 +573,42 @@ export class VisitsService {
       ...(updateVisitDto.estimatedValue !== undefined && {
         estimatedValue: updateVisitDto.estimatedValue,
       }),
+      ...(updateVisitDto.serviceCategory && {
+        serviceCategory: updateVisitDto.serviceCategory,
+      }),
+      ...(updateVisitDto.technicalData !== undefined && {
+        technicalData: updateVisitDto.technicalData,
+        ...(updateVisitDto.technicalData?.checklistItems && {
+          checklist: updateVisitDto.technicalData.checklistItems,
+        }),
+      }),
+      ...(attachments && attachments.length > 0 && {
+        attachments: {
+          push: attachments,
+        },
+      }),
+      ...(updateVisitDto.conclusionData !== undefined && {
+        conclusionData: updateVisitDto.conclusionData,
+      }),
+      ...(updateVisitDto.technicianSignature !== undefined && {
+        technicianSignature: updateVisitDto.technicianSignature,
+      }),
+      ...(updateVisitDto.clientSignature !== undefined && {
+        clientSignature: updateVisitDto.clientSignature,
+      }),
+      ...(updateVisitDto.clientSignerName !== undefined && {
+        clientSignerName: updateVisitDto.clientSignerName,
+      }),
+      ...(updateVisitDto.clientSignerDocument !== undefined && {
+        clientSignerDocument: updateVisitDto.clientSignerDocument,
+      }),
+      ...(updateVisitDto.clientSignatureRefused !== undefined && {
+        clientSignatureRefused: updateVisitDto.clientSignatureRefused,
+      }),
+      ...(updateVisitDto.clientRefusalReason !== undefined && {
+        clientRefusalReason: updateVisitDto.clientRefusalReason,
+      }),
+      ...(updateVisitDto.status && { status: updateVisitDto.status }),
       ...(updateVisitDto.notes !== undefined && {
         notes: updateVisitDto.notes,
       }),

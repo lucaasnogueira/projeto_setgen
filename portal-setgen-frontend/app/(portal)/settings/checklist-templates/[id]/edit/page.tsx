@@ -57,7 +57,7 @@ export default function EditChecklistTemplatePage() {
   if (!template) return null;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5 pb-12">
+    <div className="max-w-5xl mx-auto space-y-5 pb-12">
       <PageHeader title={`Editar Template: ${template.name}`} subtitle="Alterações não afetam OS já criadas com este template" />
 
       <ChecklistTemplateForm

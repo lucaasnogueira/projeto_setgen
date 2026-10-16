@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { employeeApi } from '@/lib/api/employees';
 import { Employee, ASO, EmployeeDocument } from '@/types';
+import { toast } from 'sonner';
 import {
   User,
   Briefcase,
@@ -51,10 +52,10 @@ export default function EmployeeDetailsPage() {
   const handleUpdate = async (formData: any) => {
     try {
       await employeeApi.update(params.id as string, formData);
-      alert('Funcionário atualizado com sucesso!');
+      toast.success('Funcionário atualizado com sucesso!');
       loadEmployee();
     } catch (error) {
-      alert('Erro ao atualizar funcionário');
+      toast.error('Erro ao atualizar funcionário');
     }
   };
 
@@ -97,14 +98,14 @@ export default function EmployeeDetailsPage() {
         </TabsList>
 
         <TabsContent value="info" className="mt-4 space-y-4">
-          <Card className="overflow-hidden">
-            <CardHeader className="bg-muted/30 border-b">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Edit className="h-5 w-5 text-muted-foreground" />
+          <Card className="border border-gray-200/80 rounded-xl overflow-hidden shadow-2xs bg-white">
+            <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+              <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+                <Edit className="h-3.5 w-3.5 text-[#E2661D]" />
                 Editar Informações
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8">
+            <CardContent className="p-4 sm:p-5">
               <EmployeeForm 
                 initialData={employee} 
                 onSubmit={handleUpdate} 

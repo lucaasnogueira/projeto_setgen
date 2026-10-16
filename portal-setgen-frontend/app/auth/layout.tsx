@@ -1,4 +1,5 @@
-import { Zap, CheckCircle2 } from "lucide-react";
+import Image from "next/image";
+import { CheckCircle2 } from "lucide-react";
 
 const HIGHLIGHTS = [
   "Controle de ordens de serviço em tempo real",
@@ -18,11 +19,16 @@ export default function AuthLayout({
         <div className="absolute -top-28 -right-28 w-[360px] h-[360px] rounded-full bg-[radial-gradient(circle,rgba(226,102,29,0.25),transparent_70%)]" />
         <div className="absolute -bottom-32 -left-24 w-[320px] h-[320px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.15),transparent_70%)]" />
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[10px] bg-primary flex items-center justify-center">
-            <Zap className="h-[22px] w-[22px] text-white" fill="white" />
-          </div>
-          <span className="text-white font-extrabold text-xl tracking-wide">SETGEN</span>
+        <div className="relative z-10 flex items-center">
+          <Image
+            src="/images/setgen-logo-white.png"
+            alt="SETGEN - Serviços Técnicos em Geradores de Energia"
+            width={180}
+            height={64}
+            className="h-11 w-auto object-contain"
+            priority
+            unoptimized
+          />
         </div>
 
         <div className="relative z-10">

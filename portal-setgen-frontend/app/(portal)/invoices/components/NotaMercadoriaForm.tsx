@@ -135,25 +135,47 @@ export function NotaMercadoriaForm({ onSuccess, onCancel }: NotaMercadoriaFormPr
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-6">
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/50 border-b border-border p-6">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Building2 className="h-5 w-5 text-emerald-600" />
-              Cliente
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {/* Protocol Header Card */}
+      <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200/80 p-3.5 sm:p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-orange-50 text-[#E2661D] border border-orange-200">
+                NFE-MERCADORIA-NOVA
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+                Minuta Fiscal SEFAZ-AM
+              </span>
+            </div>
+            <h3 className="text-xs sm:text-sm font-bold text-gray-900">
+              Emissão de Nota Fiscal de Mercadorias (NF-e)
+            </h3>
+            <p className="text-[11px] text-gray-500">
+              Faturamento de peças, insumos ou venda direta integrada à SEFAZ
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:col-span-2 space-y-4">
+        <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Building2 className="h-3.5 w-3.5 text-[#E2661D]" />
+              Identificação do Destinatário
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="font-semibold text-foreground">Cliente <span className="text-red-500">*</span></Label>
+          <CardContent className="p-4 sm:p-5 space-y-3.5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700">Cliente <span className="text-red-500">*</span></Label>
               <Select value={clientId} onValueChange={(v) => { setClientId(v); setServiceOrderId(''); }}>
-                <SelectTrigger className="h-12 rounded-2xl bg-card">
+                <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                   <SelectValue placeholder="Selecione o cliente" />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
                       {c.tradeName || c.companyName} — {c.cnpjCpf}
                     </SelectItem>
                   ))}
@@ -161,15 +183,15 @@ export function NotaMercadoriaForm({ onSuccess, onCancel }: NotaMercadoriaFormPr
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-semibold text-foreground">Ordem de Serviço vinculada (opcional)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-gray-700">Ordem de Serviço vinculada (opcional)</Label>
               <Select value={serviceOrderId} onValueChange={setServiceOrderId} disabled={!clientId}>
-                <SelectTrigger className="h-12 rounded-2xl bg-card">
+                <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                   <SelectValue placeholder={clientId ? 'Nenhuma (venda avulsa)' : 'Selecione um cliente primeiro'} />
                 </SelectTrigger>
                 <SelectContent>
                   {clientServiceOrders.map((os) => (
-                    <SelectItem key={os.id} value={os.id}>
+                    <SelectItem key={os.id} value={os.id} className="text-xs">
                       {os.orderNumber}
                     </SelectItem>
                   ))}
@@ -179,51 +201,51 @@ export function NotaMercadoriaForm({ onSuccess, onCancel }: NotaMercadoriaFormPr
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/50 border-b border-border p-6">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <Package className="h-5 w-5 text-emerald-600" />
-              Mercadorias
+        <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Package className="h-3.5 w-3.5 text-[#E2661D]" />
+              Mercadorias e Peças
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="flex flex-col md:flex-row gap-4 items-end bg-muted/50 p-6 rounded-2xl border border-dashed">
-              <div className="flex-1 space-y-2">
-                <Label className="font-bold text-sm">Produto</Label>
+          <CardContent className="p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col md:flex-row gap-3 items-end bg-gray-50/50 p-3.5 rounded-xl border border-gray-200/80">
+              <div className="flex-1 space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-700">Produto / Peça</Label>
                 <Select value={selectedProductId} onValueChange={setSelectedProductId}>
-                  <SelectTrigger className="h-12 rounded-2xl bg-card">
+                  <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                     <SelectValue placeholder="Selecione um produto do estoque" />
                   </SelectTrigger>
                   <SelectContent>
                     {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
                         {p.code} - {p.name} (Estoque: {p.currentStock})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-full md:w-28 space-y-2">
-                <Label className="font-bold text-sm">Qtd</Label>
+              <div className="w-full md:w-28 space-y-1.5">
+                <Label className="text-xs font-semibold text-gray-700">Qtd</Label>
                 <Input
                   type="number"
                   min="1"
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
-                  className="h-12 rounded-2xl bg-card"
+                  className="h-9 rounded-lg text-xs bg-white border-gray-200"
                 />
               </div>
               <Button
                 type="button"
                 onClick={addItem}
-                className="h-12 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-bold flex items-center gap-2 px-8 active:scale-95"
+                className="h-9 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 px-4 shadow-2xs"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3.5 w-3.5" />
                 Adicionar
               </Button>
             </div>
 
-            <div className="border rounded-2xl overflow-hidden shadow-sm">
+            <div className="border border-gray-200/80 rounded-xl overflow-hidden shadow-2xs">
               <table className="w-full border-collapse bg-card">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -300,92 +322,92 @@ export function NotaMercadoriaForm({ onSuccess, onCancel }: NotaMercadoriaFormPr
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/50 border-b border-border p-6">
-            <CardTitle className="flex items-center gap-2 text-foreground">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              Ambiente Sefaz
-              <span title="Homologação não tem valor fiscal. Produção emite notas reais.">
-                <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+        <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#E2661D]" />
+              Ambiente de Transmissão SEFAZ
+              <span title="Homologação não tem valor fiscal. Produção emite notas reais com valor jurídico.">
+                <HelpCircle className="h-3.5 w-3.5 text-gray-400 cursor-help" />
               </span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="flex p-1 bg-muted rounded-2xl w-full max-w-md">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex p-1 bg-gray-100 rounded-lg w-full max-w-md">
               <button
                 type="button"
                 onClick={() => setAmbiente('HOMOLOGACAO')}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${ambiente === 'HOMOLOGACAO' ? 'bg-card shadow-sm text-emerald-700' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-all ${ambiente === 'HOMOLOGACAO' ? 'bg-white shadow-2xs text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                Homologação
+                Homologação (Testes)
               </button>
               <button
                 type="button"
                 onClick={() => setAmbiente('PRODUCAO')}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${ambiente === 'PRODUCAO' ? 'bg-red-600 shadow-lg text-white' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-all ${ambiente === 'PRODUCAO' ? 'bg-rose-600 shadow-2xs text-white' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                Produção
+                Produção Oficial
               </button>
             </div>
             {ambiente === 'PRODUCAO' && (
-              <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-100 flex items-start gap-2 max-w-md">
-                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
-                <p className="text-[10px] text-red-800 font-medium">Atenção: a emissão em produção gera obrigações tributárias e necessita de certificado digital A1 válido.</p>
+              <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-200 flex items-start gap-2 max-w-md">
+                <AlertCircle className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-rose-800 font-medium">Atenção: a emissão em produção gera obrigações tributárias e necessita de certificado digital A1 válido.</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <div className="space-y-6">
-        <Card className="border-none shadow-2xl rounded-3xl overflow-hidden sticky top-6">
-          <CardHeader className="bg-gray-900 p-8 text-white">
-            <CardTitle className="text-lg font-bold">Resumo</CardTitle>
-            <p className="text-muted-foreground text-xs">{items.length} mercadoria(s)</p>
+      <div className="space-y-4">
+        <Card className="border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden sticky top-6 bg-white">
+          <CardHeader className="bg-gray-900 px-4 py-3 text-white">
+            <CardTitle className="text-xs sm:text-sm font-bold">Resumo Fiscal</CardTitle>
+            <p className="text-gray-400 text-[11px] font-mono">{items.length} mercadoria(s) adicionada(s)</p>
           </CardHeader>
-          <CardContent className="p-8 space-y-6 bg-card">
-            <div className="flex justify-between text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100">
-              <span className="flex items-center gap-1 font-semibold">IBS/CBS (Reforma)</span>
-              <span className="font-bold">+ 1.0%</span>
+          <CardContent className="p-4 sm:p-5 space-y-4">
+            <div className="flex justify-between text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+              <span className="font-semibold">IBS/CBS (Reforma)</span>
+              <span className="font-mono font-bold">+ 1.0%</span>
             </div>
 
             <Separator />
 
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total a Faturar</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Total a Faturar</p>
               <div className="flex items-baseline gap-1">
-                <p className="text-muted-foreground text-sm font-medium">R$</p>
-                <p className="text-4xl font-extrabold text-foreground">
-                  {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                <p className="text-gray-400 text-xs font-medium">R$</p>
+                <p className="text-xl font-black text-gray-900 font-mono">
+                  {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 leading-tight italic">
-                * Inclui o cálculo por fora dos novos impostos 2026.
+              <p className="text-[10px] text-gray-400 mt-1 leading-tight">
+                * Inclui cálculo regulatório e regras de incentivo ZFM quando aplicável.
               </p>
             </div>
 
-            <div className="pt-4 space-y-3">
+            <div className="pt-2 space-y-2">
               <Button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-2xl shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 font-bold transition-all active:scale-95 disabled:opacity-50"
+                className="w-full h-9 bg-[#E2661D] hover:bg-[#c95716] text-white rounded-lg shadow-2xs flex items-center justify-center gap-1.5 font-semibold text-xs transition-all active:scale-95 disabled:opacity-50"
               >
                 {submitting ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Emitindo...
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white"></div>
+                    Emitindo Nota...
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-5 w-5" />
-                    Emitir Nota Fiscal
+                    <CheckCircle2 className="h-4 w-4" />
+                    Emitir Nota Fiscal (NF-e)
                   </>
                 )}
               </Button>
               <Button
                 onClick={onCancel}
-                variant="ghost"
-                className="w-full h-12 text-muted-foreground hover:text-foreground font-bold rounded-2xl"
+                variant="outline"
+                className="w-full h-9 text-gray-600 hover:text-gray-900 font-semibold rounded-lg text-xs border-gray-200 hover:bg-gray-50"
               >
                 Cancelar
               </Button>

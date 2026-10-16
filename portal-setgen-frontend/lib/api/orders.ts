@@ -5,7 +5,7 @@ export interface CreateServiceOrderPayload {
   quoteId: string;
   equipmentId?: string | null;
   items?: Array<{ productId: string; quantity: number; unitPrice: number }>;
-  requiredResources?: { team?: string[] };
+  requiredResources?: { team?: string[]; schedule?: any[] };
   deadline?: string;
   responsibleIds?: string[];
   checklist?: Array<{ item: string; completed: boolean }>;

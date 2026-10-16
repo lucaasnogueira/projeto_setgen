@@ -196,31 +196,31 @@ export function ExpenseMultiCrudEditor({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs">
+    <div className="bg-white rounded-xl border border-gray-200/80 overflow-hidden shadow-2xs">
       {/* 1. Header do Multi-CRUD */}
-      <div className="p-5 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-gray-50/80 to-white">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-100/70 border border-orange-200/60 flex items-center justify-center text-[#E2661D]">
-            <Receipt className="w-5 h-5" />
+      <div className="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/60">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-orange-100/70 border border-orange-200/60 flex items-center justify-center text-[#E2661D]">
+            <Receipt className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-gray-900">
+            <h2 className="text-xs sm:text-sm font-bold text-gray-900">
               {initialData ? "Editar Lançamento de Despesa" : "Novo Lançamento de Despesa"}
             </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[11px] text-gray-500">
               Estruturação e rateio operacional com classificação rápida por tipos e categorias
             </p>
           </div>
         </div>
 
         {/* Abas Superiores Padrão Setgen */}
-        <div className="flex items-center gap-1.5 p-1 bg-gray-100/80 rounded-xl border border-gray-200/80 self-start sm:self-auto">
+        <div className="flex items-center gap-1 p-1 bg-gray-100/80 rounded-lg border border-gray-200/80 self-start sm:self-auto">
           <button
             type="button"
             onClick={() => setActiveTab("dados")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
               activeTab === "dados"
-                ? "bg-white text-gray-900 shadow-xs"
+                ? "bg-white text-gray-900 shadow-2xs"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -229,9 +229,9 @@ export function ExpenseMultiCrudEditor({
           <button
             type="button"
             onClick={() => setActiveTab("prazos")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
               activeTab === "prazos"
-                ? "bg-white text-gray-900 shadow-xs"
+                ? "bg-white text-gray-900 shadow-2xs"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -240,9 +240,9 @@ export function ExpenseMultiCrudEditor({
           <button
             type="button"
             onClick={() => setActiveTab("vinculos")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
               activeTab === "vinculos"
-                ? "bg-white text-gray-900 shadow-xs"
+                ? "bg-white text-gray-900 shadow-2xs"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -252,7 +252,7 @@ export function ExpenseMultiCrudEditor({
       </div>
 
       {/* 2. Formulário Principal */}
-      <form onSubmit={handleSubmit(onFormSubmit)} className="p-6 space-y-6">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="p-4 sm:p-5 space-y-4">
         {/* ABA 1: DADOS & CLASSIFICAÇÃO */}
         {activeTab === "dados" && (
           <div className="space-y-5 animate-in fade-in duration-150">
@@ -677,9 +677,9 @@ export function ExpenseMultiCrudEditor({
 
       {/* MODAL DE CADASTRO RÁPIDO DE CATEGORIA (+) */}
       <Dialog open={quickCatOpen} onOpenChange={setQuickCatOpen}>
-        <DialogContent className="max-w-md bg-white p-6 rounded-2xl border shadow-xl">
+        <DialogContent className="max-w-md bg-white p-4 sm:p-5 rounded-xl border border-gray-200/80 shadow-lg">
           <DialogHeader className="pb-3 border-b border-gray-100">
-            <DialogTitle className="text-base font-bold text-gray-900 flex items-center gap-2">
+            <DialogTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
               <Plus className="w-4 h-4 text-[#E2661D]" />
               Criar Nova Categoria de Despesa
             </DialogTitle>

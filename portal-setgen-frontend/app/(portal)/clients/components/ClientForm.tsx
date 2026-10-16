@@ -29,7 +29,7 @@ import { StepRail, StepFooter, type WizardStep } from "@/components/ui/step-wiza
 
 const ClientLocationMap = dynamic(
   () => import("./ClientLocationMap").then((m) => m.ClientLocationMap),
-  { ssr: false, loading: () => <div className="h-72 rounded-2xl bg-muted animate-pulse" /> },
+  { ssr: false, loading: () => <div className="h-72 rounded-xl bg-muted animate-pulse" /> },
 );
 
 const clientSchema = z.object({
@@ -154,33 +154,65 @@ export function ClientForm({
   const handleCNPJLookup = async () => {
     const cnpjClean = form.getValues("cnpjCpf").replace(/\D/g, "");
     if (cnpjClean.length !== 14) {
-      alert("Informe um CNPJ válido para consulta");
+      alert("Informe um CNPJ válido com 14 dígitos para consulta");
       return;
     }
 
     setLookupLoading(true);
     try {
-      const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`);
+      let data: any = null;
 
-      if (!response.ok) {
-        alert("CNPJ não encontrado");
-        return;
+      // 1ª Tentativa: BrasilAPI
+      try {
+        const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjClean}`);
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (e) {
+        console.warn("BrasilAPI falhou, tentando fallback...", e);
       }
 
-      const data = await response.json();
+      // 2ª Tentativa: CNPJ.ws
+      if (!data) {
+        try {
+          const resWs = await fetch(`https://publica.cnpj.ws/cnpj/${cnpjClean}`);
+          if (resWs.ok) {
+            const wsData = await resWs.json();
+            const est = wsData.estabelecimento;
+            data = {
+              razao_social: wsData.razao_social,
+              nome_fantasia: est?.nome_fantasia || wsData.razao_social,
+              logradouro: est?.tipo_logradouro ? `${est.tipo_logradouro} ${est.logradouro}` : est?.logradouro,
+              numero: est?.numero,
+              complemento: est?.complemento,
+              bairro: est?.bairro,
+              municipio: est?.cidade?.nome,
+              uf: est?.estado?.sigla,
+              cep: est?.cep,
+              ddd_telefone_1: est?.ddd1 && est?.telefone1 ? `${est.ddd1}${est.telefone1}` : "",
+              email: est?.email,
+            };
+          }
+        } catch (e) {
+          console.warn("CNPJ.ws falhou...", e);
+        }
+      }
 
-      setValue("companyName", data.razao_social || "");
-      setValue("tradeName", data.nome_fantasia || "");
-      setValue("address.street", data.logradouro || "");
-      setValue("address.number", data.numero || "");
-      setValue("address.complement", data.complemento || "");
-      setValue("address.neighborhood", data.bairro || "");
-      setValue("address.city", data.municipio || "");
-      setValue("address.state", data.uf || "");
-      setValue("address.cep", data.cep || "");
-      setValue("phone", data.ddd_telefone_1 || "");
-      setValue("email", data.email || "");
-
+      if (data) {
+        setValue("companyName", data.razao_social || "");
+        setValue("tradeName", data.nome_fantasia || "");
+        setValue("address.street", data.logradouro || "");
+        setValue("address.number", data.numero || "");
+        setValue("address.complement", data.complemento || "");
+        setValue("address.neighborhood", data.bairro || "");
+        setValue("address.city", data.municipio || "");
+        setValue("address.state", data.uf || "");
+        setValue("address.cep", data.cep || "");
+        setValue("phone", data.ddd_telefone_1 || "");
+        setValue("email", data.email || "");
+      } else {
+        alert("CNPJ não localizado na base pública da Receita Federal. Você pode preencher os campos manualmente.");
+      }
     } catch {
       alert("Erro ao consultar CNPJ. Preencha manualmente.");
     } finally {
@@ -262,22 +294,62 @@ export function ClientForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5">
+      {/* Topo do Formulário com Protocolo e Status */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              {initialData?.externalCode || initialData?.id ? `CLI-${initialData.id.slice(0, 6).toUpperCase()}` : 'CLI-NOVO'}
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
+              {initialData ? (initialData.status === ClientStatus.ACTIVE ? 'Ativo' : 'Cadastro Existente') : 'Novo Cadastro'}
+            </span>
+          </div>
+          <h3 className="text-base font-bold text-gray-900">
+            {initialData ? `Edição: ${initialData.companyName}` : 'Cadastro de Cliente & Usina Industrial'}
+          </h3>
+          <p className="text-xs text-gray-400">
+            Cadastre a empresa tomadora e os parâmetros técnicos da planta onde os geradores operarão
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-8 px-3 text-xs rounded-lg border-gray-200 text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-8 px-4 text-xs rounded-lg bg-gray-900 hover:bg-black text-white font-medium shadow-2xs"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+            {submitLabel}
+          </Button>
+        </div>
+      </div>
+
       <StepRail steps={stepDefs} activeKey={activeStep} onSelect={(k) => setActiveStep(k as StepKey)} />
 
       {/* Identificação Principal */}
-      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "dados" && "hidden")}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <FileText className="h-5 w-5 text-orange-600" />
-            Dados Cadastrais
+      {/* Dados Principais */}
+      <Card className={cn("border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white", activeStep !== "dados" && "hidden")}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <FileText className="h-3.5 w-3.5 text-[#E2661D]" />
+            1. Dados Cadastrais & Jurídicos
           </CardTitle>
-          <CardDescription>Informações legais e comerciais do cliente</CardDescription>
+          <CardDescription className="text-xs text-gray-400">Informações legais e comerciais do cliente</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">CPF / CNPJ *</Label>
-            <div className="flex gap-3">
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="space-y-1">
+            <Label className="font-semibold text-xs text-gray-700">CPF / CNPJ *</Label>
+            <div className="flex gap-2.5">
               <div className="relative flex-1">
                 <Controller
                   name="cnpjCpf"
@@ -297,7 +369,7 @@ export function ClientForm({
                       placeholder="00.000.000/0000-00"
                       value={field.value}
                       onAccept={field.onChange}
-                      className="w-full flex h-12 rounded-2xl border border-input bg-background px-4 py-2 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
+                      className="w-full flex h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                     />
                   )}
                 />
@@ -307,60 +379,60 @@ export function ClientForm({
                 variant="outline"
                 onClick={handleCNPJLookup}
                 disabled={lookupLoading || loading}
-                className="h-12 px-6 border-orange-200 text-orange-600 hover:bg-orange-50 rounded-2xl flex items-center gap-2 font-bold transition-all active:scale-95"
+                className="h-9 px-4 border-orange-200 text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1.5 text-xs font-semibold shadow-2xs"
               >
-                {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                {lookupLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                 {lookupLoading ? "Consultando..." : "Consultar CNPJ"}
               </Button>
             </div>
             {errors.cnpjCpf && <p className="text-xs font-bold text-red-500 mt-1">{errors.cnpjCpf.message}</p>}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Razão Social *</Label>
+          <div className="grid md:grid-cols-3 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Razão Social *</Label>
               <Input
                 placeholder="Razão Social completa"
-                className="h-12 rounded-2xl focus:ring-orange-500/20 focus:border-orange-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register("companyName")}
               />
               {errors.companyName && <p className="text-xs font-bold text-red-500">{errors.companyName.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Nome Fantasia</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Nome Fantasia</Label>
               <Input
                 placeholder="Nome comercial"
-                className="h-12 rounded-2xl focus:ring-orange-500/20 focus:border-orange-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register("tradeName")}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Código Externo</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Código Externo</Label>
               <Input
                 placeholder="ID de integração"
-                className="h-12 rounded-2xl focus:ring-orange-500/20 focus:border-orange-500"
+                className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register("externalCode")}
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-2xl border p-4">
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 p-3 bg-gray-50/40">
             <div>
-              <Label className="font-bold text-sm">Status do Cliente</Label>
-              <p className="text-xs text-muted-foreground">Ativo, inativo ou inadimplente</p>
+              <Label className="font-semibold text-xs text-gray-700">Status do Cliente</Label>
+              <p className="text-[11px] text-gray-400">Ativo, inativo ou inadimplente</p>
             </div>
             <Controller
               name="status"
               control={control}
               render={({ field }) => (
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger className="w-48 h-11 rounded-xl">
+                  <SelectTrigger className="w-40 h-9 rounded-lg text-xs bg-white border-gray-200">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={ClientStatus.ACTIVE}>Ativo</SelectItem>
-                    <SelectItem value={ClientStatus.INACTIVE}>Inativo</SelectItem>
-                    <SelectItem value={ClientStatus.DEFAULTER}>Inadimplente</SelectItem>
+                    <SelectItem value={ClientStatus.ACTIVE} className="text-xs">Ativo</SelectItem>
+                    <SelectItem value={ClientStatus.INACTIVE} className="text-xs">Inativo</SelectItem>
+                    <SelectItem value={ClientStatus.DEFAULTER} className="text-xs">Inadimplente</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -369,33 +441,33 @@ export function ClientForm({
         </CardContent>
       </Card>
 
-      <div className={cn("grid md:grid-cols-1 lg:grid-cols-3 gap-6", activeStep !== "contato" && "hidden")}>
+      <div className={cn("grid md:grid-cols-1 lg:grid-cols-3 gap-3.5", activeStep !== "contato" && "hidden")}>
         {/* Contato */}
-        <Card className="lg:col-span-1 border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Phone className="h-5 w-5 text-orange-600" />
-              Contato
+        <Card className="lg:col-span-1 border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+              <Phone className="h-3.5 w-3.5 text-[#E2661D]" />
+              2. Contato Comercial
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">E-mail Comercial <span className="text-muted-foreground font-normal text-xs">(Opcional)</span></Label>
+          <CardContent className="p-4 sm:p-5 space-y-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">E-mail Comercial <span className="text-gray-400 font-normal text-[11px]">(Opcional)</span></Label>
               <div className="relative group">
-                <Mail className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-orange-600 transition-colors" />
+                <Mail className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
                 <Input
                   type="email"
                   placeholder="email@empresa.com"
-                  className="h-11 pl-10 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                  className="h-9 pl-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                   {...register("email")}
                 />
               </div>
               {errors.email && <p className="text-xs font-bold text-red-500">{errors.email.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Telefone Principal *</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Telefone Principal *</Label>
               <div className="relative group">
-                <Phone className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-orange-600 transition-colors" />
+                <Phone className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
                 <Controller
                   name="phone"
                   control={control}
@@ -405,7 +477,7 @@ export function ClientForm({
                       placeholder="(00) 00000-0000"
                       value={field.value}
                       onAccept={field.onChange}
-                      className="w-full flex h-11 rounded-xl border border-input bg-background pl-10 pr-3 py-2 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
+                      className="w-full flex h-9 rounded-lg border border-gray-200 bg-white pl-9 pr-3 py-1.5 text-xs shadow-2xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                     />
                   )}
                 />
@@ -416,24 +488,24 @@ export function ClientForm({
         </Card>
 
         {/* Endereço + Cobrança */}
-        <Card className="lg:col-span-2 border-none shadow-xl rounded-3xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <MapPin className="h-5 w-5 text-orange-600" />
+        <Card className="lg:col-span-2 border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white">
+          <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+            <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+              <MapPin className="h-3.5 w-3.5 text-[#E2661D]" />
               Endereço e Localização
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-5">
             <Tabs defaultValue="address">
-              <TabsList>
-                <TabsTrigger value="address">Endereço do Cliente</TabsTrigger>
-                <TabsTrigger value="billing">Dados de Cobrança</TabsTrigger>
+              <TabsList className="h-8">
+                <TabsTrigger value="address" className="text-xs h-7 px-3">Endereço do Cliente</TabsTrigger>
+                <TabsTrigger value="billing" className="text-xs h-7 px-3">Dados de Cobrança</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="address" className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-1 space-y-2">
-                    <Label className="font-bold text-sm">CEP *</Label>
+              <TabsContent value="address" className="space-y-3.5 pt-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+                  <div className="md:col-span-1 space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">CEP *</Label>
                     <Controller
                       name="address.cep"
                       control={control}
@@ -446,68 +518,68 @@ export function ClientForm({
                             field.onChange(value);
                             handleCepLookup(value);
                           }}
-                          className="w-full flex h-11 rounded-xl border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none"
+                          className="w-full flex h-9 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs shadow-2xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none"
                         />
                       )}
                     />
                     {errors.address?.cep && <p className="text-xs font-bold text-red-500">{errors.address.cep.message}</p>}
                   </div>
-                  <div className="md:col-span-3 space-y-2">
-                    <Label className="font-bold text-sm">Logradouro / Rua *</Label>
+                  <div className="md:col-span-3 space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Logradouro / Rua *</Label>
                     <Input
                       placeholder="Rua, Avenida..."
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("address.street")}
                     />
                     {errors.address?.street && <p className="text-xs font-bold text-red-500">{errors.address.street.message}</p>}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div className="space-y-2">
-                    <Label className="font-bold text-sm">Número *</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                   <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Número *</Label>
                     <Input
                       placeholder="Ex: 123 ou S/N"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("address.number")}
                     />
                     {errors.address?.number && <p className="text-xs font-bold text-red-500">{errors.address.number.message}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Bairro *</Label>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Bairro *</Label>
                     <Input
                       placeholder="Nome do Bairro"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("address.neighborhood")}
                     />
                     {errors.address?.neighborhood && <p className="text-xs font-bold text-red-500">{errors.address.neighborhood.message}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Complemento</Label>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Complemento</Label>
                     <Input
                       placeholder="Ex: Sala 2 / Bloco A"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("address.complement")}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-3 space-y-2">
-                    <Label className="font-bold text-sm">Cidade *</Label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3.5">
+                  <div className="md:col-span-3 space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Cidade *</Label>
                     <Input
                       placeholder="Cidade"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("address.city")}
                     />
                     {errors.address?.city && <p className="text-xs font-bold text-red-500">{errors.address.city.message}</p>}
                   </div>
-                  <div className="md:col-span-1 space-y-2">
-                    <Label className="font-bold text-sm">UF *</Label>
+                  <div className="md:col-span-1 space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">UF *</Label>
                     <Input
                       placeholder="UF"
                       maxLength={2}
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500 uppercase"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D] uppercase"
                       {...register("address.state")}
                     />
                     {errors.address?.state && <p className="text-xs font-bold text-red-500">{errors.address.state.message}</p>}
@@ -525,50 +597,50 @@ export function ClientForm({
                 />
               </TabsContent>
 
-              <TabsContent value="billing" className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Contribuinte do ICMS</Label>
+              <TabsContent value="billing" className="space-y-3.5 pt-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Contribuinte do ICMS</Label>
                     <Controller
                       name="icmsTaxpayerType"
                       control={control}
                       render={({ field }) => (
                         <Select onValueChange={field.onChange} value={field.value}>
-                          <SelectTrigger className="h-11 rounded-xl">
+                          <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                             <SelectValue placeholder="Selecione um tipo" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={IcmsTaxpayerType.CONTRIBUINTE}>Contribuinte de ICMS</SelectItem>
-                            <SelectItem value={IcmsTaxpayerType.ISENTO}>Isento</SelectItem>
-                            <SelectItem value={IcmsTaxpayerType.NAO_CONTRIBUINTE}>Não Contribuinte</SelectItem>
+                            <SelectItem value={IcmsTaxpayerType.CONTRIBUINTE} className="text-xs">Contribuinte de ICMS</SelectItem>
+                            <SelectItem value={IcmsTaxpayerType.ISENTO} className="text-xs">Isento</SelectItem>
+                            <SelectItem value={IcmsTaxpayerType.NAO_CONTRIBUINTE} className="text-xs">Não Contribuinte</SelectItem>
                           </SelectContent>
                         </Select>
                       )}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">E-mail de Cobrança</Label>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">E-mail de Cobrança</Label>
                     <Input
                       type="email"
                       placeholder="financeiro@empresa.com"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("billingEmail")}
                     />
                     {errors.billingEmail && <p className="text-xs font-bold text-red-500">{errors.billingEmail.message}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Inscrição Estadual</Label>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Inscrição Estadual</Label>
                     <Input
                       placeholder="Adicione"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("stateRegistration")}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Inscrição Municipal</Label>
+                  <div className="space-y-1">
+                    <Label className="font-semibold text-xs text-gray-700">Inscrição Municipal</Label>
                     <Input
                       placeholder="Adicione"
-                      className="h-11 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                      className="h-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                       {...register("municipalRegistration")}
                     />
                   </div>
@@ -580,102 +652,102 @@ export function ClientForm({
       </div>
 
       {/* Detalhes do Cliente */}
-      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "detalhes" && "hidden")}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Users className="h-5 w-5 text-orange-600" />
-            Detalhes do Cliente
+      <Card className={cn("border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white", activeStep !== "detalhes" && "hidden")}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <Users className="h-3.5 w-3.5 text-[#E2661D]" />
+            3. Equipe Responsável & Parâmetros da Planta
           </CardTitle>
-          <CardDescription>Responsáveis, agrupamento e contatos adicionais</CardDescription>
+          <CardDescription className="text-xs text-gray-400">Responsáveis, agrupamento e contatos de emergência / usina</CardDescription>
         </CardHeader>
-        <CardContent className="p-8 space-y-6">
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Responsável no Local (falar com)</Label>
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="space-y-1">
+            <Label className="font-semibold text-xs text-gray-700">Responsável no Local (falar com)</Label>
             <div className="relative group">
-              <UserRound className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground group-focus-within:text-orange-600 transition-colors" />
+              <UserRound className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
               <Input
                 placeholder="Nome do contato in loco"
-                className="h-11 pl-10 rounded-xl focus:ring-orange-500/20 focus:border-orange-500"
+                className="h-9 pl-9 rounded-lg text-xs border-gray-200 focus:ring-[#E2661D]/20 focus:border-[#E2661D]"
                 {...register("onSiteContact")}
               />
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Colaborador Responsável</Label>
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Colaborador Responsável</Label>
               <Controller
                 name="responsibleUserId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || NONE}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE}>Nenhum</SelectItem>
+                      <SelectItem value={NONE} className="text-xs">Nenhum</SelectItem>
                       {users.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                        <SelectItem key={u.id} value={u.id} className="text-xs">{u.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Equipe Responsável</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Equipe Responsável</Label>
               <Controller
                 name="responsibleTeamId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || NONE}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE}>Nenhuma</SelectItem>
+                      <SelectItem value={NONE} className="text-xs">Nenhuma</SelectItem>
                       {teams.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        <SelectItem key={t.id} value={t.id} className="text-xs">{t.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Grupo de Clientes</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Grupo de Clientes</Label>
               <Controller
                 name="groupId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || NONE}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE}>Nenhum</SelectItem>
+                      <SelectItem value={NONE} className="text-xs">Nenhum</SelectItem>
                       {groups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
+                        <SelectItem key={g.id} value={g.id} className="text-xs">{g.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 )}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Segmento</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Segmento</Label>
               <Controller
                 name="segmentId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || NONE}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs bg-white border-gray-200">
                       <SelectValue placeholder="Selecione um segmento" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE}>Nenhum</SelectItem>
+                      <SelectItem value={NONE} className="text-xs">Nenhum</SelectItem>
                       {segments.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -684,40 +756,40 @@ export function ClientForm({
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">Telefone Corporativo</Label>
+          <div className="grid md:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">Telefone Corporativo</Label>
               {corporatePhones.map((phone, i) => (
                 <div key={i} className="flex gap-2">
                   <Input
                     value={phone}
                     onChange={(e) => updateListItem(corporatePhones, setCorporatePhones, i, e.target.value)}
                     placeholder="(11) 98765-4321"
-                    className="h-11 rounded-xl"
+                    className="h-9 rounded-lg text-xs border-gray-200"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="h-11 w-11 rounded-xl shrink-0"
+                    className="h-9 w-9 rounded-lg shrink-0 border-gray-200 text-gray-500 hover:text-red-600"
                     onClick={() => setCorporatePhones(corporatePhones.filter((_, idx) => idx !== i))}
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ))}
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl text-orange-600 border-orange-200 hover:bg-orange-50"
+                className="h-8 rounded-lg text-xs font-semibold text-orange-600 border-orange-200 hover:bg-orange-50"
                 onClick={() => setCorporatePhones([...corporatePhones, ""])}
               >
-                <Plus className="h-4 w-4 mr-1" /> Adicionar
+                <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-bold text-sm">E-mail Corporativo</Label>
+            <div className="space-y-1">
+              <Label className="font-semibold text-xs text-gray-700">E-mail Corporativo</Label>
               {corporateEmails.map((email, i) => (
                 <div key={i} className="flex gap-2">
                   <Input
@@ -725,26 +797,26 @@ export function ClientForm({
                     value={email}
                     onChange={(e) => updateListItem(corporateEmails, setCorporateEmails, i, e.target.value)}
                     placeholder="contato@empresa.com"
-                    className="h-11 rounded-xl"
+                    className="h-9 rounded-lg text-xs border-gray-200"
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="h-11 w-11 rounded-xl shrink-0"
+                    className="h-9 w-9 rounded-lg shrink-0 border-gray-200 text-gray-500 hover:text-red-600"
                     onClick={() => setCorporateEmails(corporateEmails.filter((_, idx) => idx !== i))}
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ))}
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-xl text-orange-600 border-orange-200 hover:bg-orange-50"
+                className="h-8 rounded-lg text-xs font-semibold text-orange-600 border-orange-200 hover:bg-orange-50"
                 onClick={() => setCorporateEmails([...corporateEmails, ""])}
               >
-                <Plus className="h-4 w-4 mr-1" /> Adicionar
+                <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
               </Button>
             </div>
           </div>
@@ -752,32 +824,32 @@ export function ClientForm({
       </Card>
 
       {/* Observações e Anotações */}
-      <Card className={cn("border-none shadow-xl rounded-3xl overflow-hidden", activeStep !== "observacoes" && "hidden")}>
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <StickyNote className="h-5 w-5 text-orange-600" />
-            Observações e Anotações
+      <Card className={cn("border border-gray-200/80 shadow-2xs rounded-xl overflow-hidden bg-white", activeStep !== "observacoes" && "hidden")}>
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
+            <StickyNote className="h-3.5 w-3.5 text-[#E2661D]" />
+            4. Observações & Especificações Técnicas
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-8 grid md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <Label className="font-bold text-sm">Observação</Label>
+        <CardContent className="p-4 sm:p-5 grid md:grid-cols-2 gap-3.5">
+          <div className="space-y-1">
+            <Label className="font-semibold text-xs text-gray-700">Observação</Label>
             <textarea
               placeholder="Visível para a equipe"
-              rows={4}
-              className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
+              rows={3}
+              className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-xs shadow-2xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none resize-none"
               {...register("notes")}
             />
           </div>
-          <div className="space-y-2">
-            <Label className="font-bold text-sm flex items-center gap-1">
+          <div className="space-y-1">
+            <Label className="font-semibold text-xs text-gray-700 flex items-center gap-1">
               Observação Interna
-              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              <Info className="h-3 w-3 text-gray-400" />
             </Label>
             <textarea
               placeholder="Não visível ao cliente"
-              rows={4}
-              className="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm shadow-sm transition-all focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none resize-none"
+              rows={3}
+              className="w-full rounded-lg border border-gray-200 bg-white p-2.5 text-xs shadow-2xs transition-all focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none resize-none"
               {...register("internalNotes")}
             />
           </div>

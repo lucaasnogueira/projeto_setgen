@@ -1,43 +1,117 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsNotEmpty,
-  IsUUID,
+  IsOptional,
   IsNumber,
-  Min,
-  IsDateString,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreatePurchaseOrderDto {
-  @ApiProperty({ example: 'quote-uuid-here' })
-  @IsUUID()
-  @IsNotEmpty({ message: 'ID do orçamento é obrigatório' })
-  quoteId: string;
-
-  @ApiProperty({ example: 'client-uuid-here' })
-  @IsUUID()
-  @IsNotEmpty({ message: 'ID do Cliente é obrigatório' })
-  clientId: string;
-
-  @ApiProperty({ example: 'OC-2024-001234' })
+  @ApiPropertyOptional({ example: 'OC-2026-0001' })
   @IsString()
-  @IsNotEmpty({ message: 'Número da OC é obrigatório' })
-  orderNumber: string;
+  @IsOptional()
+  orderNumber?: string;
 
-  @ApiProperty({ example: 25000.0 })
+  @ApiProperty({ example: 'Distribuidora Elétrica LTDA' })
+  @IsString()
+  @IsNotEmpty({ message: 'Nome da loja ou fornecedor é obrigatório' })
+  supplierName: string;
+
+  @ApiPropertyOptional({ example: '12.345.678/0001-90' })
+  @IsString()
+  @IsOptional()
+  supplierCnpj?: string;
+
+  @ApiPropertyOptional({ example: '(92) 3301-4455' })
+  @IsString()
+  @IsOptional()
+  supplierPhone?: string;
+
+  @ApiPropertyOptional({ example: 'Av. Constantino Nery, 1500 - Manaus/AM' })
+  @IsString()
+  @IsOptional()
+  supplierAddress?: string;
+
+  @ApiPropertyOptional({ example: 'supplier-uuid-here' })
+  @IsString()
+  @IsOptional()
+  supplierId?: string;
+
+  @ApiProperty({ example: 'Lucas Silva (Técnico)' })
+  @IsString()
+  @IsNotEmpty({ message: 'Nome do portador/responsável pela retirada é obrigatório' })
+  carrierName: string;
+
+  @ApiPropertyOptional({ example: '123.456.789-00' })
+  @IsString()
+  @IsOptional()
+  carrierDoc?: string;
+
+  @ApiPropertyOptional({ example: 'Strada Branca - Placa ABC-1234' })
+  @IsString()
+  @IsOptional()
+  carrierVehicle?: string;
+
+  @ApiPropertyOptional({ example: 'O.S. #1024 - Manutenção Hospital Santa Júlia' })
+  @IsString()
+  @IsOptional()
+  destination?: string;
+
+  @ApiPropertyOptional({ example: 'service-order-uuid-here' })
+  @IsString()
+  @IsOptional()
+  serviceOrderId?: string;
+
+  @ApiPropertyOptional({ example: 'Boleto Faturado 28 Dias' })
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
+
+  @ApiPropertyOptional({
+    example: [
+      {
+        description: 'Filtro de Óleo LF16015',
+        code: 'LF-16015',
+        quantity: 2,
+        unit: 'UN',
+        unitPrice: 180.0,
+        total: 360.0,
+      },
+    ],
+  })
+  @IsArray()
+  @IsOptional()
+  items?: any[];
+
+  @ApiPropertyOptional({ example: 360.0 })
   @Type(() => Number)
   @IsNumber()
-  @Min(0.01, { message: 'Valor deve ser maior que zero' })
-  value: number;
+  @IsOptional()
+  totalAmount?: number;
 
-  @ApiProperty({ example: '2024-01-30T00:00:00.000Z' })
-  @IsDateString()
-  @IsNotEmpty({ message: 'Data de emissão é obrigatória' })
-  issueDate: string;
+  @ApiPropertyOptional({ example: 360.0 })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  value?: number;
 
-  @ApiProperty({ example: '2024-12-31T23:59:59.000Z' })
-  @IsDateString()
-  @IsNotEmpty({ message: 'Data de validade é obrigatória' })
-  expiryDate: string;
+  @ApiPropertyOptional({ example: '2026-10-15T00:00:00.000Z' })
+  @IsOptional()
+  issueDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-10-15T15:00:00.000Z' })
+  @IsOptional()
+  pickupDate?: string;
+
+  @ApiPropertyOptional({ example: 'Liberar mercadoria com apresentação do crachá/documento.' })
+  @IsString()
+  @IsOptional()
+  notes?: string;
+
+  @ApiPropertyOptional({ example: 'PENDING' })
+  @IsString()
+  @IsOptional()
+  pickupStatus?: string;
 }

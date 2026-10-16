@@ -71,17 +71,24 @@ const ICON_MAP = AVAILABLE_ICONS.reduce<Record<string, LucideIcon>>((acc, item) 
 }, {});
 
 const PRESET_ROUTES = [
-  { route: "/dashboard", label: "/dashboard — Painel Executivo" },
-  { route: "/quotes", label: "/quotes — Comercial & Propostas" },
-  { route: "/orders", label: "/orders — Ordens de Serviço & Campo" },
-  { route: "/clients", label: "/clients — Gestão de Clientes" },
-  { route: "/inventory", label: "/inventory — Estoque de Peças" },
-  { route: "/equipment", label: "/equipment — Equipamentos & Geradores" },
+  { route: "/quotes", label: "/quotes — Módulo Comercial (Orçamentos & Propostas)" },
+  { route: "/financial", label: "/financial — Módulo Financeiro (Caixa & DRE)" },
+  { route: "/orders", label: "/orders — Módulo Operacional (Ordens de Serviço)" },
+  { route: "/inventory", label: "/inventory — Módulo de Estoque (Almoxarifado)" },
+  { route: "/dashboard", label: "/dashboard — Módulo de Relatórios (Dashboard & KPIs)" },
+  { route: "/users", label: "/users — Módulo de Configuração (Usuários & Acessos)" },
+  { route: "/clients", label: "/clients — Clientes & Contratos" },
+  { route: "/services", label: "/services — Catálogo de Serviços" },
+  { route: "/operations", label: "/operations — Painel de Operações" },
+  { route: "/visits", label: "/visits — Visitas Técnicas" },
+  { route: "/documents", label: "/documents — Documentos SGQ" },
   { route: "/fleet", label: "/fleet — Frotas & Veículos" },
-  { route: "/financial", label: "/financial — Financeiro & Caixa" },
-  { route: "/procurement", label: "/procurement — Compras & Suprimentos" },
-  { route: "/rh/employees", label: "/rh/employees — Recursos Humanos" },
-  { route: "/settings/modules", label: "/settings/modules — Gestão de Módulos" },
+  { route: "/warehouse", label: "/warehouse — Mesa do Almoxarife" },
+  { route: "/equipment", label: "/equipment — Equipamentos & Geradores" },
+  { route: "/purchase-orders", label: "/purchase-orders — Ordens de Compra" },
+  { route: "/procurement", label: "/procurement — Cotações de Peças" },
+  { route: "/suppliers", label: "/suppliers — Fornecedores" },
+  { route: "/reports", label: "/reports — Relatórios Gerenciais" },
   { route: "/roles", label: "/roles — Cargos e Permissões" },
 ];
 
@@ -314,8 +321,8 @@ export default function GestaoModulosPage() {
       )}
 
       {/* ─── Card de Formulário: Cadastrar / Editar Novo Módulo ─── */}
-      <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm border-l-4 border-l-[#E2661D] overflow-hidden transition-all">
-        <div className="p-6 md:p-7">
+      <section className="bg-white rounded-xl border border-slate-200/90 shadow-2xs border-l-4 border-l-[#E2661D] overflow-hidden transition-all">
+        <div className="p-4 sm:p-5">
           
           <div className="flex items-center gap-2.5 mb-6 pb-4 border-b border-slate-100">
             <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 text-[#E2661D] flex items-center justify-center">
@@ -540,17 +547,17 @@ export default function GestaoModulosPage() {
           <p className="text-xs text-slate-500">Carregando catálogo de módulos...</p>
         </div>
       ) : filteredModules.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs">
-          <div className="w-12 h-12 rounded-xl bg-orange-50 text-[#E2661D] flex items-center justify-center mx-auto mb-3">
-            <LayoutGrid className="w-6 h-6" />
+        <div className="bg-white rounded-xl border border-gray-200/80 p-5 sm:p-6 text-center shadow-2xs">
+          <div className="w-9 h-9 rounded-lg bg-orange-50 text-[#E2661D] flex items-center justify-center mx-auto mb-2">
+            <LayoutGrid className="w-4 h-4" />
           </div>
-          <h3 className="text-sm font-bold text-slate-800">Nenhum módulo encontrado</h3>
+          <h3 className="text-xs sm:text-sm font-bold text-slate-800">Nenhum módulo encontrado</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
             Não encontramos módulos correspondentes ao filtro aplicado.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4">
           {filteredModules.map((mod) => {
             const IconComponent = ICON_MAP[mod.icon] || Package;
             const isEditingThis = editingId === mod.id;
@@ -558,9 +565,9 @@ export default function GestaoModulosPage() {
             return (
               <div
                 key={mod.id}
-                className={`bg-white rounded-xl border p-5 shadow-xs transition-all flex flex-col justify-between hover:shadow-md ${
+                className={`bg-white rounded-xl border p-3.5 sm:p-4 shadow-2xs transition-all flex flex-col justify-between hover:shadow-xs ${
                   isEditingThis
-                    ? "border-[#E2661D] ring-2 ring-[#E2661D]/20 shadow-md"
+                    ? "border-[#E2661D] ring-2 ring-[#E2661D]/20 shadow-xs"
                     : mod.isActive
                     ? "border-slate-200 hover:border-slate-300"
                     : "border-slate-200 opacity-60 bg-slate-50/40"

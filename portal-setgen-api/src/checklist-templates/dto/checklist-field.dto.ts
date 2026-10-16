@@ -28,9 +28,29 @@ export class ChecklistFieldDto {
   @IsBoolean()
   required: boolean;
 
+  @ApiProperty({ required: false })
+  @IsString()
+  @ValidateIf((o) => o.section != null)
+  section?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @ValidateIf((o) => o.unit != null)
+  unit?: string;
+
   @ApiProperty({ type: [String], required: false, example: ['Opção A', 'Opção B'] })
-  @ValidateIf((o) => o.type === ChecklistFieldType.MULTIPLE_CHOICE)
+  @ValidateIf((o) => o.options != null)
   @IsArray()
   @IsString({ each: true })
   options?: string[];
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @ValidateIf((o) => o.appliesTo != null)
+  appliesTo?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @ValidateIf((o) => o.formula != null)
+  formula?: string;
 }

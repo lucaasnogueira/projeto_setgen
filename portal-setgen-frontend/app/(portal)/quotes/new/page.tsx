@@ -1,17 +1,32 @@
-"use client"
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { QuoteMultiCrudEditor } from '@/components/quotes/QuoteMultiCrudEditor';
+import React, { Suspense } from "react";
+import { useRouter } from "next/navigation";
+import { QuoteMultiCrudEditor } from "@/components/quotes/QuoteMultiCrudEditor";
 
-export default function NewQuotePage() {
+function NewQuoteContent() {
   const router = useRouter();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-h-[calc(100vh-64px)] overflow-hidden -m-4 sm:-m-6 lg:-m-8">
+    <div className="h-full w-full flex flex-col min-h-0 bg-white">
       <QuoteMultiCrudEditor
-        onClose={() => router.push('/quotes')}
-        onSuccess={() => router.push('/quotes')}
+        onClose={() => router.push("/quotes")}
+        onSuccess={() => router.push("/quotes")}
       />
     </div>
+  );
+}
+
+export default function NewQuotePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#E2661D]" />
+        </div>
+      }
+    >
+      <NewQuoteContent />
+    </Suspense>
   );
 }

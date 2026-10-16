@@ -308,14 +308,14 @@ export function CollaboratorFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl flex flex-col">
-        <DialogHeader className="p-6 pb-4 border-b">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 rounded-xl border border-gray-200 shadow-xl flex flex-col">
+        <DialogHeader className="p-4 sm:p-5 border-b border-gray-100 bg-gray-50/60">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-              <User className="h-6 w-6" />
+            <div className="p-2 rounded-lg bg-[#E2661D]/10 text-[#E2661D]">
+              <User className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold">
+              <DialogTitle className="text-base font-bold text-gray-900">
                 {collaboratorId ? `Editar Colaborador: ${name}` : "Novo Colaborador"}
               </DialogTitle>
               <DialogDescription>

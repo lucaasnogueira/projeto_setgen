@@ -37,6 +37,10 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { ExpenseCategoriesManager, EXPENSE_TYPE_CONFIG } from "@/components/financial/ExpenseCategoriesManager";
 import { ExpenseMultiCrudEditor } from "@/components/financial/ExpenseMultiCrudEditor";
+import { TablePagination } from "@/components/ui/pagination";
+import { useMemo } from "react";
+
+const ITEMS_PER_PAGE = 10;
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-amber-50 text-amber-700 border-amber-200",
@@ -73,7 +77,12 @@ export default function ExpensesListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, typeFilter]);
 
   useEffect(() => {
     loadInitialData();
@@ -84,7 +93,7 @@ export default function ExpensesListPage() {
     try {
       const [{ data }, cats, cls, vsts, ords] = await Promise.all([
         expensesApi.getAll({ page: 1, limit: 100 }),
-        expensesApi.getCategories(),
+        expensesApi.getCategories().catch(() => []),
         clientsApi.getAll().catch(() => []),
         visitsApi.getAll().catch(() => []),
         ordersApi.getAll().catch(() => []),
@@ -188,6 +197,12 @@ export default function ExpensesListPage() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
+  const totalPages = Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE) || 1;
+  const paginatedExpenses = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredExpenses.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredExpenses, currentPage]);
+
   return (
     <div className="space-y-5">
       {/* 1. PageHeader Padrão Aurora Setgen */}
@@ -224,7 +239,7 @@ export default function ExpensesListPage() {
       />
 
       {/* 2. 4 StatusCards KPI Padrão Setgen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5">
         <StatusCard label="Total de Despesas" value={expenses.length} icon={DollarSign} variant="orange" />
         <StatusCard label="Pagas / Baixadas" value={totalPaid} icon={CheckCircle} variant="emerald" />
         <StatusCard label="Aguardando Pagamento" value={totalPending} icon={Clock} variant="amber" />
@@ -255,7 +270,7 @@ export default function ExpensesListPage() {
 
       {/* 5. MODO: TABELA PRINCIPAL DE DESPESAS */}
       {viewMode === "list" && (
-        <Card className="overflow-hidden p-0 border border-gray-200 rounded-2xl shadow-xs bg-white">
+        <Card className="overflow-hidden p-0 border border-gray-200/80 rounded-xl shadow-2xs bg-white">
           {/* Barra de Filtros e Busca */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 border-b border-gray-200 bg-gray-50/50">
             <div className="relative flex-1 max-w-sm">
@@ -333,7 +348,7 @@ export default function ExpensesListPage() {
               ) : filteredExpenses.length === 0 ? (
                 <TableEmpty colSpan={7} message="Nenhuma despesa encontrada para os filtros selecionados." />
               ) : (
-                filteredExpenses.map((expense) => {
+                paginatedExpenses.map((expense) => {
                   const typeCfg = EXPENSE_TYPE_CONFIG[expense.type] || {
                     label: expense.type,
                     color: "bg-gray-50 text-gray-700",
@@ -464,6 +479,15 @@ export default function ExpensesListPage() {
               )}
             </TableBody>
           </Table>
+
+          <TablePagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={filteredExpenses.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            onPageChange={setCurrentPage}
+            itemLabel="lançamentos"
+          />
         </Card>
       )}
     </div>

@@ -13,6 +13,14 @@ export class CreateServiceDto {
 
   @IsOptional()
   @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  @IsOptional()
+  @IsString()
   externalCode?: string;
 
   @IsOptional()

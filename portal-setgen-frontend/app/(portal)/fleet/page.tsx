@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { vehiclesApi } from "@/lib/api/vehicles";
@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AuthImage } from "@/components/ui/auth-image";
+import { TablePagination } from "@/components/ui/pagination";
 import {
   Table,
   TableHeader,
@@ -43,6 +44,23 @@ export default function FleetPage() {
   const [finishKm, setFinishKm] = useState<Record<string, string>>({});
   const [finishingId, setFinishingId] = useState<string | null>(null);
 
+  // Paginação
+  const [vehiclesPage, setVehiclesPage] = useState(1);
+  const VEHICLES_PER_PAGE = 8;
+  const totalVehiclesPages = Math.ceil(vehicles.length / VEHICLES_PER_PAGE) || 1;
+  const paginatedVehicles = useMemo(() => {
+    const start = (vehiclesPage - 1) * VEHICLES_PER_PAGE;
+    return vehicles.slice(start, start + VEHICLES_PER_PAGE);
+  }, [vehicles, vehiclesPage]);
+
+  const [tripsPage, setTripsPage] = useState(1);
+  const TRIPS_PER_PAGE = 8;
+  const totalTripsPages = Math.ceil(openTrips.length / TRIPS_PER_PAGE) || 1;
+  const paginatedTrips = useMemo(() => {
+    const start = (tripsPage - 1) * TRIPS_PER_PAGE;
+    return openTrips.slice(start, start + TRIPS_PER_PAGE);
+  }, [openTrips, tripsPage]);
+
   useEffect(() => {
     loadAll();
   }, []);
@@ -50,17 +68,15 @@ export default function FleetPage() {
   const loadAll = async () => {
     try {
       const [vehiclesData, openTripsData, employeesData, fuelRequestsData] = await Promise.all([
-        vehiclesApi.getAll(),
-        vehiclesApi.getOpenTrips(),
-        // status como query param quebra a validação do /employees (bug pré-existente
-        // no backend) — filtra ativos no client em vez de passar o filtro pra API.
-        employeeApi.getAll(undefined, 1, 200),
-        fuelRequestsApi.getAll(),
+        vehiclesApi.getAll().catch(() => []),
+        vehiclesApi.getOpenTrips().catch(() => []),
+        employeeApi.getAll(undefined, 1, 200).catch(() => ({ data: [] })),
+        fuelRequestsApi.getAll().catch(() => []),
       ]);
-      setVehicles(vehiclesData);
-      setOpenTrips(openTripsData);
-      setEmployees(employeesData.data.filter((e) => e.status === EmployeeStatus.ACTIVE));
-      setFuelRequests(fuelRequestsData);
+      setVehicles(vehiclesData || []);
+      setOpenTrips(openTripsData || []);
+      setEmployees((employeesData?.data || []).filter((e: any) => e.status === EmployeeStatus.ACTIVE));
+      setFuelRequests(fuelRequestsData || []);
       setOilEdits(
         Object.fromEntries(
           vehiclesData.map((v) => [v.id, { lastOilChangeKm: v.lastOilChangeKm, oilChangeIntervalKm: v.oilChangeIntervalKm }]),
@@ -212,7 +228,7 @@ export default function FleetPage() {
                 {vehicles.length === 0 ? (
                   <TableEmpty colSpan={5} message="Nenhum veículo cadastrado" />
                 ) : (
-                  vehicles.map((v) => (
+                  paginatedVehicles.map((v) => (
                     <TableRow key={v.id}>
                       <TableCell>
                         <div className="flex items-center gap-2.5">
@@ -247,6 +263,15 @@ export default function FleetPage() {
                 )}
               </TableBody>
             </Table>
+
+            <TablePagination
+              currentPage={vehiclesPage}
+              totalPages={totalVehiclesPages}
+              totalItems={vehicles.length}
+              itemsPerPage={VEHICLES_PER_PAGE}
+              onPageChange={setVehiclesPage}
+              itemLabel="veículos"
+            />
           </Card>
         </TabsContent>
 
@@ -382,7 +407,7 @@ export default function FleetPage() {
                 {openTrips.length === 0 ? (
                   <TableEmpty colSpan={6} message="Nenhum veículo em trânsito" />
                 ) : (
-                  openTrips.map((t) => (
+                  paginatedTrips.map((t) => (
                     <TableRow key={t.id}>
                       <TableCell>
                         <div className="text-[13px] font-bold text-foreground">{t.vehicle?.name}</div>
@@ -414,6 +439,15 @@ export default function FleetPage() {
                 )}
               </TableBody>
             </Table>
+
+            <TablePagination
+              currentPage={tripsPage}
+              totalPages={totalTripsPages}
+              totalItems={openTrips.length}
+              itemsPerPage={TRIPS_PER_PAGE}
+              onPageChange={setTripsPage}
+              itemLabel="saídas em aberto"
+            />
           </Card>
 
           <Link href="/fleet/report" className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-primary hover:underline">

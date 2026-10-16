@@ -1,4 +1,4 @@
-import api from './client';
+import api, { API_BASE_URL } from './client';
 import type { TechnicalVisit } from '@/types';
 
 export interface VisitFilters {
@@ -45,9 +45,8 @@ export const visitsApi = {
 
   create: async (visit: Partial<TechnicalVisit> | FormData): Promise<TechnicalVisit> => {
     if (visit instanceof FormData) {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/visits`, {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const response = await fetch(`${API_BASE_URL}/visits`, {
         method: 'POST',
         body: visit,
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -60,16 +59,26 @@ export const visitsApi = {
     return data;
   },
 
-  update: async (id: string, visit: Partial<TechnicalVisit>): Promise<TechnicalVisit> => {
+  update: async (id: string, visit: Partial<TechnicalVisit> | FormData): Promise<TechnicalVisit> => {
+    if (visit instanceof FormData) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const response = await fetch(`${API_BASE_URL}/visits/${id}`, {
+        method: 'PATCH',
+        body: visit,
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!response.ok) throw new Error('Falha ao atualizar visita');
+      return response.json();
+    }
+
     const { data } = await api.patch(`/visits/${id}`, visit);
     return data;
   },
 
   addAttachments: async (id: string, attachments: FormData): Promise<void> => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    const token = localStorage.getItem('token');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     
-    const response = await fetch(`${API_URL}/visits/${id}/attachments`, {
+    const response = await fetch(`${API_BASE_URL}/visits/${id}/attachments`, {
       method: 'POST',
       body: attachments,
       headers: token ? { Authorization: `Bearer ${token}` } : {}

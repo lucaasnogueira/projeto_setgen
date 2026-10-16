@@ -96,26 +96,26 @@ export function ExpenseForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
-      <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-primary" />
+    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+      <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+            <Receipt className="h-3.5 w-3.5 text-[#E2661D]" />
             Classificação e Valores
           </CardTitle>
-          <CardDescription>Defina o tipo, categoria e o valor da despesa</CardDescription>
+          <CardDescription className="text-xs text-gray-500">Defina o tipo, categoria e o valor da despesa</CardDescription>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {/* Tipo de Despesa */}
-            <div className="space-y-2">
-              <Label htmlFor="type" className="font-semibold text-sm">Tipo de Despesa *</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="type" className="font-semibold text-xs text-gray-700">Tipo de Despesa *</Label>
               <Controller
                 name="type"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200">
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -128,18 +128,18 @@ export function ExpenseForm({
                   </Select>
                 )}
               />
-              {errors.type && <p className="text-xs font-medium text-destructive">{errors.type.message}</p>}
+              {errors.type && <p className="text-[11px] font-semibold text-red-500">{errors.type.message}</p>}
             </div>
 
             {/* Categoria */}
-            <div className="space-y-2">
-              <Label htmlFor="categoryId" className="font-semibold text-sm">Categoria *</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="categoryId" className="font-semibold text-xs text-gray-700">Categoria *</Label>
               <Controller
                 name="categoryId"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200">
                       <SelectValue placeholder="Selecione a categoria" />
                     </SelectTrigger>
                     <SelectContent>
@@ -152,51 +152,51 @@ export function ExpenseForm({
                   </Select>
                 )}
               />
-              {errors.categoryId && <p className="text-xs font-medium text-destructive">{errors.categoryId.message}</p>}
+              {errors.categoryId && <p className="text-[11px] font-semibold text-red-500">{errors.categoryId.message}</p>}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             {/* Valor */}
-            <div className="space-y-2">
-              <Label htmlFor="amount" className="font-semibold text-sm">Valor (R$) *</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="amount" className="font-semibold text-xs text-gray-700">Valor (R$) *</Label>
               <div className="relative group">
-                <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <DollarSign className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
                 <Input
                   id="amount"
                   type="number"
                   step="0.01"
                   placeholder="0,00"
-                  className="pl-9 h-11 rounded-xl"
+                  className="pl-8 h-9 rounded-lg text-xs border-gray-200"
                   {...register('amount', { valueAsNumber: true })}
                 />
               </div>
-              {errors.amount && <p className="text-xs font-medium text-destructive">{errors.amount.message}</p>}
+              {errors.amount && <p className="text-[11px] font-semibold text-red-500">{errors.amount.message}</p>}
             </div>
 
             {/* Documento */}
-            <div className="space-y-2">
-              <Label htmlFor="documentNumber" className="font-semibold text-sm">Nº Documento / Nota</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="documentNumber" className="font-semibold text-xs text-gray-700">Nº Documento / Nota</Label>
               <div className="relative group">
-                <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <FileText className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
                 <Input
                   id="documentNumber"
                   placeholder="Ex: 12345"
-                  className="pl-9 h-11 rounded-xl"
+                  className="pl-8 h-9 rounded-lg text-xs border-gray-200"
                   {...register('documentNumber')}
                 />
               </div>
             </div>
 
              {/* Forma de Pagamento */}
-             <div className="space-y-2">
-              <Label htmlFor="paymentMethod" className="font-semibold text-sm">Forma de Pagamento</Label>
+             <div className="space-y-1.5">
+              <Label htmlFor="paymentMethod" className="font-semibold text-xs text-gray-700">Forma de Pagamento</Label>
               <Controller
                 name="paymentMethod"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger className="h-11 rounded-xl">
+                    <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -215,94 +215,94 @@ export function ExpenseForm({
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
+      <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+            <Calendar className="h-3.5 w-3.5 text-[#E2661D]" />
             Datas e Prazos
           </CardTitle>
-          <CardDescription>Gerencie o vencimento e competência da despesa</CardDescription>
+          <CardDescription className="text-xs text-gray-500">Gerencie o vencimento e competência da despesa</CardDescription>
         </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="date" className="font-semibold text-sm">Data da Despesa</Label>
-              <Input type="date" className="h-11 rounded-xl" {...register('date')} />
-              {errors.date && <p className="text-xs font-medium text-destructive">{errors.date.message}</p>}
+        <CardContent className="p-4 sm:p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="date" className="font-semibold text-xs text-gray-700">Data da Despesa</Label>
+              <Input type="date" className="h-9 rounded-lg text-xs border-gray-200" {...register('date')} />
+              {errors.date && <p className="text-[11px] font-semibold text-red-500">{errors.date.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dueDate" className="font-semibold text-sm">Data de Vencimento</Label>
-              <Input type="date" className="h-11 rounded-xl" {...register('dueDate')} />
-              {errors.dueDate && <p className="text-xs font-medium text-destructive">{errors.dueDate.message}</p>}
+            <div className="space-y-1.5">
+              <Label htmlFor="dueDate" className="font-semibold text-xs text-gray-700">Data de Vencimento</Label>
+              <Input type="date" className="h-9 rounded-lg text-xs border-gray-200" {...register('dueDate')} />
+              {errors.dueDate && <p className="text-[11px] font-semibold text-red-500">{errors.dueDate.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="competenceDate" className="font-semibold text-sm">Mês de Referência</Label>
-              <Input type="month" className="h-11 rounded-xl" {...register('competenceDate')} />
+            <div className="space-y-1.5">
+              <Label htmlFor="competenceDate" className="font-semibold text-xs text-gray-700">Mês de Referência</Label>
+              <Input type="month" className="h-9 rounded-lg text-xs border-gray-200" {...register('competenceDate')} />
               <p className="text-[10px] text-muted-foreground uppercase font-bold">Mês/Ano de competência</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-none shadow-lg rounded-2xl overflow-hidden">
-        <CardHeader className="bg-muted/30 border-b">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Info className="h-5 w-5 text-primary" />
+      <Card className="rounded-xl border border-gray-200/80 shadow-2xs bg-white overflow-hidden">
+        <CardHeader className="bg-gray-50/60 border-b border-gray-100 px-4 py-3">
+          <CardTitle className="text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2">
+            <Info className="h-3.5 w-3.5 text-[#E2661D]" />
             Detalhes e Vínculos
           </CardTitle>
-          <CardDescription>Informações adicionais e vínculos com o operacional</CardDescription>
+          <CardDescription className="text-xs text-gray-500">Informações adicionais e vínculos com o operacional</CardDescription>
         </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="description" className="font-semibold text-sm">Descrição Curta *</Label>
-              <Input id="description" placeholder="Ex: Gasolina para visita técnica" className="h-11 rounded-xl" {...register('description')} />
-              {errors.description && <p className="text-xs font-medium text-destructive">{errors.description.message}</p>}
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="font-semibold text-xs text-gray-700">Descrição Curta *</Label>
+              <Input id="description" placeholder="Ex: Gasolina para visita técnica" className="h-9 rounded-lg text-xs border-gray-200" {...register('description')} />
+              {errors.description && <p className="text-[11px] font-semibold text-red-500">{errors.description.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="supplier" className="font-semibold text-sm">Fornecedor</Label>
-              <Input id="supplier" placeholder="Ex: Posto Ipiranga" className="h-11 rounded-xl" {...register('supplier')} />
+            <div className="space-y-1.5">
+              <Label htmlFor="supplier" className="font-semibold text-xs text-gray-700">Fornecedor</Label>
+              <Input id="supplier" placeholder="Ex: Posto Ipiranga" className="h-9 rounded-lg text-xs border-gray-200" {...register('supplier')} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
              {/* Despesa Fixa / Parcelada */}
-             <div className="flex items-center space-x-3 p-3 border rounded-xl bg-muted/20 h-11">
+             <div className="flex items-center space-x-2.5 p-2.5 border border-gray-200 rounded-lg bg-gray-50/50 h-9">
                 <input
                   type="checkbox"
                   id="isFixed"
-                  className="w-5 h-5 rounded border-border text-primary focus:ring-primary transition-all cursor-pointer"
+                  className="w-4 h-4 rounded border-gray-300 text-[#E2661D] focus:ring-[#E2661D] transition-all cursor-pointer"
                   {...register('isFixed')}
                 />
-                <Label htmlFor="isFixed" className="text-sm font-semibold cursor-pointer select-none">Despesa Fixa?</Label>
+                <Label htmlFor="isFixed" className="text-xs font-semibold text-gray-700 cursor-pointer select-none">Despesa Fixa?</Label>
             </div>
 
             {isFixed && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-left-2">
-                <Label htmlFor="totalInstallments" className="font-semibold text-sm">Total de Parcelas</Label>
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-left-2">
+                <Label htmlFor="totalInstallments" className="font-semibold text-xs text-gray-700">Total de Parcelas</Label>
                 <Input
                   id="totalInstallments"
                   type="number"
                   min="1"
                   placeholder="1"
-                  className="h-11 rounded-xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                   {...register('totalInstallments', { valueAsNumber: true })}
                 />
               </div>
             )}
 
             {isFixed && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-left-2 lg:col-span-2">
-                <Label htmlFor="installmentDaysOffsetsText" className="font-semibold text-sm">
-                  Vencimento das parcelas (dias corridos da compra)
+              <div className="space-y-1.5 animate-in fade-in slide-in-from-left-2 lg:col-span-2">
+                <Label htmlFor="installmentDaysOffsetsText" className="font-semibold text-xs text-gray-700">
+                  Vencimento das parcelas (dias corridos)
                 </Label>
                 <Input
                   id="installmentDaysOffsetsText"
                   placeholder="Ex: 15,30,45,60 (deixe vazio p/ vencimento mensal padrão)"
-                  className="h-11 rounded-xl"
+                  className="h-9 rounded-lg text-xs border-gray-200"
                   {...register('installmentDaysOffsetsText')}
                 />
                 <p className="text-[10px] text-muted-foreground uppercase font-bold">
@@ -313,20 +313,20 @@ export function ExpenseForm({
           </div>
 
           {expenseType === ExpenseType.SERVICE && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border-2 border-dashed rounded-2xl bg-primary/5">
-              <div className="col-span-full flex items-center gap-2 mb-2">
-                <Tag className="h-4 w-4 text-primary" />
-                <h4 className="font-bold text-sm text-primary uppercase">Vínculos Operacionais</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 p-3.5 border border-dashed border-[#E2661D]/40 rounded-xl bg-orange-50/20">
+              <div className="col-span-full flex items-center gap-2 mb-1">
+                <Tag className="h-3.5 w-3.5 text-[#E2661D]" />
+                <h4 className="font-bold text-xs text-[#E2661D] uppercase">Vínculos Operacionais</h4>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="clientId" className="font-semibold text-sm">Cliente</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="clientId" className="font-semibold text-xs text-gray-700">Cliente</Label>
                 <Controller
                   name="clientId"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <SelectTrigger className="h-11 rounded-xl bg-card">
+                      <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200 bg-white">
                         <SelectValue placeholder="Selecione o cliente" />
                       </SelectTrigger>
                       <SelectContent>
@@ -341,14 +341,14 @@ export function ExpenseForm({
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="visitId" className="font-semibold text-sm">Visita Técnica</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="visitId" className="font-semibold text-xs text-gray-700">Visita Técnica</Label>
                 <Controller
                   name="visitId"
                   control={control}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <SelectTrigger className="h-11 rounded-xl bg-card">
+                      <SelectTrigger className="h-9 rounded-lg text-xs border-gray-200 bg-white">
                         <SelectValue placeholder="Selecione a visita" />
                       </SelectTrigger>
                       <SelectContent>
@@ -365,11 +365,11 @@ export function ExpenseForm({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="font-semibold text-sm">Observações</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="notes" className="font-semibold text-xs text-gray-700">Observações</Label>
             <textarea
               id="notes"
-              className="flex min-h-[100px] w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[80px] w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs focus:ring-1 focus:ring-[#E2661D]/20 focus:border-[#E2661D] outline-none transition-all placeholder:text-gray-400 disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="Informações adicionais para o financeiro..."
               {...register('notes')}
             />
@@ -377,21 +377,21 @@ export function ExpenseForm({
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-4 pb-10">
+      <div className="flex justify-end gap-3 pb-8">
         <Button 
           type="button" 
           variant="outline" 
           onClick={() => form.reset()}
-          className="h-12 px-8 rounded-xl font-bold border-2 hover:bg-muted"
+          className="h-9 px-5 rounded-lg text-xs font-semibold border-gray-200 hover:bg-gray-50"
         >
           Limpar Formulário
         </Button>
         <Button 
           type="submit" 
           disabled={isLoading}
-          className="h-12 px-10 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+          className="h-9 px-6 rounded-lg text-xs font-semibold shadow-2xs bg-[#E2661D] hover:bg-[#d05a18] text-white transition-all active:scale-95"
         >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isLoading && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
           {isLoading ? 'Processando...' : 'Confirmar e Salvar'}
         </Button>
       </div>

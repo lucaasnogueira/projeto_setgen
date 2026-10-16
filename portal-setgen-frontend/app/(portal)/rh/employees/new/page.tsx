@@ -5,32 +5,20 @@ import { useRouter } from 'next/navigation';
 import { employeeApi } from '@/lib/api/employees';
 import { EmployeeForm } from '@/components/rh/EmployeeForm';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { toast } from 'sonner';
 
 export default function NewEmployeePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 px-6 py-4 rounded-lg shadow-lg text-white ${
-      type === 'error' ? 'bg-red-500' : 'bg-green-500'
-    } z-50 animate-fade-in`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('animate-fade-out');
-      setTimeout(() => toast.remove(), 500);
-    }, 3000);
-  };
-
   const handleSubmit = async (data: any) => {
     setLoading(true);
     try {
       await employeeApi.create(data);
-      showToast('Funcionário cadastrado com sucesso!');
+      toast.success('Funcionário cadastrado com sucesso!');
       router.push('/rh/employees');
     } catch (error: any) {
-      showToast(error.response?.data?.message || 'Erro ao cadastrar funcionário', 'error');
+      toast.error(error.response?.data?.message || 'Erro ao cadastrar funcionário');
     } finally {
       setLoading(false);
     }
@@ -41,7 +29,7 @@ export default function NewEmployeePage() {
       <PageHeader title="Novo Funcionário" subtitle="Cadastre e organize as informações do novo colaborador" />
 
       {/* Form Container */}
-      <div className="bg-card border border-border rounded-[14px] p-6 md:p-8">
+      <div className="bg-white border border-gray-200/80 rounded-xl p-4 sm:p-5 shadow-2xs">
         <EmployeeForm
           onSubmit={handleSubmit} 
           onCancel={() => router.push('/rh/employees')} 
