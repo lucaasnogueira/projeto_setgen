@@ -406,7 +406,7 @@ model TechnicalVisit {
   checklistTemplateId String?
   createdById         String?
   externalCode        String?             @unique
-  visitNumber         String?             @unique
+  visitNumber         String?
   serviceCategory     String?             @default("ELECTRICAL")
   technicalData       Json?
   conclusionData      Json?
