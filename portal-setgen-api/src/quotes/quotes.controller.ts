@@ -29,6 +29,13 @@ import { UserRole, QuoteStatus, ServiceOrderType } from '@prisma/client';
 export class QuotesController {
   constructor(private readonly quotesService: QuotesService) {}
 
+  @Post('bulk-import')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Importação em lote de orçamentos (Auvo/Planilhas)' })
+  bulkImport(@Body() body: { items: any[] }, @Request() req) {
+    return this.quotesService.bulkImport(body.items || [], req.user.id);
+  }
+
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.TECHNICIAN, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Criar novo orçamento' })

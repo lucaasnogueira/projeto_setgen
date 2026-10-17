@@ -443,7 +443,7 @@ export class PublicQuotesService {
       <div class="info-box">
         <h4>Cliente</h4>
         <p><strong>${escapeHtml(order.client.tradeName || order.client.companyName)}</strong></p>
-        <p>CNPJ/CPF: ${escapeHtml(order.client.cnpjCpf)}</p>
+        <p>CNPJ/CPF: ${escapeHtml(order.client.cnpjCpf || 'Não informado')}</p>
         <p>${address ? escapeHtml([address.street, address.number, address.city, address.state].filter(Boolean).join(', ')) : ''}</p>
         <p>Contato: ${escapeHtml(order.client.phone)} • ${escapeHtml(order.client.email)}</p>
       </div>

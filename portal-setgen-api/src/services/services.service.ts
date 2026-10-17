@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
@@ -127,32 +128,61 @@ export class ServicesService {
     });
   }
 
-  async bulkImport(services: CreateServiceDto[]) {
-    let count = 0;
-    for (const s of services) {
-      if (!s.title || !s.title.trim()) continue;
-      const cleanTitle = s.title.trim();
-      let cleanCode = s.externalCode?.trim() || null;
-      const cleanPrice = Number(s.price) || 0;
+  async bulkImport(services: any[]) {
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    const parseMoney = (val: any): number => {
+      if (val === undefined || val === null || val === '') return 0;
+      if (typeof val === 'number') return val;
+      const str = String(val).replace('R$', '').trim();
+      const cleaned = str.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    };
+
+    for (let i = 0; i < services.length; i++) {
+      const s = services[i];
+      const rawTitle = String(s['Titulo do serviço'] || s.title || s.nome || '').trim();
+      if (!rawTitle || rawTitle.toLowerCase().includes('nome do serviço') || rawTitle.toLowerCase() === 'titulo do serviço') {
+        skipped++;
+        continue;
+      }
+
+      const cleanTitle = rawTitle;
+      let cleanCode = String(s['Código externo'] || s.externalCode || s.code || '').trim() || null;
+      const cleanPrice = parseMoney(s['Preço'] !== undefined ? s['Preço'] : s.price);
+      const nfseDescription = String(s['Descrição do serviço na NFS-e'] || s.nfseDescription || '').trim() || null;
+      
+      const rawFormat = String(s['Formatação do texto na NFS-e'] || s.nfseFormatText || '').toLowerCase();
+      const nfseFormatText = rawFormat.includes('inativ') ? false : true;
+
+      const rawObsEdit = String(s['A observação pode ser editada'] || s.observationEditable || '').toLowerCase();
+      const observationEditable = rawObsEdit.includes('ativ') ? true : false;
+
+      const cnae = String(s['CNAE do serviço'] || s.cnae || '').trim() || null;
+      const templateTitle = String(s['Template de observação'] || s.templateTitle || '').trim() || null;
+      const defaultObservation = String(s['Observação'] || s.defaultObservation || s.notes || '').trim() || null;
+
+      const rawStatus = String(s.Status || s.status || '').toLowerCase();
+      const active = rawStatus.includes('inativ') ? false : true;
+      const category = String(s.Categoria || s.category || '').trim() || null;
+      const unit = String(s.Unidade || s.unit || 'sv').trim() || 'sv';
 
       try {
-        // 1. Tentar encontrar por externalCode primeiro (se fornecido)
-        let existing: any = null;
-        if (cleanCode) {
-          existing = await this.prisma.service.findFirst({
-            where: { externalCode: cleanCode },
-          });
-        }
+        const orClauses: Prisma.ServiceWhereInput[] = [];
+        if (cleanCode) orClauses.push({ externalCode: cleanCode });
+        if (cleanTitle) orClauses.push({ title: cleanTitle });
 
-        // 2. Se não encontrou por código, tentar por título
-        if (!existing) {
-          existing = await this.prisma.service.findFirst({
-            where: { title: cleanTitle },
-          });
-        }
+        const existing = orClauses.length > 0
+          ? await this.prisma.service.findFirst({
+              where: { OR: orClauses },
+            })
+          : null;
 
         if (existing) {
-          // Se já existe, verificar se o código a ser atualizado já pertence a OUTRO registro
           if (cleanCode && cleanCode !== existing.externalCode) {
             const conflict = await this.prisma.service.findFirst({
               where: {
@@ -171,19 +201,21 @@ export class ServicesService {
             where: { id: existing.id },
             data: {
               title: cleanTitle,
-              category: s.category || existing.category,
-              unit: s.unit || existing.unit,
+              category: category || existing.category,
+              unit: unit || existing.unit,
               price: cleanPrice,
               externalCode: cleanCode,
-              defaultObservation:
-                s.defaultObservation !== undefined
-                  ? s.defaultObservation
-                  : existing.defaultObservation,
-              active: s.active !== undefined ? s.active : existing.active,
+              defaultObservation: defaultObservation !== null ? defaultObservation : existing.defaultObservation,
+              observationEditable,
+              active,
+              nfseDescription: nfseDescription || existing.nfseDescription,
+              nfseFormatText,
+              cnae: cnae || existing.cnae,
+              templateTitle: templateTitle || existing.templateTitle,
             },
           });
+          updated++;
         } else {
-          // Novo registro: verificar se o código já está em uso por algum outro
           if (cleanCode) {
             const codeTaken = await this.prisma.service.findFirst({
               where: { externalCode: cleanCode },
@@ -196,21 +228,26 @@ export class ServicesService {
           await this.prisma.service.create({
             data: {
               title: cleanTitle,
-              category: s.category || null,
-              unit: s.unit || 'sv',
+              category,
+              unit,
               price: cleanPrice,
               externalCode: cleanCode,
-              defaultObservation: s.defaultObservation || null,
-              active: s.active ?? true,
+              defaultObservation,
+              observationEditable,
+              active,
+              nfseDescription,
+              nfseFormatText,
+              cnae,
+              templateTitle,
             },
           });
+          created++;
         }
-        count++;
-      } catch (rowErr) {
-        console.warn(`[bulkImport] Aviso ao importar serviço "${cleanTitle}":`, rowErr);
+      } catch (rowErr: any) {
+        errors.push(`Serviço "${cleanTitle}": ${rowErr.message || 'Erro ao importar'}`);
       }
     }
-    return { count };
+    return { total: services.length, created, updated, skipped, errors };
   }
 
   async createTemplate(serviceId: string, dto: CreateTemplateDto) {

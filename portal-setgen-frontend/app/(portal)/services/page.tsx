@@ -46,6 +46,7 @@ import {
   exportServicesToExcel,
   parseExcelToServices,
 } from "@/lib/services-sheet";
+import { ImportExportDropdown } from "@/components/ui/import-export-dropdown";
 
 export default function ServicesPage() {
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -206,7 +207,7 @@ export default function ServicesPage() {
 
       const res = await servicesApi.bulkImport(parsed);
       toast.success(
-        `Importação concluída! ${res.count} serviços processados.`
+        `Importação concluída! ${res.created ?? res.total} serviços processados.`
       );
       loadServices();
     } catch (err: any) {
@@ -234,7 +235,7 @@ export default function ServicesPage() {
       const { SETGEN_INITIAL_SERVICES } = await import("@/lib/seed-services-data");
       const res = await servicesApi.bulkImport(SETGEN_INITIAL_SERVICES);
       toast.success(
-        `Catálogo carregado com sucesso! ${res.count} serviços sincronizados com sucesso.`
+        `Catálogo carregado com sucesso! ${res.created ?? res.total} serviços sincronizados com sucesso.`
       );
       loadServices();
     } catch (err: any) {
@@ -266,37 +267,43 @@ export default function ServicesPage() {
 
         {/* Botões de Ação */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Input Oculto de Arquivo */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".xlsx, .xls, .csv, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-            className="hidden"
+          <ImportExportDropdown
+            title="Catálogo de Serviços"
+            entityName="Serviços"
+            data={filteredServices.map((s) => ({
+              "Código": s.externalCode || "",
+              "Título": s.title,
+              "Preço": Number(s.price) || 0,
+              "Unidade": s.unit || "sv",
+              "Categoria": s.category || "",
+              "NFS-e Descrição": s.nfseDescription || "",
+              "CNAE": s.cnae || "",
+              "Status": s.active ? "Ativo" : "Inativo",
+            }))}
+            exportFilename="servicos_setgen"
+            templateColumns={[
+              "Titulo do serviço",
+              "Descrição do serviço na NFS-e",
+              "Formatação do texto na NFS-e",
+              "Preço",
+              "Código externo",
+              "Status",
+              "Observação",
+              "CNAE do serviço"
+            ]}
+            templateSampleRow={{
+              "Titulo do serviço": "MÃO DE OBRA TÉC EM ELÉTRICA",
+              "Descrição do serviço na NFS-e": "MÃO DE OBRA TÉC EM ELÉTRICA",
+              "Formatação do texto na NFS-e": "Ativo",
+              "Preço": "27890,88",
+              "Código externo": "SRV-001",
+              "Status": "Ativo",
+              "Observação": "Manutenção preventiva e corretiva",
+              "CNAE do serviço": "manutenção"
+            }}
+            onImport={servicesApi.bulkImport}
+            onSuccess={loadServices}
           />
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleUploadClick}
-            disabled={uploading}
-            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
-            title="Importar catálogo em Excel (.xlsx) ou CSV"
-          >
-            <Upload className="w-3.5 h-3.5 text-blue-600" />
-            {uploading ? "Importando..." : "Importar arquivo"}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportExcel}
-            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
-            title="Exportar planilha de serviços (.xlsx)"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            Exportar arquivo
-          </Button>
 
           {/* Botão de Carga Oficial Setgen (248 serviços) */}
           <Button

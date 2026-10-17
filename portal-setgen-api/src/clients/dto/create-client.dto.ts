@@ -51,10 +51,11 @@ class AddressDto {
 }
 
 export class CreateClientDto {
-  @ApiProperty({ example: '12.345.678/0001-90' })
+  @ApiProperty({ example: '12.345.678/0001-90', required: false })
   @IsString()
-  @IsNotEmpty({ message: 'CNPJ/CPF é obrigatório' })
-  cnpjCpf: string;
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  cnpjCpf?: string;
 
   @ApiProperty({ example: 'Empresa XPTO LTDA' })
   @IsString()
@@ -73,10 +74,11 @@ export class CreateClientDto {
   @Type(() => AddressDto)
   address: AddressDto;
 
-  @ApiProperty({ example: '(11) 98765-4321' })
+  @ApiProperty({ example: '(11) 98765-4321', required: false })
   @IsString()
-  @IsNotEmpty({ message: 'Telefone é obrigatório' })
-  phone: string;
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  phone?: string;
 
   @ApiProperty({ example: 'contato@empresa.com', required: false })
   @IsEmail({}, { message: 'E-mail inválido' })
@@ -185,4 +187,18 @@ export class CreateClientDto {
   @IsOptional()
   @Transform(emptyToUndefined)
   segmentId?: string;
+
+  @ApiProperty({ required: false, description: 'ID legado do Auvo' })
+  @IsString()
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  auvoId?: string;
+
+  @ApiProperty({ required: false, description: 'Endereço de cobrança' })
+  @IsOptional()
+  billingAddress?: any;
+
+  @ApiProperty({ required: false, description: 'Data da última visita' })
+  @IsOptional()
+  lastVisitDate?: Date | string;
 }

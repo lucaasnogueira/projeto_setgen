@@ -147,7 +147,11 @@ export class QuotesService {
       ...(dto.warrantyMonths !== undefined && {
         warrantyMonths: dto.warrantyMonths,
       }),
-      ...(dto.salesRepId && { salesRep: { connect: { id: dto.salesRepId } } }),
+      ...(dto.legacyNumber && { legacyNumber: dto.legacyNumber }),
+      ...(dto.equipmentId && { equipment: { connect: { id: dto.equipmentId } } }),
+      ...(dto.executionDeadline && { executionDeadline: dto.executionDeadline }),
+      ...(dto.clientApprovedAt && { clientApprovedAt: new Date(dto.clientApprovedAt) }),
+      ...(dto.clientRejectionReason && { clientRejectionReason: dto.clientRejectionReason }),
       status:
         dto.type === ServiceOrderType.VISIT_REPORT
           ? QuoteStatus.PENDING_APPROVAL
@@ -1063,6 +1067,170 @@ export class QuotesService {
         serviceOrder,
       };
     });
+  }
+
+  async bulkImport(items: any[], defaultUserId: string) {
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    const allClients = await this.prisma.client.findMany({
+      select: { id: true, companyName: true, tradeName: true, cnpjCpf: true },
+    });
+
+    const parseMoney = (val: any): number => {
+      if (val === undefined || val === null || val === '') return 0;
+      if (typeof val === 'number') return val;
+      const str = String(val).replace('R$', '').trim();
+      // Remove pontos de milhar e troca vírgula por ponto: 35.612,48 -> 35612.48
+      const cleaned = str.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    };
+
+    const parseDate = (val: any): Date | undefined => {
+      if (!val) return undefined;
+      if (val instanceof Date) return val;
+      const str = String(val).trim();
+      if (!str) return undefined;
+      const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (dmy) {
+        return new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`);
+      }
+      const parsed = new Date(str);
+      return isNaN(parsed.getTime()) ? undefined : parsed;
+    };
+
+    const mapStatus = (rawStatus?: string, approvalStatus?: string): QuoteStatus => {
+      const s = `${rawStatus || ''} ${approvalStatus || ''}`.toLowerCase();
+      if (s.includes('aprovad') || s.includes('aceito')) return QuoteStatus.ACCEPTED;
+      if (s.includes('reprovad') || s.includes('recusad')) return QuoteStatus.REJECTED;
+      if (s.includes('cancelad')) return QuoteStatus.CANCELLED;
+      if (s.includes('expirad')) return QuoteStatus.EXPIRED;
+      if (s.includes('enviad') || s.includes('abert')) return QuoteStatus.SENT_TO_CLIENT;
+      return QuoteStatus.DRAFT;
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      const raw = items[i];
+      const legacyNumber = String(raw['N° orçamento'] || raw.legacyNumber || raw.numero || '').trim();
+      if (!legacyNumber || legacyNumber.toLowerCase().includes('n°')) {
+        skipped++;
+        continue;
+      }
+
+      const rawClient = String(raw['Cliente/Lead'] || raw.client || '').trim();
+      let matchedClientId: string | null = null;
+      if (rawClient) {
+        const cnpjMatch = rawClient.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/);
+        if (cnpjMatch) {
+          const cleanDoc = cnpjMatch[0].replace(/\D/g, '');
+          const c = allClients.find((cl) => cl.cnpjCpf && cl.cnpjCpf.replace(/\D/g, '') === cleanDoc);
+          if (c) matchedClientId = c.id;
+        }
+        if (!matchedClientId) {
+          const clientNamePart = rawClient.split('/')[0].trim().toLowerCase();
+          const c = allClients.find(
+            (cl) =>
+              (cl.companyName && cl.companyName.toLowerCase().includes(clientNamePart)) ||
+              (cl.tradeName && cl.tradeName.toLowerCase().includes(clientNamePart)),
+          );
+          if (c) matchedClientId = c.id;
+        }
+      }
+
+      // Se ainda não encontrou cliente, usar o primeiro cliente cadastrado ou criar
+      if (!matchedClientId) {
+        if (allClients.length > 0) {
+          matchedClientId = allClients[0].id;
+        } else {
+          const newClient = await this.prisma.client.create({
+            data: {
+              companyName: rawClient.split('/')[0].trim() || 'Cliente Importado Auvo',
+              address: { street: 'Não informado', city: 'Manaus', state: 'AM' } as any,
+              phone: '',
+              email: '',
+            },
+          });
+          allClients.push(newClient as any);
+          matchedClientId = newClient.id;
+        }
+      }
+
+      const subtotalProducts = parseMoney(raw['Valor de produtos (R$)'] || raw.subtotalProducts);
+      const subtotalServices = parseMoney(raw['Valor de serviços (R$)'] || raw.subtotalServices);
+      const subtotalAdditionalCosts = parseMoney(raw['Valor de custos adicionais (R$)'] || raw.subtotalAdditionalCosts);
+      const discountAmount = parseMoney(raw['Desconto (R$)'] || raw.discountAmount);
+      const totalAmount = parseMoney(raw['Valor total'] || raw.totalAmount) || (subtotalProducts + subtotalServices + subtotalAdditionalCosts - discountAmount);
+
+      const notes = String(raw.Observação || raw.notes || '').trim() || null;
+      const internalNotes = String(raw['Nota Interna'] || raw.internalNotes || '').trim() || null;
+      const scope = notes ? notes.slice(0, 500) : `Orçamento legado Auvo #${legacyNumber}`;
+      const status = mapStatus(raw.Status, raw['Status de aprovação']);
+
+      const createdAt = parseDate(raw['Data de criação'] || raw.createdAt) || new Date();
+      const validUntil = parseDate(raw['Data de expiração'] || raw.validUntil);
+      const clientApprovedAt = parseDate(raw['Data de aprovação/reprovação'] || raw.clientApprovedAt);
+      const clientRejectionReason = String(raw['Motivo de reprovação'] || raw.clientRejectionReason || '').trim() || null;
+      const paymentTerms = String(raw['Forma de pagamento'] || raw.paymentTerms || '').trim() || null;
+
+      try {
+        let existing: any = await this.prisma.quote.findFirst({
+          where: { legacyNumber },
+        });
+
+        if (existing) {
+          await this.prisma.quote.update({
+            where: { id: existing.id },
+            data: {
+              subtotalProducts,
+              subtotalServices,
+              subtotalAdditionalCosts,
+              discountValue: discountAmount,
+              totalAmount,
+              notes,
+              scope,
+              status,
+              paymentTerms,
+              clientApprovedAt,
+              clientRejectionReason,
+              ...(validUntil && { validUntil }),
+            },
+          });
+          updated++;
+        } else {
+          const quoteNumber = await this.generateQuoteNumber();
+          await this.prisma.quote.create({
+            data: {
+              quoteNumber,
+              legacyNumber,
+              clientId: matchedClientId,
+              createdById: defaultUserId,
+              type: ServiceOrderType.VISIT_REPORT,
+              scope,
+              notes,
+              subtotalProducts,
+              subtotalServices,
+              subtotalAdditionalCosts,
+              discountValue: discountAmount,
+              totalAmount,
+              status,
+              paymentTerms,
+              validUntil,
+              clientApprovedAt,
+              clientRejectionReason,
+              createdAt,
+            },
+          });
+          created++;
+        }
+      } catch (err: any) {
+        errors.push(`Orçamento #${legacyNumber}: ${err.message || 'Erro ao importar'}`);
+      }
+    }
+
+    return { total: items.length, created, updated, skipped, errors };
   }
 }
 

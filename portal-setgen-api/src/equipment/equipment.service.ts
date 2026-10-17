@@ -13,18 +13,23 @@ export class EquipmentService {
   constructor(private prisma: PrismaService) {}
 
   async create(createEquipmentDto: CreateEquipmentDto) {
-    const client = await this.prisma.client.findUnique({
-      where: { id: createEquipmentDto.clientId },
-    });
-
-    if (!client) {
-      throw new NotFoundException('Cliente não encontrado');
+    let clientConnect: any = undefined;
+    if (createEquipmentDto.clientId) {
+      const client = await this.prisma.client.findUnique({
+        where: { id: createEquipmentDto.clientId },
+      });
+      if (client) {
+        clientConnect = { connect: { id: createEquipmentDto.clientId } };
+      }
     }
 
     const data: Prisma.EquipmentCreateInput = {
-      client: { connect: { id: createEquipmentDto.clientId } },
-      type: createEquipmentDto.type,
-      name: createEquipmentDto.name,
+      ...(clientConnect && { client: clientConnect }),
+      ...(createEquipmentDto.assignedUserId && {
+        assignedUser: { connect: { id: createEquipmentDto.assignedUserId } },
+      }),
+      type: createEquipmentDto.type || EquipmentType.GENERATOR,
+      name: createEquipmentDto.name || 'Equipamento sem nome',
       identifier: createEquipmentDto.identifier,
       category: createEquipmentDto.category,
       brand: createEquipmentDto.brand,
@@ -38,6 +43,9 @@ export class EquipmentService {
       notes: createEquipmentDto.notes,
       ...(createEquipmentDto.expirationDate && {
         expirationDate: new Date(createEquipmentDto.expirationDate),
+      }),
+      ...(createEquipmentDto.warrantyStartDate && {
+        warrantyStartDate: new Date(createEquipmentDto.warrantyStartDate),
       }),
       ...(createEquipmentDto.warrantyEndDate && {
         warrantyEndDate: new Date(createEquipmentDto.warrantyEndDate),
@@ -55,6 +63,9 @@ export class EquipmentService {
       include: {
         client: {
           select: { id: true, companyName: true, tradeName: true },
+        },
+        assignedUser: {
+          select: { id: true, name: true, email: true },
         },
       },
     });
@@ -170,5 +181,128 @@ export class EquipmentService {
     }
 
     return this.prisma.equipment.delete({ where: { id } });
+  }
+
+  async bulkImport(items: any[]) {
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    const allClients = await this.prisma.client.findMany({
+      select: { id: true, companyName: true, tradeName: true, cnpjCpf: true },
+    });
+
+    const parseDate = (val: any): Date | undefined => {
+      if (!val) return undefined;
+      if (val instanceof Date) return val;
+      const str = String(val).trim();
+      if (!str) return undefined;
+      const dmy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (dmy) {
+        return new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`);
+      }
+      const parsed = new Date(str);
+      return isNaN(parsed.getTime()) ? undefined : parsed;
+    };
+
+    const mapType = (cat?: string): EquipmentType => {
+      const c = (cat || '').toUpperCase();
+      if (c.includes('SUB') || c.includes('SUBESTACAO')) return EquipmentType.SUBSTATION;
+      if (c.includes('GERADOR') || c.includes('GMG')) return EquipmentType.GENERATOR;
+      return EquipmentType.OTHER;
+    };
+
+    for (let i = 0; i < items.length; i++) {
+      const raw = items[i];
+      const name = String(raw.Nome || raw.name || raw['Nome do equipamento'] || '').trim();
+      if (!name || name.toLowerCase().includes('nome do equipamento')) {
+        skipped++;
+        continue;
+      }
+
+      const description = String(raw.Descrição || raw.description || raw['Descrição do equipamento'] || '').trim();
+      const identifier = String(raw.Identificador || raw.identifier || raw['Código de barras'] || '').trim() || null;
+      const rawCategory = String(raw.Categoria || raw.category || '').trim();
+      const type = mapType(rawCategory);
+      const rawStatus = String(raw.Status || raw.status || '').toLowerCase();
+      const active = rawStatus.includes('inativ') ? false : true;
+
+      const rawClient = String(raw.Cliente || raw.client || '').trim();
+      let matchedClientId: string | null = null;
+      if (rawClient) {
+        const cnpjMatch = rawClient.match(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/);
+        if (cnpjMatch) {
+          const cleanDoc = cnpjMatch[0].replace(/\D/g, '');
+          const c = allClients.find((cl) => cl.cnpjCpf && cl.cnpjCpf.replace(/\D/g, '') === cleanDoc);
+          if (c) matchedClientId = c.id;
+        }
+        if (!matchedClientId) {
+          const clientNamePart = rawClient.split('/')[0].trim().toLowerCase();
+          const c = allClients.find(
+            (cl) =>
+              (cl.companyName && cl.companyName.toLowerCase().includes(clientNamePart)) ||
+              (cl.tradeName && cl.tradeName.toLowerCase().includes(clientNamePart)),
+          );
+          if (c) matchedClientId = c.id;
+        }
+      }
+
+      const warrantyStartDate = parseDate(raw['Início da garantia'] || raw.warrantyStartDate);
+      const warrantyEndDate = parseDate(raw['Fim da garantia'] || raw.warrantyEndDate);
+      const expirationDate = parseDate(raw['Data de validade'] || raw.expirationDate);
+
+      try {
+        const orClauses: Prisma.EquipmentWhereInput[] = [];
+        if (identifier) orClauses.push({ identifier });
+        if (name && matchedClientId) orClauses.push({ name, clientId: matchedClientId });
+
+        const existing = orClauses.length > 0
+          ? await this.prisma.equipment.findFirst({
+              where: { OR: orClauses },
+            })
+          : null;
+
+        if (existing) {
+          await this.prisma.equipment.update({
+            where: { id: existing.id },
+            data: {
+              name,
+              model: description || existing.model,
+              notes: description ? `${description}${existing.notes ? ' | ' + existing.notes : ''}` : existing.notes,
+              category: rawCategory || existing.category,
+              type,
+              active,
+              ...(matchedClientId && { clientId: matchedClientId }),
+              ...(warrantyStartDate && { warrantyStartDate }),
+              ...(warrantyEndDate && { warrantyEndDate }),
+              ...(expirationDate && { expirationDate }),
+            },
+          });
+          updated++;
+        } else {
+          await this.prisma.equipment.create({
+            data: {
+              name,
+              identifier,
+              category: rawCategory || null,
+              type,
+              model: description || null,
+              notes: description || null,
+              active,
+              clientId: matchedClientId,
+              warrantyStartDate,
+              warrantyEndDate,
+              expirationDate,
+            },
+          });
+          created++;
+        }
+      } catch (err: any) {
+        errors.push(`Linha ${i + 1} (${name}): ${err.message || 'Erro ao importar'}`);
+      }
+    }
+
+    return { total: items.length, created, updated, skipped, errors };
   }
 }

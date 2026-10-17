@@ -90,4 +90,28 @@ export class CreateQuoteDto {
   @Min(0)
   @IsOptional()
   paymentTermDays?: number;
+
+  @ApiProperty({ example: '1361', required: false, description: 'Número do orçamento no Auvo' })
+  @IsString()
+  @IsOptional()
+  legacyNumber?: string;
+
+  @ApiProperty({ example: 'equipment-uuid-here', required: false, description: 'Equipamento orçado' })
+  @IsUUID()
+  @IsOptional()
+  equipmentId?: string;
+
+  @ApiProperty({ example: '10 dias', required: false })
+  @IsString()
+  @IsOptional()
+  executionDeadline?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  clientApprovedAt?: Date | string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
+  clientRejectionReason?: string;
 }

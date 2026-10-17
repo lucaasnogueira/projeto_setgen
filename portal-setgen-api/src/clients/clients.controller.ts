@@ -44,6 +44,13 @@ export class ClientsController {
     return this.cnpjService.formatCnpjData(data);
   }
 
+  @Post('bulk-import')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
+  @ApiOperation({ summary: 'Importação em lote de clientes (Auvo / Planilhas)' })
+  bulkImport(@Body() body: { items: any[] }) {
+    return this.clientsService.bulkImport(body.items || []);
+  }
+
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.ADMINISTRATIVE)
   @ApiOperation({ summary: 'Criar novo cliente' })

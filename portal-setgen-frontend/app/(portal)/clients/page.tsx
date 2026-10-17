@@ -41,6 +41,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { ImportExportDropdown } from "@/components/ui/import-export-dropdown";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -146,6 +147,47 @@ export default function ClientsPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
+            <ImportExportDropdown
+              title="Clientes"
+              entityName="Clientes"
+              data={filteredClients.map((c) => ({
+                "Código": c.externalCode || "",
+                "Razão Social": c.companyName || "",
+                "Nome Fantasia": c.tradeName || "",
+                "CNPJ / CPF": c.cnpjCpf || "",
+                "Telefone": c.phone || "",
+                "E-mail": c.email || "",
+                "Endereço": typeof c.address === 'object' ? `${c.address?.street || ''}, ${c.address?.number || ''} - ${c.address?.city || ''}/${c.address?.state || ''}` : String(c.address || ''),
+                "Status": c.status === ClientStatus.ACTIVE ? "Ativo" : "Inativo",
+              }))}
+              exportFilename="clientes_setgen"
+              templateColumns={[
+                "Código",
+                "Razão social",
+                "Nome",
+                "CPF ou CNPJ",
+                "Telefone corporativo",
+                "E-mail corporativo",
+                "Endereço",
+                "Status",
+                "Falar com",
+                "Observação"
+              ]}
+              templateSampleRow={{
+                "Código": "CLI-001",
+                "Razão social": "EMPRESA EXEMPLO LTDA",
+                "Nome": "EXEMPLO",
+                "CPF ou CNPJ": "00.000.000/0001-00",
+                "Telefone corporativo": "(92) 99999-9999",
+                "E-mail corporativo": "contato@exemplo.com",
+                "Endereço": "Rua Exemplo, 100, Centro, Manaus, AM, 69000-000",
+                "Status": "Ativo",
+                "Falar com": "Responsável",
+                "Observação": "Observações do cliente"
+              }}
+              onImport={clientsApi.bulkImport}
+              onSuccess={loadClients}
+            />
             <Button
               onClick={() => router.push("/clients/new")}
               className="h-9 rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white shadow-xs text-xs px-3.5"

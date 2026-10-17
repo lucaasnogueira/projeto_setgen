@@ -438,7 +438,7 @@ export interface TechnicalVisit {
 
 export interface Equipment {
   id: string;
-  clientId: string;
+  clientId?: string | null;
   name?: string;
   identifier?: string;
   category?: string;
@@ -450,6 +450,11 @@ export interface Equipment {
   installLocation?: string;
   purchaseDate?: string;
   notes?: string;
+  active?: boolean;
+  assignedUserId?: string | null;
+  warrantyStartDate?: string | null;
+  warrantyEndDate?: string | null;
+  expirationDate?: string | null;
   createdAt: string;
   updatedAt: string;
   client?: Pick<Client, 'id' | 'companyName' | 'tradeName'>;
@@ -461,8 +466,10 @@ export interface Equipment {
 export interface Quote {
   id: string;
   quoteNumber: string;
+  legacyNumber?: string | null;
   type: ServiceOrderType;
   clientId: string;
+  equipmentId?: string | null;
   technicalVisitId?: string;
   status: QuoteStatus;
   scope: string;
@@ -474,6 +481,11 @@ export interface Quote {
   paymentTerms?: string;
   paymentTermDays?: number;
   warrantyMonths?: number;
+  subtotalProducts?: number;
+  subtotalServices?: number;
+  subtotalAdditionalCosts?: number;
+  discountValue?: number;
+  totalAmount?: number;
   salesRepId?: string;
   salesRep?: Pick<User, 'id' | 'name'>;
   createdById: string;

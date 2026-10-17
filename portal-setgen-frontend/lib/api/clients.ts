@@ -39,4 +39,9 @@ export const clientsApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/clients/${id}`);
   },
+
+  bulkImport: async (items: any[]): Promise<{ total: number; created: number; updated: number; skipped: number; errors: string[] }> => {
+    const { data } = await api.post('/clients/bulk-import', { items }, { timeout: 120000 });
+    return data;
+  },
 };

@@ -39,6 +39,7 @@ model User {
   approvals                Approval[]
   auditLogs                AuditLog[]
   clientsResponsibleFor    Client[]                   @relation("ClientResponsibleUser")
+  assignedEquipments       Equipment[]                @relation("AssignedEquipments")
   collaboratorAttachments  CollaboratorAttachment[]
   collaboratorPermissions  CollaboratorPermission?
   deliveredServices        Delivery[]                 @relation("DeliveredBy")
@@ -193,7 +194,7 @@ model CollaboratorAttachment {
 
 model Client {
   id                    String            @id @default(uuid())
-  cnpjCpf               String            @unique
+  cnpjCpf               String?
   companyName           String
   tradeName             String?
   address               Json
@@ -205,9 +206,12 @@ model Client {
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
   billingEmail          String?
+  billingAddress        Json?
+  lastVisitDate         DateTime?
   corporateEmails       String[]          @default([])
   corporatePhones       String[]          @default([])
   externalCode          String?           @unique
+  auvoId                String?           @unique
   groupId               String?
   icmsTaxpayerType      IcmsTaxpayerType?
   internalNotes         String?
@@ -235,6 +239,7 @@ model Client {
   technicalVisits       TechnicalVisit[]
   documents             ServiceOrderDocument[]
 
+  @@index([cnpjCpf])
   @@map("clients")
 }
 
@@ -298,7 +303,8 @@ model ClientTaxonomy {
 
 model Equipment {
   id                   String                @id @default(uuid())
-  clientId             String
+  clientId             String?
+  assignedUserId       String?
   type                 EquipmentType         @default(GENERATOR)
   brand                String?
   model                String?
@@ -320,9 +326,11 @@ model Equipment {
   qrCodeInherited      Boolean               @default(true)
   qrCodePublicRead     Boolean               @default(false)
   specifications       Json?
+  warrantyStartDate    DateTime?
   warrantyEndDate      DateTime?
   equipmentAttachments EquipmentAttachment[]
-  client               Client                @relation(fields: [clientId], references: [id])
+  client               Client?               @relation(fields: [clientId], references: [id])
+  assignedUser         User?                 @relation("AssignedEquipments", fields: [assignedUserId], references: [id])
   parentEquipment      Equipment?            @relation("EquipmentHierarchy", fields: [parentEquipmentId], references: [id])
   childEquipments      Equipment[]           @relation("EquipmentHierarchy")
   associatedProducts   Product[]
@@ -330,6 +338,7 @@ model Equipment {
   technicalVisits      TechnicalVisit[]
   visitLinks           VisitEquipment[]
   warranties           Warranty[]
+  quotes               Quote[]
 
   @@index([clientId])
   @@map("equipments")
@@ -494,6 +503,11 @@ model Quote {
   subtotalAdditionalCosts     Decimal               @default(0.00) @db.Decimal(12, 2)
   subtotalProducts            Decimal               @default(0.00) @db.Decimal(12, 2)
   subtotalServices            Decimal               @default(0.00) @db.Decimal(12, 2)
+  legacyNumber                String?
+  equipmentId                 String?
+  executionDeadline           String?
+  clientApprovedAt            DateTime?
+  clientRejectionReason       String?
   targetType                  QuoteTargetType       @default(CLIENTE)
   totalAmount                 Decimal               @default(0.00) @db.Decimal(12, 2)
   approvals                   Approval[]
@@ -507,11 +521,13 @@ model Quote {
   client                      Client                @relation(fields: [clientId], references: [id])
   contact                     ClientContact?        @relation(fields: [contactId], references: [id])
   createdBy                   User                  @relation("CreatedQuotes", fields: [createdById], references: [id])
+  equipment                   Equipment?            @relation(fields: [equipmentId], references: [id])
   paymentMethodConfig         PaymentMethodConfig?  @relation(fields: [paymentMethodConfigId], references: [id])
   salesRep                    User?                 @relation("QuoteSalesRep", fields: [salesRepId], references: [id])
   technicalVisit              TechnicalVisit?       @relation(fields: [technicalVisitId], references: [id])
   serviceOrder                ServiceOrder?
 
+  @@index([legacyNumber])
   @@map("quotes")
 }
 
@@ -614,6 +630,10 @@ model Service {
   defaultObservation    String?
   observationEditable   Boolean                @default(true)
   active                Boolean                @default(true)
+  nfseDescription       String?
+  nfseFormatText        Boolean                @default(true)
+  cnae                  String?
+  templateTitle         String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   quoteItemServices     QuoteItemService[]
@@ -1076,8 +1096,8 @@ model Product {
   name                  String
   description           String?
   unit                  String
-  minStock              Int                        @default(0)
-  currentStock          Int                        @default(0)
+  minStock              Float                      @default(0)
+  currentStock          Float                      @default(0)
   active                Boolean                    @default(true)
   createdAt             DateTime                   @default(now())
   updatedAt             DateTime                   @updatedAt
@@ -1113,7 +1133,7 @@ model ProductCollaboratorStock {
   id        String   @id @default(uuid())
   productId String
   userId    String
-  quantity  Int      @default(0)
+  quantity  Float    @default(0)
   updatedAt DateTime @updatedAt
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1229,7 +1249,7 @@ model StockMovement {
   id          String       @id @default(uuid())
   productId   String
   type        MovementType
-  quantity    Int
+  quantity    Float
   unitCost    Decimal?     @db.Decimal(10, 2)
   totalCost   Decimal?     @db.Decimal(10, 2)
   reason      String?

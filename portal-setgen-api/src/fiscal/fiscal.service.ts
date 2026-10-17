@@ -120,6 +120,10 @@ export class FiscalService {
     }
 
     // ── 4. Emissão NF-e (Modelo 55) ────────────────────────────────────────
+    if (!client.cnpjCpf) {
+      throw new BadRequestException('O cliente deve possuir CNPJ ou CPF para emissão de Nota Fiscal.');
+    }
+
     const { xml: xmlNfe, chaveAcesso } = this.xmlGen.gerarNfe(
       {
         emitenteCnpj,
@@ -164,7 +168,7 @@ export class FiscalService {
           clientId:         dto.clientId,
           createdById,
           emitenteCnpj,
-          destinatarioCnpj: client.cnpjCpf,
+          destinatarioCnpj: client.cnpjCpf || '',
           valorBruto:       calculo.valorBruto,
           valorLiquido:     calculo.valorBruto,      // por fora: bruto = líquido
           xmlAssinado,

@@ -18,14 +18,22 @@ const dateEmptyToUndefined = ({ value }: { value: any }) =>
   value === '' || value === null ? undefined : value;
 
 export class CreateEquipmentDto {
-  @ApiProperty({ example: 'client-uuid-here' })
+  @ApiProperty({ example: 'client-uuid-here', required: false })
   @IsUUID()
-  @IsNotEmpty({ message: 'Cliente é obrigatório' })
-  clientId: string;
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  clientId?: string;
 
-  @ApiProperty({ enum: EquipmentType, example: EquipmentType.GENERATOR })
+  @ApiProperty({ example: 'user-uuid-here', required: false })
+  @IsUUID()
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  assignedUserId?: string;
+
+  @ApiProperty({ enum: EquipmentType, example: EquipmentType.GENERATOR, default: EquipmentType.GENERATOR })
   @IsEnum(EquipmentType, { message: 'Tipo de equipamento inválido' })
-  type: EquipmentType;
+  @IsOptional()
+  type?: EquipmentType;
 
   @ApiProperty({ example: 'Gerador Principal', required: false })
   @Transform(emptyToUndefined)
@@ -86,6 +94,12 @@ export class CreateEquipmentDto {
   @IsDateString()
   @IsOptional()
   expirationDate?: string;
+
+  @ApiProperty({ example: '2025-03-15T00:00:00.000Z', required: false })
+  @Transform(dateEmptyToUndefined)
+  @IsDateString()
+  @IsOptional()
+  warrantyStartDate?: string;
 
   @ApiProperty({ example: '2025-03-15T00:00:00.000Z', required: false })
   @Transform(dateEmptyToUndefined)

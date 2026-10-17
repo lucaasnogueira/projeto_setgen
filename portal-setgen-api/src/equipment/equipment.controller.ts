@@ -26,6 +26,17 @@ import { EquipmentType } from '@prisma/client';
 export class EquipmentController {
   constructor(private readonly equipmentService: EquipmentService) {}
 
+  @Post('bulk-import')
+  @RequiredPermissions(
+    PERMISSIONS.EQUIPMENT_MANAGE,
+    PERMISSIONS.CLIENTS_EDIT,
+    PERMISSIONS.CLIENTS_CREATE,
+  )
+  @ApiOperation({ summary: 'Importação em lote de equipamentos (Auvo/Planilhas)' })
+  bulkImport(@Body() body: { items: any[] }) {
+    return this.equipmentService.bulkImport(body.items || []);
+  }
+
   @Post()
   @RequiredPermissions(
     PERMISSIONS.EQUIPMENT_MANAGE,

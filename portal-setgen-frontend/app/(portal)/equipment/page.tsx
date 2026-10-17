@@ -22,6 +22,7 @@ import {
   TableCell,
   TableEmpty,
 } from "@/components/ui/table";
+import { ImportExportDropdown } from "@/components/ui/import-export-dropdown";
 
 const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
   [EquipmentType.GENERATOR]: "Gerador",
@@ -92,13 +93,51 @@ export default function EquipmentPage() {
         title="Equipamentos"
         subtitle={`${filtered.length} geradores e equipamentos industriais monitorados`}
         actions={
-          <Button
-            onClick={() => router.push("/equipment/new")}
-            className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white"
-          >
-            <Plus className="h-4 w-4" />
-            Novo Equipamento
-          </Button>
+          <div className="flex items-center gap-2">
+            <ImportExportDropdown
+              title="Equipamentos"
+              entityName="Equipamentos"
+              data={filtered.map((e) => ({
+                "Nome": e.name || "",
+                "Descrição / Modelo": e.model || e.notes || "",
+                "Identificador": e.identifier || "",
+                "Cliente": e.client ? (e.client.tradeName || e.client.companyName) : "Setgen Interno",
+                "Tipo": EQUIPMENT_TYPE_LABELS[e.type] || "Outro",
+                "Categoria": e.category || "",
+                "Status": e.active ? "Ativo" : "Inativo",
+              }))}
+              exportFilename="equipamentos_setgen"
+              templateColumns={[
+                "Nome",
+                "Descrição",
+                "Identificador",
+                "Cliente",
+                "Categoria",
+                "Status",
+                "Início da garantia",
+                "Fim da garantia"
+              ]}
+              templateSampleRow={{
+                "Nome": "01. GERCUM01",
+                "Descrição": "CUMMINS NTG6 / GERADOR: WEG 300KVA",
+                "Identificador": "EQP-001",
+                "Cliente": "SUPER TERMINAIS / CNPJ: 04.335.535/0002-55",
+                "Categoria": "GERADOR",
+                "Status": "Ativo",
+                "Início da garantia": "01/01/2026",
+                "Fim da garantia": "01/01/2027"
+              }}
+              onImport={equipmentApi.bulkImport}
+              onSuccess={loadEquipments}
+            />
+            <Button
+              onClick={() => router.push("/equipment/new")}
+              className="rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white"
+            >
+              <Plus className="h-4 w-4" />
+              Novo Equipamento
+            </Button>
+          </div>
         }
       />
 

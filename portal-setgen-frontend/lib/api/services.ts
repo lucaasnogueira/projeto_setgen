@@ -11,6 +11,10 @@ export interface ServiceItem {
   defaultObservation?: string;
   observationEditable?: boolean;
   active?: boolean;
+  nfseDescription?: string;
+  nfseFormatText?: boolean;
+  cnae?: string;
+  templateTitle?: string;
   templates?: ServiceTemplateItem[];
   createdAt?: string;
   updatedAt?: string;
@@ -63,8 +67,8 @@ export const servicesApi = {
     await api.delete(`/services/${id}/hard`);
   },
 
-  async bulkImport(services: Partial<ServiceItem>[]): Promise<{ count: number }> {
-    const { data } = await api.post('/services/bulk-import', { services });
+  async bulkImport(services: any[]): Promise<{ total: number; created: number; updated: number; skipped: number; errors: string[] }> {
+    const { data } = await api.post('/services/bulk-import', { services }, { timeout: 120000 });
     return data;
   },
 

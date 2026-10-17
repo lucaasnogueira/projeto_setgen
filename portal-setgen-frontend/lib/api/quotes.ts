@@ -124,4 +124,9 @@ export const quotesApi = {
     const { data } = await api.delete(`/quotes/${quoteId}/attachments/${attachmentId}`);
     return data;
   },
+
+  async bulkImport(items: any[]): Promise<{ total: number; created: number; updated: number; skipped: number; errors: string[] }> {
+    const { data } = await api.post('/quotes/bulk-import', { items }, { timeout: 120000 });
+    return data;
+  },
 };

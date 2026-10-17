@@ -186,51 +186,75 @@ export class InventoryService {
 
     for (const item of items) {
       try {
-        const sheetId = item.sheetId ? Number(item.sheetId) : (item.id ? Number(item.id) : null);
-        const name = (item.name || item.product || item.produto || '').trim();
-        const code = (item.code || item.codigo || '').trim() || (sheetId ? `PRD-${sheetId}` : `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`);
-        const unit = (item.unit || item.unidade || 'un').trim();
-        const category = (item.category || item.categoria || '').trim() || null;
-        const marginPercent = item.marginPercent !== undefined && item.marginPercent !== '' ? Number(item.marginPercent) : 30;
-        const fixedSalePrice = item.fixedSalePrice !== undefined && item.fixedSalePrice !== '' && Number(item.fixedSalePrice) > 0 ? Number(item.fixedSalePrice) : null;
-        const notes = item.notes || item.observacoes || null;
-        const supplierQuotations = item.supplierQuotations || [];
-        const minStock = item.minStock !== undefined && item.minStock !== '' ? Number(item.minStock) : 0;
-        const currentStock = item.currentStock !== undefined && item.currentStock !== '' ? Number(item.currentStock) : 0;
+        const parseNum = (val: any): number => {
+          if (val === undefined || val === null || val === '') return 0;
+          if (typeof val === 'number') return val;
+          const s = String(val).replace('R$', '').trim().replace(/\./g, '').replace(',', '.');
+          const n = parseFloat(s);
+          return isNaN(n) ? 0 : n;
+        };
 
-        // Calcular custo e venda de forma resiliente
+        const name = (item.Nome || item.name || item.product || item.produto || '').trim();
+        if (!name || name.toLowerCase().includes('nome do produto')) {
+          continue;
+        }
+
+        const sheetId = item.sheetId ? Number(item.sheetId) : (item.id ? Number(item.id) : null);
+        const code = (item.code || item.codigo || item['Código'] || '').trim() || (sheetId ? `PRD-${sheetId}` : `PRD-${Date.now()}-${Math.floor(Math.random()*1000)}`);
+        const unit = (item.unit || item.unidade || item.Unidade || 'un').trim();
+        const category = (item.Categoria || item.category || item.categoria || '').trim() || null;
+        const description = (item.Descrição || item.description || '').trim() || null;
+        const marginPercent = item.marginPercent !== undefined && item.marginPercent !== '' ? parseNum(item.marginPercent) : 30;
+        
+        const rawFixedSale = item['Valor unitário'] !== undefined ? item['Valor unitário'] : item.fixedSalePrice;
+        const fixedSalePrice = rawFixedSale !== undefined && rawFixedSale !== '' && parseNum(rawFixedSale) > 0 ? parseNum(rawFixedSale) : null;
+        
+        const notes = item.notes || item.observacoes || description || null;
+        const supplierQuotations = item.supplierQuotations || [];
+        
+        const minStock = parseNum(item['Estoque mínimo'] !== undefined ? item['Estoque mínimo'] : item.minStock);
+        let currentStock = parseNum(
+          item['Estoque total'] !== undefined 
+            ? item['Estoque total'] 
+            : (item['Estoque empresa'] !== undefined ? item['Estoque empresa'] : item.currentStock)
+        );
+
+        // Sanitização de estoque dummy/ilimitado do Auvo (ex: 9999, 10000, 10000000)
+        const rawNameLower = name.toLowerCase();
+        if (
+          currentStock >= 9999 ||
+          (currentStock >= 2000 && !rawNameLower.includes('cabo') && !rawNameLower.includes('terminal')) ||
+          rawNameLower.includes('cabos elétricos de força (cabo de baixa)')
+        ) {
+          currentStock = 0;
+        }
+
+        // Calcular custo e venda de forma fidedigna (sem fabricar custos irreais)
         let unitCost: number | null = null;
-        if (Array.isArray(supplierQuotations) && supplierQuotations.length > 0) {
+        if (item['Custo unitário'] !== undefined && item['Custo unitário'] !== '') {
+          const parsedCusto = parseNum(item['Custo unitário']);
+          unitCost = parsedCusto > 0 ? parsedCusto : null;
+        } else if (Array.isArray(supplierQuotations) && supplierQuotations.length > 0) {
           const usedQuotation = supplierQuotations.find((q: any) => q.isUsed || q.useQuotation === 'x');
-          if (usedQuotation && Number(usedQuotation.costPrice) > 0) {
-            unitCost = Number(usedQuotation.costPrice);
+          if (usedQuotation && parseNum(usedQuotation.costPrice) > 0) {
+            unitCost = parseNum(usedQuotation.costPrice);
           } else {
             const validCosts = supplierQuotations
-              .map((q: any) => Number(q.costPrice))
+              .map((q: any) => parseNum(q.costPrice))
               .filter((c: number) => !isNaN(c) && c > 0);
             if (validCosts.length > 0) {
               unitCost = Math.min(...validCosts);
             }
           }
-        }
-
-        // Se ainda não achou custo nas cotações ou foram 0, busca direto no objeto
-        if (unitCost === null || unitCost === 0) {
-          if (item.unitCost && Number(item.unitCost) > 0) {
-            unitCost = Number(item.unitCost);
-          } else if (item.costPrice && Number(item.costPrice) > 0) {
-            unitCost = Number(item.costPrice);
-          } else if (item.precoCusto && Number(item.precoCusto) > 0) {
-            unitCost = Number(item.precoCusto);
-          } else if (item.preco && Number(item.preco) > 0) {
-            unitCost = Number(item.preco);
-          } else if (item.valor && Number(item.valor) > 0) {
-            unitCost = Number(item.valor);
-          } else if (fixedSalePrice !== null && fixedSalePrice > 0) {
-            unitCost = Number((fixedSalePrice / (1 + marginPercent / 100)).toFixed(2));
-          } else if (item.salePrice && Number(item.salePrice) > 0) {
-            unitCost = Number((Number(item.salePrice) / (1 + marginPercent / 100)).toFixed(2));
-          }
+        } else if (item.unitCost !== undefined && item.unitCost !== '') {
+          const parsedCusto = parseNum(item.unitCost);
+          unitCost = parsedCusto > 0 ? parsedCusto : null;
+        } else if (item.costPrice !== undefined && item.costPrice !== '') {
+          const parsedCusto = parseNum(item.costPrice);
+          unitCost = parsedCusto > 0 ? parsedCusto : null;
+        } else if (item.precoCusto !== undefined && item.precoCusto !== '') {
+          const parsedCusto = parseNum(item.precoCusto);
+          unitCost = parsedCusto > 0 ? parsedCusto : null;
         }
 
         let salePrice: number | null = null;
@@ -243,16 +267,16 @@ export class InventoryService {
         }
 
         // Buscar se já existe por sheetId, código ou nome
-        let existing: any = null;
-        if (sheetId) {
-          existing = await this.prisma.product.findFirst({ where: { sheetId } });
-        }
-        if (!existing && code) {
-          existing = await this.prisma.product.findUnique({ where: { code } });
-        }
-        if (!existing && name) {
-          existing = await this.prisma.product.findFirst({ where: { name } });
-        }
+        const orClauses: Prisma.ProductWhereInput[] = [];
+        if (sheetId) orClauses.push({ sheetId });
+        if (code) orClauses.push({ code });
+        if (name) orClauses.push({ name });
+
+        const existing = orClauses.length > 0
+          ? await this.prisma.product.findFirst({
+              where: { OR: orClauses },
+            })
+          : null;
 
         if (existing) {
           await this.prisma.product.update({

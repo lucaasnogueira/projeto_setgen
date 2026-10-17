@@ -25,4 +25,9 @@ export const equipmentApi = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/equipment/${id}`);
   },
+
+  bulkImport: async (items: any[]): Promise<{ total: number; created: number; updated: number; skipped: number; errors: string[] }> => {
+    const { data } = await api.post('/equipment/bulk-import', { items }, { timeout: 120000 });
+    return data;
+  },
 };

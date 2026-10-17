@@ -77,7 +77,7 @@ export const inventoryApi = {
   },
 
   async bulkImport(items: any[]): Promise<any> {
-    const { data } = await api.post("/inventory/products/bulk-import", { items });
+    const { data } = await api.post("/inventory/products/bulk-import", { items }, { timeout: 120000 });
     return data;
   },
 

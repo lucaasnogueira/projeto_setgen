@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { ProductFormModal } from "@/components/inventory/ProductFormModal";
 import { StockMovementModal } from "@/components/inventory/StockMovementModal";
+import { ImportExportDropdown } from "@/components/ui/import-export-dropdown";
 import {
   exportProductsToExcel,
   parseExcelToProducts,
@@ -297,37 +298,47 @@ export default function InventoryPage() {
 
         {/* Botões de Ação */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Importar arquivo */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".xlsx, .xls, .csv, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-            className="hidden"
+          <ImportExportDropdown
+            title="Produtos e Almoxarifado"
+            entityName="Produtos"
+            data={items.map((it) => ({
+              "Código": it.code,
+              "Nome": it.name,
+              "Descrição": it.description || "",
+              "Unidade": it.unit,
+              "Categoria": it.category || "",
+              "Estoque Atual": it.currentStock,
+              "Estoque Mínimo": it.minStock,
+              "Preço de Custo": it.unitCost ? Number(it.unitCost) : 0,
+              "Preço de Venda": it.salePrice ? Number(it.salePrice) : 0,
+              "Status": it.active ? "Ativo" : "Inativo",
+            }))}
+            exportFilename="almoxarifado_setgen"
+            templateColumns={[
+              "Nome",
+              "Descrição",
+              "Estoque total",
+              "Estoque mínimo",
+              "Custo unitário",
+              "Valor unitário",
+              "Categoria",
+              "Status",
+              "Unidade"
+            ]}
+            templateSampleRow={{
+              "Nome": "CABO COBRE 16MM",
+              "Descrição": "CABO FLEXÍVEL 750V 16MM",
+              "Estoque total": "100,00",
+              "Estoque mínimo": "20,00",
+              "Custo unitário": "12,50",
+              "Valor unitário": "22,00",
+              "Categoria": "Cabos e Condutores",
+              "Status": "Ativo",
+              "Unidade": "M"
+            }}
+            onImport={inventoryApi.bulkImport}
+            onSuccess={loadInventory}
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleUploadClick}
-            disabled={uploadingSheet}
-            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
-            title="Importar planilha de produtos (.xlsx, .csv)"
-          >
-            <Upload className="w-3.5 h-3.5 text-blue-600" />
-            {uploadingSheet ? "Importando..." : "Importar arquivo"}
-          </Button>
-
-          {/* Exportar arquivo */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportExcel}
-            className="text-xs font-semibold gap-1.5 h-9 rounded-lg border-gray-300 hover:bg-gray-50 text-gray-700"
-            title="Exportar planilha do estoque atual (.xlsx)"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-600" />
-            Exportar arquivo
-          </Button>
 
           {/* Entrada de Material */}
           <Button
