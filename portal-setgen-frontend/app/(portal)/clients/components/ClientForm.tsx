@@ -662,7 +662,10 @@ export function ClientForm({
         </CardHeader>
         <CardContent className="p-4 sm:p-5 space-y-4">
           <div className="space-y-1">
-            <Label className="font-semibold text-xs text-gray-700">Responsável no Local (falar com)</Label>
+            <div className="flex items-center justify-between">
+              <Label className="font-semibold text-xs text-gray-700">Contato no Local do Cliente (Falar com)</Label>
+              <span className="text-[10.5px] text-gray-400">Pessoa que atende a equipe técnica na usina/gerador</span>
+            </div>
             <div className="relative group">
               <UserRound className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400 group-focus-within:text-[#E2661D] transition-colors" />
               <Input
@@ -675,7 +678,7 @@ export function ClientForm({
 
           <div className="grid md:grid-cols-2 gap-3.5">
             <div className="space-y-1">
-              <Label className="font-semibold text-xs text-gray-700">Colaborador Responsável</Label>
+              <Label className="font-semibold text-xs text-gray-700">Colaborador Responsável (Setgen)</Label>
               <Controller
                 name="responsibleUserId"
                 control={control}
@@ -695,7 +698,7 @@ export function ClientForm({
               />
             </div>
             <div className="space-y-1">
-              <Label className="font-semibold text-xs text-gray-700">Equipe Responsável</Label>
+              <Label className="font-semibold text-xs text-gray-700">Equipe Responsável (Setgen)</Label>
               <Controller
                 name="responsibleTeamId"
                 control={control}

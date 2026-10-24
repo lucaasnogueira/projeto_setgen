@@ -3,7 +3,9 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { clientsApi } from "@/lib/api/clients";
-import { Client, ClientStatus, UserRole } from "@/types";
+import { usersApi, User } from "@/lib/api/users";
+import { teamsApi } from "@/lib/api/teams";
+import { Client, ClientStatus, UserRole, Team } from "@/types";
 import { useAuthStore } from "@/store/auth";
 import { normalizeRoleKey } from "@/lib/permissions";
 import {
@@ -50,6 +52,10 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [selectedUserFilter, setSelectedUserFilter] = useState<string>("ALL");
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("ALL");
+  const [users, setUsers] = useState<User[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -63,11 +69,13 @@ export default function ClientsPage() {
 
   useEffect(() => {
     loadClients();
+    usersApi.getSelectable().then(setUsers).catch(() => setUsers([]));
+    teamsApi.getAll(true).then(setTeams).catch(() => setTeams([]));
   }, []);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, selectedUserFilter, selectedTeamFilter]);
 
   const loadClients = async () => {
     try {
@@ -82,21 +90,44 @@ export default function ClientsPage() {
 
   const filteredClients = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    return clients.filter((client) => {
-      const matchesSearch =
-        !term ||
-        client.companyName?.toLowerCase().includes(term) ||
-        client.tradeName?.toLowerCase().includes(term) ||
-        client.cnpjCpf?.toLowerCase().includes(term) ||
-        client.email?.toLowerCase().includes(term) ||
-        client.phone?.includes(term);
+    return clients
+      .filter((client) => {
+        const matchesSearch =
+          !term ||
+          client.companyName?.toLowerCase().includes(term) ||
+          client.tradeName?.toLowerCase().includes(term) ||
+          client.cnpjCpf?.toLowerCase().includes(term) ||
+          client.email?.toLowerCase().includes(term) ||
+          client.phone?.includes(term) ||
+          client.responsibleUser?.name?.toLowerCase().includes(term) ||
+          client.responsibleTeam?.name?.toLowerCase().includes(term) ||
+          client.onSiteContact?.toLowerCase().includes(term);
 
-      const matchesStatus =
-        statusFilter === "ALL" || client.status === statusFilter;
+        const matchesStatus =
+          statusFilter === "ALL" || client.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
-    });
-  }, [clients, searchTerm, statusFilter]);
+        const matchesUser =
+          selectedUserFilter === "ALL" ||
+          (selectedUserFilter === "UNASSIGNED"
+            ? !client.responsibleUserId && !client.responsibleUser
+            : client.responsibleUserId === selectedUserFilter ||
+              client.responsibleUser?.id === selectedUserFilter);
+
+        const matchesTeam =
+          selectedTeamFilter === "ALL" ||
+          (selectedTeamFilter === "UNASSIGNED"
+            ? !client.responsibleTeamId && !client.responsibleTeam
+            : client.responsibleTeamId === selectedTeamFilter ||
+              client.responsibleTeam?.id === selectedTeamFilter);
+
+        return matchesSearch && matchesStatus && matchesUser && matchesTeam;
+      })
+      .sort((a, b) => {
+        const nameA = a.companyName || a.tradeName || "";
+        const nameB = b.companyName || b.tradeName || "";
+        return nameA.localeCompare(nameB, "pt-BR", { sensitivity: "base" });
+      });
+  }, [clients, searchTerm, statusFilter, selectedUserFilter, selectedTeamFilter]);
 
   const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE) || 1;
   const paginatedClients = useMemo(() => {
@@ -107,6 +138,12 @@ export default function ClientsPage() {
   const totalAtivos = clients.filter((c) => c.status === ClientStatus.ACTIVE).length;
   const totalInativos = clients.filter((c) => c.status === ClientStatus.INACTIVE).length;
   const totalInadimplentes = clients.filter((c) => c.status === ClientStatus.DEFAULTER).length;
+
+  const hasActiveFilters =
+    Boolean(searchTerm) ||
+    statusFilter !== "ALL" ||
+    selectedUserFilter !== "ALL" ||
+    selectedTeamFilter !== "ALL";
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -124,29 +161,22 @@ export default function ClientsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-[#E2661D] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm text-gray-500 font-medium">Carregando clientes...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      {/* Header com Ações */}
       <PageHeader
         title="Clientes"
-        subtitle={`${filteredClients.length} ${filteredClients.length === 1 ? 'cliente encontrado' : 'clientes cadastrados'}`}
+        subtitle="Gerencie a base de clientes, contratos e plantas atendidas"
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadClients}
-              disabled={loading}
-              className="h-9 px-3 text-xs gap-1.5 rounded-[9px] border-border text-slate-600 hover:text-slate-900 bg-white"
-              title="Atualizar lista de clientes"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">Atualizar</span>
-            </Button>
             <ImportExportDropdown
               title="Clientes"
               entityName="Clientes"
@@ -157,8 +187,11 @@ export default function ClientsPage() {
                 "CNPJ / CPF": c.cnpjCpf || "",
                 "Telefone": c.phone || "",
                 "E-mail": c.email || "",
-                "Endereço": typeof c.address === 'object' ? `${c.address?.street || ''}, ${c.address?.number || ''} - ${c.address?.city || ''}/${c.address?.state || ''}` : String(c.address || ''),
+                "Endereço": typeof c.address === "object" ? `${c.address?.street || ""}, ${c.address?.number || ""} - ${c.address?.city || ""}/${c.address?.state || ""}` : String(c.address || ""),
                 "Status": c.status === ClientStatus.ACTIVE ? "Ativo" : "Inativo",
+                "Colaborador Responsável": c.responsibleUser?.name || "Não atribuído",
+                "Equipe Responsável": c.responsibleTeam?.name || "Não atribuída",
+                "Contato no Local": c.onSiteContact || "",
               }))}
               exportFilename="clientes_setgen"
               templateColumns={[
@@ -171,7 +204,7 @@ export default function ClientsPage() {
                 "Endereço",
                 "Status",
                 "Falar com",
-                "Observação"
+                "Observação",
               ]}
               templateSampleRow={{
                 "Código": "CLI-001",
@@ -183,18 +216,20 @@ export default function ClientsPage() {
                 "Endereço": "Rua Exemplo, 100, Centro, Manaus, AM, 69000-000",
                 "Status": "Ativo",
                 "Falar com": "Responsável",
-                "Observação": "Observações do cliente"
+                "Observação": "Observações do cliente",
               }}
               onImport={clientsApi.bulkImport}
               onSuccess={loadClients}
             />
-            <Button
-              onClick={() => router.push("/clients/new")}
-              className="h-9 rounded-[9px] font-bold gap-2 bg-[#E2661D] hover:bg-[#c95716] text-white shadow-xs text-xs px-3.5"
-            >
-              <Plus className="h-4 w-4" />
-              Novo Cliente
-            </Button>
+            {canEdit && (
+              <Button
+                onClick={() => router.push("/clients/new")}
+                className="bg-[#E2661D] hover:bg-[#c95716] text-white shadow-xs text-xs font-semibold h-8.5 px-3.5"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Novo Cliente
+              </Button>
+            )}
           </div>
         }
       />
@@ -263,11 +298,11 @@ export default function ClientsPage() {
         {/* Barra de Filtros e Busca */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 px-4 py-3 border-b border-border bg-slate-50/40">
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Buscar por nome, fantasia, CNPJ..."
+                placeholder="Buscar por cliente, CNPJ, responsável..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-8 py-1.5 border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] bg-white transition-all"
@@ -281,6 +316,42 @@ export default function ClientsPage() {
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
+            </div>
+
+            {/* Filtro por Colaborador Responsável */}
+            <div className="relative">
+              <select
+                value={selectedUserFilter}
+                onChange={(e) => setSelectedUserFilter(e.target.value)}
+                className="h-8 pl-2.5 pr-7 border border-border rounded-lg text-[11.5px] font-medium bg-white text-slate-700 outline-none focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] cursor-pointer"
+                title="Filtrar por Colaborador Responsável"
+              >
+                <option value="ALL">👤 Todos os Colaboradores</option>
+                <option value="UNASSIGNED">⚠️ Sem colaborador</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    👤 {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro por Equipe Responsável */}
+            <div className="relative">
+              <select
+                value={selectedTeamFilter}
+                onChange={(e) => setSelectedTeamFilter(e.target.value)}
+                className="h-8 pl-2.5 pr-7 border border-border rounded-lg text-[11.5px] font-medium bg-white text-slate-700 outline-none focus:ring-2 focus:ring-[#E2661D]/20 focus:border-[#E2661D] cursor-pointer"
+                title="Filtrar por Equipe Responsável"
+              >
+                <option value="ALL">👥 Todas as Equipes</option>
+                <option value="UNASSIGNED">⚠️ Sem equipe</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    👥 {t.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Filtro rápido por Status com Contadores */}
@@ -315,13 +386,15 @@ export default function ClientsPage() {
             </div>
           </div>
 
-          {(searchTerm || statusFilter !== "ALL") && (
+          {hasActiveFilters && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
                 setSearchTerm("");
                 setStatusFilter("ALL");
+                setSelectedUserFilter("ALL");
+                setSelectedTeamFilter("ALL");
               }}
               className="h-7 text-xs text-muted-foreground hover:text-foreground self-start sm:self-auto"
             >
@@ -330,24 +403,25 @@ export default function ClientsPage() {
           )}
         </div>
 
-        {/* Tabela Otimizada - 5 Colunas Essenciais */}
+        {/* Tabela com Coluna de Responsável para Controle Total */}
         <Table containerClassName="overflow-x-auto lg:overflow-x-visible">
           <TableHeader>
             <TableRow className="border-t-0 hover:bg-transparent bg-slate-50/70">
               <TableHead className="min-w-[240px]">Cliente</TableHead>
-              <TableHead className="w-[180px] whitespace-nowrap">CNPJ / CPF</TableHead>
-              <TableHead className="min-w-[260px] whitespace-nowrap">Contato</TableHead>
-              <TableHead className="w-[130px] whitespace-nowrap text-center">Status</TableHead>
-              <TableHead className="w-[100px] whitespace-nowrap text-right">Ações</TableHead>
+              <TableHead className="w-[160px] whitespace-nowrap">CNPJ / CPF</TableHead>
+              <TableHead className="min-w-[190px] whitespace-nowrap">Contato</TableHead>
+              <TableHead className="min-w-[200px] whitespace-nowrap">Responsável</TableHead>
+              <TableHead className="w-[120px] whitespace-nowrap text-center">Status</TableHead>
+              <TableHead className="w-[90px] whitespace-nowrap text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredClients.length === 0 ? (
               <TableEmpty
-                colSpan={5}
+                colSpan={6}
                 icon={Users}
                 message={
-                  searchTerm || statusFilter !== "ALL"
+                  hasActiveFilters
                     ? "Nenhum cliente encontrado para os filtros selecionados"
                     : "Nenhum cliente cadastrado no sistema"
                 }
@@ -435,6 +509,45 @@ export default function ClientsPage() {
                       {!client.email && !client.phone && (
                         <span className="text-muted-foreground/50">—</span>
                       )}
+                    </TableCell>
+
+                    {/* Responsável: Colaborador Interno + Equipe + Contato no Local */}
+                    <TableCell className="text-xs">
+                      <div className="space-y-1">
+                        {client.responsibleUser ? (
+                          <div
+                            className="flex items-center gap-1.5 font-semibold text-slate-800"
+                            title={`Colaborador Responsável: ${client.responsibleUser.name}`}
+                          >
+                            <UserCheck className="h-3.5 w-3.5 text-[#E2661D] shrink-0" />
+                            <span className="truncate max-w-[155px]">{client.responsibleUser.name}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-400 text-[11px] italic">
+                            <UserCheck className="h-3.5 w-3.5 text-slate-300 shrink-0" />
+                            <span>Sem colaborador</span>
+                          </div>
+                        )}
+
+                        {client.responsibleTeam && (
+                          <div
+                            className="flex items-center gap-1.5 text-slate-600 text-[11px]"
+                            title={`Equipe Responsável: ${client.responsibleTeam.name}`}
+                          >
+                            <Users className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[155px]">{client.responsibleTeam.name}</span>
+                          </div>
+                        )}
+
+                        {client.onSiteContact && (
+                          <div
+                            className="text-[10.5px] text-muted-foreground/80 truncate max-w-[165px]"
+                            title={`Contato no Local: ${client.onSiteContact}`}
+                          >
+                            <span className="font-semibold text-slate-500">Local:</span> {client.onSiteContact}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
 
                     {/* Status */}

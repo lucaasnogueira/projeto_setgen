@@ -1,16 +1,25 @@
 import api from './client';
 import type { Client, ClientStatus, CNPJData } from '@/types';
 
+const sortClientsAlphabetically = (list: Client[]): Client[] => {
+  if (!Array.isArray(list)) return list;
+  return [...list].sort((a, b) => {
+    const nameA = a.companyName || a.tradeName || '';
+    const nameB = b.companyName || b.tradeName || '';
+    return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+  });
+};
+
 export const clientsApi = {
   getAll: async (status?: ClientStatus): Promise<Client[]> => {
     const { data } = await api.get('/clients', {
       params: { status },
     });
-    return data;
+    return sortClientsAlphabetically(data);
   },
 
   getOne: async (id: string): Promise<Client> => {
-    const { data} = await api.get(`/clients/${id}`);
+    const { data } = await api.get(`/clients/${id}`);
     return data;
   },
 
@@ -18,7 +27,7 @@ export const clientsApi = {
     const { data } = await api.get('/clients/search', {
       params: { q: query },
     });
-    return data;
+    return sortClientsAlphabetically(data);
   },
 
   fetchCNPJ: async (cnpj: string): Promise<CNPJData> => {

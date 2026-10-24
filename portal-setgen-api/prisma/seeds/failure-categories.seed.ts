@@ -2,17 +2,20 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Categorias de falha em ordem alfabética
 const FAILURE_CATEGORIES = [
   'Falha de partida',
-  'Superaquecimento',
-  'Vazamento de óleo',
-  'Ruído anormal',
   'Falha elétrica',
   'Outro',
+  'Ruído anormal',
+  'Superaquecimento',
+  'Vazamento de combustível',
+  'Vazamento de óleo',
 ];
 
 export async function seedFailureCategories() {
-  for (const name of FAILURE_CATEGORIES) {
+  const sortedCategories = [...FAILURE_CATEGORIES].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  for (const name of sortedCategories) {
     await prisma.failureCategory.upsert({
       where: { name },
       update: {},
@@ -20,5 +23,5 @@ export async function seedFailureCategories() {
     });
   }
 
-  console.log(`✅ ${FAILURE_CATEGORIES.length} categorias de falha criadas/atualizadas`);
+  console.log(`✅ ${sortedCategories.length} categorias de falha criadas/atualizadas em ordem alfabética`);
 }

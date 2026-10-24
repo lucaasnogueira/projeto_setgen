@@ -1,10 +1,15 @@
 import api from './client';
 import type { Team } from '@/types';
 
+const sortTeamsAlphabetically = (list: Team[]): Team[] => {
+  if (!Array.isArray(list)) return list;
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+};
+
 export const teamsApi = {
   getAll: async (active?: boolean): Promise<Team[]> => {
     const { data } = await api.get('/teams', { params: { active } });
-    return data;
+    return sortTeamsAlphabetically(data);
   },
 
   getOne: async (id: string): Promise<Team> => {

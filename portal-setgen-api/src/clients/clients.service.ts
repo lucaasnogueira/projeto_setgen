@@ -99,8 +99,14 @@ export class ClientsService {
   async findAll(status?: ClientStatus): Promise<Client[]> {
     return this.prisma.client.findMany({
       where: status ? { status } : undefined,
+      include: {
+        responsibleUser: { select: { id: true, name: true, email: true, role: true } },
+        responsibleTeam: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true, color: true } },
+        segment: { select: { id: true, name: true, color: true } },
+      },
       orderBy: {
-        createdAt: 'desc',
+        companyName: 'asc',
       },
     });
   }
@@ -286,6 +292,13 @@ export class ClientsService {
           { email: { contains: query, mode: 'insensitive' } },
         ],
       },
+      include: {
+        responsibleUser: { select: { id: true, name: true, email: true, role: true } },
+        responsibleTeam: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true, color: true } },
+        segment: { select: { id: true, name: true, color: true } },
+      },
+      orderBy: { companyName: 'asc' },
       take: 10,
     });
   }

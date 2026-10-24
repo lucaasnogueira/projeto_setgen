@@ -35,7 +35,9 @@ export const usersApi = {
   async getSelectable(): Promise<User[]> {
     try {
       const { data } = await api.get('/users/selectable');
-      return data;
+      return Array.isArray(data)
+        ? data.sort((a: User, b: User) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+        : data;
     } catch (error) {
       console.error('Erro ao buscar usuarios para selecao:', error);
       return [];
@@ -45,7 +47,9 @@ export const usersApi = {
   async getAll(): Promise<User[]> {
     try {
       const { data } = await api.get('/users');
-      return data;
+      return Array.isArray(data)
+        ? data.sort((a: User, b: User) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }))
+        : data;
     } catch (error: any) {
       if (error?.response?.status === 403) {
         return this.getSelectable();

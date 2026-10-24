@@ -519,7 +519,7 @@ export default function ClientDetailsPage() {
                 <MapPin className="h-4 w-4 text-[#E2661D]" />
                 Endereço e Localização
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
                 <FieldBlock
                   label="Logradouro"
                   value={
@@ -551,11 +551,12 @@ export default function ClientDetailsPage() {
                 <Layers className="h-4 w-4 text-[#E2661D]" />
                 Classificação, Equipe e Observações
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
                 <FieldBlock label="Grupo" value={client.group?.name || 'Não categorizado'} />
                 <FieldBlock label="Segmento" value={client.segment?.name || 'Não categorizado'} />
                 <FieldBlock label="Equipe Responsável" value={client.responsibleTeam?.name || 'Não atribuída'} />
-                <FieldBlock label="Responsável Interno" value={client.responsibleUser?.name || 'Não atribuído'} />
+                <FieldBlock label="Colaborador Responsável" value={client.responsibleUser?.name || 'Não atribuído'} />
+                <FieldBlock label="Contato no Local (Falar com)" value={client.onSiteContact || 'Não informado'} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">

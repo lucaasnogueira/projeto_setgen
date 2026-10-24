@@ -1,10 +1,15 @@
 import api from './client';
 import type { VisitTaskType } from '@/types';
 
+const sortTaskTypesAlphabetically = (list: VisitTaskType[]): VisitTaskType[] => {
+  if (!Array.isArray(list)) return list;
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+};
+
 export const visitTaskTypesApi = {
   getAll: async (active?: boolean): Promise<VisitTaskType[]> => {
     const { data } = await api.get('/visit-task-types', { params: { active } });
-    return data;
+    return sortTaskTypesAlphabetically(data);
   },
 
   getOne: async (id: string): Promise<VisitTaskType> => {

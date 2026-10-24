@@ -1,10 +1,15 @@
 import api from './client';
 import type { Supplier } from '@/types';
 
+const sortSuppliersAlphabetically = (list: Supplier[]): Supplier[] => {
+  if (!Array.isArray(list)) return list;
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+};
+
 export const suppliersApi = {
   getAll: async (active?: boolean): Promise<Supplier[]> => {
     const { data } = await api.get('/suppliers', { params: { active } });
-    return data;
+    return sortSuppliersAlphabetically(data);
   },
 
   getOne: async (id: string): Promise<Supplier> => {

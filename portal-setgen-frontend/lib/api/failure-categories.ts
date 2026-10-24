@@ -1,10 +1,15 @@
 import api from './client';
 import type { FailureCategory } from '@/types';
 
+const sortCategoriesAlphabetically = (list: FailureCategory[]): FailureCategory[] => {
+  if (!Array.isArray(list)) return list;
+  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' }));
+};
+
 export const failureCategoriesApi = {
   getAll: async (active?: boolean): Promise<FailureCategory[]> => {
     const { data } = await api.get('/failure-categories', { params: { active } });
-    return data;
+    return sortCategoriesAlphabetically(data);
   },
 
   getOne: async (id: string): Promise<FailureCategory> => {

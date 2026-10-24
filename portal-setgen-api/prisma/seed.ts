@@ -5,6 +5,10 @@ import { seedRolesAndPermissions } from './seeds/roles-permissions.seed';
 import { seedVisitTaskTypes } from './seeds/visit-task-types.seed';
 import { seedFailureCategories } from './seeds/failure-categories.seed';
 import { seedCompanySettings } from './seeds/company-settings.seed';
+import { seedClientTaxonomies } from './seeds/client-taxonomies.seed';
+import { seedTeams } from './seeds/teams.seed';
+import { seedSuppliers } from './seeds/suppliers.seed';
+import { seedClients } from './seeds/clients.seed';
 
 const prisma = new PrismaClient();
 
@@ -80,7 +84,19 @@ async function main() {
   // Seed de Cargos e Permissões operacionais (matriz do diagnóstico BPM)
   await seedRolesAndPermissions();
 
-  // Seed de lookups de visita (paridade Auvo)
+  // Seed de Segmentos de Mercado e Grupos de Clientes (ordem alfabética)
+  await seedClientTaxonomies();
+
+  // Seed de Equipes Operacionais (ordem alfabética)
+  await seedTeams();
+
+  // Seed de Fornecedores de Peças e Serviços (ordem alfabética)
+  await seedSuppliers();
+
+  // Seed de Clientes com vínculos e endereços (ordem alfabética)
+  await seedClients();
+
+  // Seed de lookups de visita (paridade Auvo - ordem alfabética)
   await seedVisitTaskTypes();
   await seedFailureCategories();
 
